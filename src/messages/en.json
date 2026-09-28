@@ -162,7 +162,7 @@
       "empty": "No application found yet.",
       "linkLabel": "View my application"
     },
-    "schedule": {
+    "myProgram": {
       "title": "My Program",
       "published": "Your personal schedule has been published.",
       "notPublished": "Your personal schedule has not been published yet. Check back soon.",

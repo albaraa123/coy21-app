@@ -180,12 +180,12 @@ export default async function MyDashboardPage() {
           case 'myProgram':
             return (
               <Card key={cardId}>
-                <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('schedule.title')}</h2>
+                <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('myProgram.title')}</h2>
                 {schedulePublication.kind === 'data' && (
-                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('schedule.published')}</p>
+                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myProgram.published')}</p>
                 )}
                 {schedulePublication.kind === 'empty' && (
-                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('schedule.notPublished')}</p>
+                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myProgram.notPublished')}</p>
                 )}
                 {schedulePublication.kind === 'unauthorized' && <UnauthorizedState destination={unauthorizedDestination} />}
                 {schedulePublication.kind === 'error' && (
@@ -193,7 +193,7 @@ export default async function MyDashboardPage() {
                 )}
                 <div className="mt-3">
                   <Link href="/my-agenda" className="text-sm font-medium text-turquoise hover:underline">
-                    {t('schedule.linkLabel')}
+                    {t('myProgram.linkLabel')}
                   </Link>
                 </div>
               </Card>
