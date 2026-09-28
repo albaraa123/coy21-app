@@ -83,6 +83,7 @@ describe('BottomTabBar', () => {
         primaryItems={primaryItems}
         navTranslations={navTranslations}
         moreLabel="More"
+        onMoreClick={() => {}}
         currentPathname="/my-dashboard"
       />
     );
