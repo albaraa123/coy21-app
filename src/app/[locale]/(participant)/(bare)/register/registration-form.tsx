@@ -84,11 +84,16 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
   const router = useRouter();
 
-  // react-hook-form's handleSubmit always calls this with the validated values as the
-  // first argument; this handler doesn't need them (autosaveStep already persisted the
-  // current values via getValues()), but the parameter must stay to match SubmitHandler.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async function onSubmit(_values: FormValues) {
+  // Shared by both the "Submit Application" and "Skip" actions: persists step-3's
+  // current values (whatever they are — all optional) and finalizes the application.
+  // "Submit Application" reaches this via handleSubmit(onSubmit), which first
+  // re-validates the ENTIRE registrationSchema (step-1/2 required fields included) and
+  // only invokes this function if that passes. "Skip" calls this function directly,
+  // bypassing that full-schema re-validation — by design, step 1/2 are already gated
+  // valid by their own Next buttons (see isStepValid), and step 3's fields are all
+  // optional, so Skip genuinely means "finalize with whatever step 3 currently holds"
+  // rather than duplicating Submit's validation gate.
+  async function finalizeSubmission() {
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -100,6 +105,14 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // react-hook-form's handleSubmit always calls this with the validated values as the
+  // first argument; this handler doesn't need them (autosaveStep already persisted the
+  // current values via getValues()), but the parameter must stay to match SubmitHandler.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async function onSubmit(_values: FormValues) {
+    await finalizeSubmission();
   }
 
   const progressIndicator = <p>{t('stepProgress', { step, total: 3 })}</p>;
@@ -213,7 +226,18 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
       <textarea {...register('special_needs')} placeholder="Special needs" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
       <button type="button" onClick={() => setStep(2)}>Back</button>
       <button type="submit" disabled={submitting}>Submit Application</button>
-      <button type="button" disabled={submitting} onClick={handleSubmit(onSubmit)}>Skip</button>
+      {/*
+        Skip intentionally does NOT go through handleSubmit(onSubmit): handleSubmit
+        re-validates the full registrationSchema (all step-1/2 required fields), which
+        would make Skip functionally identical to Submit and — if validation somehow
+        failed here — silently do nothing (handleSubmit only invokes its callback on
+        success, and step 3 renders no error messages for step-1/2 fields). Skip calls
+        finalizeSubmission directly so it genuinely bypasses that gate, trusting that
+        step 1/2 are already valid by construction (enforced by the Next buttons'
+        isStepValid checks), while still submitting via the same autosave + submitApplication
+        path as Submit.
+      */}
+      <button type="button" disabled={submitting} onClick={() => void finalizeSubmission()}>Skip</button>
       {submitError && <p role="alert">{submitError}</p>}
     </form>
   );
