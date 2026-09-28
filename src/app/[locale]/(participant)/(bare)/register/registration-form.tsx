@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
+import { useTranslations } from 'next-intl';
 import { registrationSchema } from '@/lib/validation/registration';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from '@/i18n/routing';
 import { submitApplication } from './actions';
+import { STEP_1_FIELDS, STEP_2_FIELDS, STEP_3_FIELDS, isStepValid } from './registration-form-steps';
 import type { Tables, TablesUpdate } from '@/types/database';
 
 type ApplicationDraft = Tables<'applications'>;
@@ -21,17 +23,6 @@ const INTEREST_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance
 const TRACK_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance'] as const;
 
 const AGE_GROUP_OPTIONS = ['under_18', '18_24', '25_34', '35_44', '45_plus'] as const;
-
-const STEP_1_FIELDS: readonly (keyof FormValues)[] = [
-  'phone', 'country', 'nationality', 'birth_date', 'age_group',
-  'city', 'organization', 'field_of_work', 'preferred_language',
-];
-
-const STEP_2_FIELDS: readonly (keyof FormValues)[] = [
-  'interests', 'climate_experience', 'experience_level', 'past_initiatives',
-  'participation_goals', 'topics_to_learn', 'content_type_pref',
-  'track_interests', 'priority_sessions', 'special_needs',
-];
 
 // The DB row models "not yet filled in" as `null` for nullable columns, while the
 // form schema models the same absence as `undefined` (via zod `.optional()`). Convert
@@ -65,7 +56,8 @@ function draftToDefaultValues(draft: ApplicationDraft): Partial<FormValues> {
 }
 
 export default function RegistrationForm({ draft }: { draft: ApplicationDraft }) {
-  const [step, setStep] = useState<1 | 2>(1);
+  const t = useTranslations('register');
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormValues>({
@@ -74,8 +66,8 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
   });
 
   // Only writes the fields belonging to the step being edited, so autosaving step 1
-  // never overwrites step-2 fields (e.g. required `interests`) with their empty defaults
-  // before the user has reached step 2.
+  // never overwrites step-2/3 fields (e.g. required `interests`) with their empty defaults
+  // before the user has reached that step.
   async function autosaveStep(fields: readonly (keyof FormValues)[]) {
     const supabase = createClient();
     const values = getValues();
@@ -95,7 +87,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await autosaveStep(STEP_2_FIELDS);
+      await autosaveStep(STEP_3_FIELDS);
       await submitApplication(draft.id);
       router.push('/my-application');
     } catch (err) {
@@ -105,9 +97,12 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
     }
   }
 
+  const progressIndicator = <p>{t('stepProgress', { step, total: 3 })}</p>;
+
   if (step === 1) {
     return (
       <div>
+        {progressIndicator}
         <input {...register('phone')} placeholder="Phone" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
         {errors.phone && <p>{errors.phone.message}</p>}
         <input {...register('country')} placeholder="Country" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
@@ -124,48 +119,77 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
         {errors.birth_date && <p>{errors.birth_date.message}</p>}
         <input {...register('city')} placeholder="City" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
         {errors.city && <p>{errors.city.message}</p>}
-        <input {...register('organization')} placeholder="Organization" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
         <input {...register('field_of_work')} placeholder="Field of work" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
         {errors.field_of_work && <p>{errors.field_of_work.message}</p>}
         <select {...register('preferred_language')} onBlur={() => autosaveStep(STEP_1_FIELDS)}>
           <option value="ar">العربية</option>
           <option value="en">English</option>
         </select>
-        <button type="button" onClick={() => setStep(2)}>Next</button>
+        <button
+          type="button"
+          disabled={!isStepValid(1, getValues())}
+          onClick={() => {
+            void autosaveStep(STEP_1_FIELDS);
+            setStep(2);
+          }}
+        >
+          Next
+        </button>
+      </div>
+    );
+  }
+
+  if (step === 2) {
+    return (
+      <div>
+        {progressIndicator}
+        <fieldset>
+          <legend>Interests (select at least one)</legend>
+          {INTEREST_OPTIONS.map((option) => (
+            <label key={option}>
+              <input
+                type="checkbox"
+                value={option}
+                {...register('interests')}
+                onBlur={() => autosaveStep(STEP_2_FIELDS)}
+              />
+              {option}
+            </label>
+          ))}
+          {errors.interests && <p>{errors.interests.message}</p>}
+        </fieldset>
+        <select {...register('experience_level')} onBlur={() => autosaveStep(STEP_2_FIELDS)}>
+          <option value="none">None</option>
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="expert">Expert</option>
+        </select>
+        {errors.experience_level && <p>{errors.experience_level.message}</p>}
+        <textarea {...register('participation_goals')} placeholder="Participation goals" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+        {errors.participation_goals && <p>{errors.participation_goals.message}</p>}
+        <button type="button" onClick={() => setStep(1)}>Back</button>
+        <button
+          type="button"
+          disabled={!isStepValid(2, getValues())}
+          onClick={() => {
+            void autosaveStep(STEP_2_FIELDS);
+            setStep(3);
+          }}
+        >
+          Next
+        </button>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <fieldset>
-        <legend>Interests (select at least one)</legend>
-        {INTEREST_OPTIONS.map((option) => (
-          <label key={option}>
-            <input
-              type="checkbox"
-              value={option}
-              {...register('interests')}
-              onBlur={() => autosaveStep(STEP_2_FIELDS)}
-            />
-            {option}
-          </label>
-        ))}
-        {errors.interests && <p>{errors.interests.message}</p>}
-      </fieldset>
-      <textarea {...register('climate_experience')} placeholder="Climate experience" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
-      <select {...register('experience_level')} onBlur={() => autosaveStep(STEP_2_FIELDS)}>
-        <option value="none">None</option>
-        <option value="beginner">Beginner</option>
-        <option value="intermediate">Intermediate</option>
-        <option value="expert">Expert</option>
-      </select>
-      {errors.experience_level && <p>{errors.experience_level.message}</p>}
-      <textarea {...register('past_initiatives')} placeholder="Past initiatives" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
-      <textarea {...register('participation_goals')} placeholder="Participation goals" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
-      {errors.participation_goals && <p>{errors.participation_goals.message}</p>}
-      <textarea {...register('topics_to_learn')} placeholder="Topics to learn" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
-      <input {...register('content_type_pref')} placeholder="Content type preference" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      {progressIndicator}
+      <input {...register('organization')} placeholder="Organization" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
+      <textarea {...register('climate_experience')} placeholder="Climate experience" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
+      <textarea {...register('past_initiatives')} placeholder="Past initiatives" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
+      <textarea {...register('topics_to_learn')} placeholder="Topics to learn" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
+      <input {...register('content_type_pref')} placeholder="Content type preference" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
       <fieldset>
         <legend>Track interests</legend>
         {TRACK_OPTIONS.map((option) => (
@@ -174,16 +198,17 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
               type="checkbox"
               value={option}
               {...register('track_interests')}
-              onBlur={() => autosaveStep(STEP_2_FIELDS)}
+              onBlur={() => autosaveStep(STEP_3_FIELDS)}
             />
             {option}
           </label>
         ))}
       </fieldset>
-      <textarea {...register('priority_sessions')} placeholder="Priority sessions" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
-      <textarea {...register('special_needs')} placeholder="Special needs" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
-      <button type="button" onClick={() => setStep(1)}>Back</button>
+      <textarea {...register('priority_sessions')} placeholder="Priority sessions" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
+      <textarea {...register('special_needs')} placeholder="Special needs" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
+      <button type="button" onClick={() => setStep(2)}>Back</button>
       <button type="submit" disabled={submitting}>Submit Application</button>
+      <button type="button" disabled={submitting} onClick={handleSubmit(onSubmit)}>Skip</button>
       {submitError && <p role="alert">{submitError}</p>}
     </form>
   );
