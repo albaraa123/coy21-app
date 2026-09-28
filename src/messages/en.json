@@ -58,8 +58,8 @@
     },
     "participant": {
       "dashboard": "Dashboard",
-      "agenda": "My Bookings",
-      "schedule": "Assigned Schedule",
+      "agenda": "My Program",
+      "schedule": "Conference Program",
       "application": "My Application",
       "myQr": "My QR Code",
       "travel": "My Travel",
