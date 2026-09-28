@@ -617,6 +617,7 @@
     "logoutLabel": "Log out",
     "drawerAriaLabel": "Main menu",
     "triggerAriaLabel": "Open menu",
+    "moreLabel": "More",
     "unauthorized": {
       "toParticipantDashboard": "Go to my dashboard",
       "toAdminDashboard": "Go to dashboard"
