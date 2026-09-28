@@ -163,10 +163,20 @@
       "linkLabel": "View my application"
     },
     "schedule": {
-      "title": "My schedule",
+      "title": "My Program",
       "published": "Your personal schedule has been published.",
       "notPublished": "Your personal schedule has not been published yet. Check back soon.",
-      "linkLabel": "View my schedule"
+      "linkLabel": "View my program"
+    },
+    "completeTravelInfo": {
+      "title": "Complete your travel information",
+      "description": "Submit your travel details so we can prepare for your arrival.",
+      "linkLabel": "Complete travel information"
+    },
+    "myQr": {
+      "title": "My QR",
+      "description": "Your QR code is ready to use for check-in.",
+      "linkLabel": "View my QR"
     }
   },
   "claim": {
