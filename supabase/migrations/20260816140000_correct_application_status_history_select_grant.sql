@@ -1,0 +1,29 @@
+-- 20260816140000_correct_application_status_history_select_grant.sql
+--
+-- FOURTEENTH corrective follow-up to 20260816000000_canonical_authenticated_
+-- and_service_role_grants.sql, found while running the full repository test
+-- suite (Phase 7G-K, via tests/import/reimport-fingerprint-live.test.ts,
+-- which reads this table with the service-role admin client directly).
+--
+-- ROOT CAUSE: reimport-fingerprint-live.test.ts reads this table directly
+-- with the service-role admin client, and many non-security-definer
+-- functions across the import pipeline (apply_import_row_transactional,
+-- rollback_import_batch_transactional, etc.) INSERT into it as service_role.
+-- No SELECT grant existed for service_role on this table at all -- only
+-- INSERT -- so a direct service-role read failed with a permission error,
+-- surfaced by Supabase-js as a null count/data rather than a raised error.
+--
+-- CORRECTION (found during Phase 7G-K's tests/rls/applications.test.ts run):
+-- this migration originally also granted SELECT to `authenticated`, reasoned
+-- by analogy to the sibling application_answers fix (20260816090000)
+-- without direct verification. Re-checked directly: every real production
+-- reference to application_status_history (src/app/[locale]/(admin)/
+-- applications/[id]/actions.ts:73, src/app/[locale]/(participant)/(bare)/
+-- register/actions.ts:65) uses the service-role client only -- there is no
+-- real authenticated-role caller for this table, unlike application_answers
+-- (which genuinely has a participant-facing own-row read path). The
+-- `authenticated` grant was reverted; applications.test.ts's own pre-
+-- existing comment ("Direct authenticated-role table access is
+-- intentionally not granted") was correct all along.
+
+grant select on public.application_status_history to service_role;

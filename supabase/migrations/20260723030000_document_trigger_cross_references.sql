@@ -1,0 +1,17 @@
+-- document_trigger_cross_references.sql
+--
+-- Documentation-only follow-up to 20260723020000_sessions_triggers.sql, per
+-- code review: cross-references the two speaker-conflict functions to each
+-- other, and flags exception message strings that are matched by substring
+-- in Task 12's server-action error translation (not yet implemented at the
+-- time this migration was written: translateSessionWriteError() in
+-- src/app/[locale]/(admin)/agenda/sessions/[id]/actions.ts). This migration
+-- changes no table shape, data, or trigger behavior — comments only.
+
+comment on function enforce_speaker_no_conflict() is 'Fires on session_people insert/update. Enforces the same speaker-conflict rule as enforce_speaker_no_conflict_on_session_change() (which fires on sessions update of start_time/end_time/status) — if the conflict definition changes here (which statuses count as active, interval overlap semantics, etc.), update that function too to keep both directions in sync. Contract: the raise exception message "Person % is already assigned to another session that overlaps this time slot" contains the substring ''overlaps this time slot'', which Task 12''s translateSessionWriteError() matches via error.message.includes(''overlaps this time slot'') to produce a friendly UI error. Do not reword this message without updating that function too.';
+
+comment on function enforce_speaker_no_conflict_on_session_change() is 'Fires on sessions update of start_time/end_time/status. Enforces the same speaker-conflict rule as enforce_speaker_no_conflict() (which fires on session_people insert/update) — if the conflict definition changes here, update that function too to keep both directions in sync. Contract: the raise exception message "Rescheduling this session creates a conflict for person % on another active session" contains the substring ''creates a conflict for person'', which Task 12''s translateSessionWriteError() matches via error.message.includes(''creates a conflict for person'') to produce a friendly UI error. Do not reword this message without updating that function too.';
+
+comment on function enforce_session_room_capacity() is 'Fires on sessions insert/update of capacity, room_id. Rejects a session capacity greater than its room''s capacity. Contract: the raise exception message "Session capacity (%) exceeds room capacity (%)" contains the substring ''exceeds room capacity'', which Task 12''s translateSessionWriteError() (src/app/[locale]/(admin)/agenda/sessions/[id]/actions.ts, not yet implemented as of this migration) matches via error.message.includes(''exceeds room capacity'') to produce a friendly UI error. Do not reword this message without updating that function too.';
+
+comment on function enforce_session_day_match() is 'Fires on sessions insert/update of start_time, end_time, conference_day_id. Enforces that a session''s start/end time (converted to Asia/Muscat) falls on the same calendar date as its conference_day_id''s conference_date, and does not cross midnight. Contract: the raise exception message "Session start/end time (%) does not match its conference day (%)" contains the substring ''does not match its conference day'', which Task 12''s translateSessionWriteError() (src/app/[locale]/(admin)/agenda/sessions/[id]/actions.ts, not yet implemented as of this migration) matches via error.message.includes(''does not match its conference day'') to produce a friendly UI error. Do not reword this message without updating that function too.';

@@ -1,0 +1,24 @@
+-- 20260816110000_correct_application_number_seq_usage_grant.sql
+--
+-- ELEVENTH corrective follow-up to 20260816000000_canonical_authenticated_
+-- and_service_role_grants.sql, found while running the full repository test
+-- suite (Phase 7G-K, via tests/import/phase-b-sensitive-import-live.test.ts
+-- and reproduced directly: apply_import_row_transactional failing with
+-- "permission denied for sequence application_number_seq").
+--
+-- ROOT CAUSE: the application-number-generation function
+-- (supabase/migrations/20260805230000_fix_application_number_truncation.sql)
+-- calls `nextval('application_number_seq')` directly and is explicitly
+-- documented as NOT security definer — it runs as whichever role's
+-- statement ultimately triggers it (an applications INSERT via a trigger).
+-- The canonical migration granted table-level privileges throughout but
+-- never granted USAGE on this SEQUENCE object at all, for either
+-- authenticated or service_role — sequences require their own GRANT
+-- (USAGE/SELECT/UPDATE), entirely separate from table grants.
+--
+-- Both roles insert into applications directly in real production code
+-- (authenticated: participant self-registration; service_role: import
+-- pipeline, staff-provisioned participants) — see the original canonical
+-- migration's own applications grant for both roles.
+
+grant usage on sequence public.application_number_seq to authenticated, service_role;

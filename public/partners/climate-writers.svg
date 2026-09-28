@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <defs>
+    <linearGradient id="cw-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8a020"/>
+      <stop offset="40%" style="stop-color:#e04080"/>
+      <stop offset="100%" style="stop-color:#4a7a20"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="300" fill="url(#cw-grad)"/>
+  <text x="150" y="145" font-family="Arial, sans-serif" font-weight="600" font-size="46" fill="white" text-anchor="middle">climate</text>
+  <text x="150" y="200" font-family="Arial, sans-serif" font-weight="600" font-size="46" fill="white" text-anchor="middle">writers.</text>
+</svg>

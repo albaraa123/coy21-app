@@ -1,0 +1,17 @@
+-- fix_handle_new_user_search_path.sql
+--
+-- The handle_new_user() trigger function is SECURITY DEFINER (owned by
+-- postgres) but did not pin its own search_path. Postgres functions use
+-- the CALLER's search_path unless one is explicitly set on the function.
+-- The auth.users insert that fires this trigger is executed by the
+-- supabase_auth_admin role, whose search_path is set to `auth` only (no
+-- `public`). As a result the unqualified `profiles` reference inside the
+-- function failed to resolve, the insert into profiles raised an error,
+-- and the entire auth.users insert transaction rolled back — signup
+-- failed with "Database error creating new user".
+--
+-- Fix: pin search_path = public, pg_temp on the function so profiles
+-- always resolves regardless of the caller's search_path. pg_temp is
+-- included per Postgres/Supabase security-definer best practice to
+-- prevent search_path hijacking via temporary objects.
+alter function handle_new_user() set search_path = public, pg_temp;

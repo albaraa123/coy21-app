@@ -1,0 +1,23 @@
+-- 20260816090000_correct_application_answers_authenticated_select_grant.sql
+--
+-- NINTH corrective follow-up to 20260816000000_canonical_authenticated_and_
+-- service_role_grants.sql, found while running the full repository test
+-- suite (Phase 7G-K, via tests/import/claim-live.test.ts's Case 4: after a
+-- participant claims their imported application, their own authenticated
+-- session still could not read their own non-sensitive application_answers
+-- rows).
+--
+-- ROOT CAUSE: a real, correctly-designed own-row RLS policy already exists
+-- (application_answers_select_own, supabase/migrations/
+-- 20260726105500_explicit_answers_with_check.sql), scoping a participant to
+-- their own non-sensitive answers via applications.applicant_id = auth.uid().
+-- But the canonical migration never granted authenticated SELECT on this
+-- table at the Postgres level at all — the policy existed but could never
+-- be reached, since GRANT (not RLS) is what lets a SQL statement reach a
+-- table in the first place. This is the participant-facing counterpart to
+-- the existing application_answers_staff_all/_sensitive_staff_all policies,
+-- which are correctly service_role-only (staff reads go through the
+-- trusted server boundary, confirmed by code audit — see
+-- tests/rls/import.test.ts's "real access is service_role-only" tests).
+
+grant select on public.application_answers to authenticated;

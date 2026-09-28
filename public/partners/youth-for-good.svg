@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 200" width="500" height="200">
+  <rect width="500" height="200" fill="white"/>
+  <!-- Y shape mark -->
+  <path d="M30 20 L65 80 L100 20" fill="none" stroke="#2200cc" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="65" y1="80" x2="65" y2="140" stroke="#2200cc" stroke-width="22" stroke-linecap="round"/>
+  <!-- Dot -->
+  <circle cx="40" cy="155" r="16" fill="#2200cc"/>
+  <!-- Text -->
+  <text x="140" y="95" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="42" fill="#2200cc">youth</text>
+  <text x="140" y="148" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="42" fill="#2200cc">for good</text>
+</svg>

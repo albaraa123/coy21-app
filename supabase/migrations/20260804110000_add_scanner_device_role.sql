@@ -1,0 +1,12 @@
+-- add_scanner_device_role.sql
+--
+-- Adds the scanner_device role: a non-human, per-device staff identity used
+-- by the QR check-in / attendance scanner terminals to authenticate against
+-- the API without impersonating a real staff member's account.
+--
+-- Isolated in its own file with nothing else in it, per this repo's
+-- established convention (see 20260803100000_add_participants_
+-- communications_and_program_attendance_roles.sql) — a new enum value
+-- must be committed before any later migration in this plan can
+-- reference it in a policy or check constraint.
+alter type user_role add value 'scanner_device';

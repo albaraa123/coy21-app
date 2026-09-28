@@ -1,0 +1,190 @@
+'use client';
+
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import type { z } from 'zod';
+import { registrationSchema } from '@/lib/validation/registration';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from '@/i18n/routing';
+import { submitApplication } from './actions';
+import type { Tables, TablesUpdate } from '@/types/database';
+
+type ApplicationDraft = Tables<'applications'>;
+
+// Derived directly from the schema (rather than hand-duplicated) so the form's
+// types can never drift from registrationSchema's field domains — e.g. age_group
+// is a specific enum union in the schema, not a bare `string`.
+type FormValues = z.infer<typeof registrationSchema>;
+
+const INTEREST_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance'] as const;
+const TRACK_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance'] as const;
+
+const AGE_GROUP_OPTIONS = ['under_18', '18_24', '25_34', '35_44', '45_plus'] as const;
+
+const STEP_1_FIELDS: readonly (keyof FormValues)[] = [
+  'phone', 'country', 'nationality', 'birth_date', 'age_group',
+  'city', 'organization', 'field_of_work', 'preferred_language',
+];
+
+const STEP_2_FIELDS: readonly (keyof FormValues)[] = [
+  'interests', 'climate_experience', 'experience_level', 'past_initiatives',
+  'participation_goals', 'topics_to_learn', 'content_type_pref',
+  'track_interests', 'priority_sessions', 'special_needs',
+];
+
+// The DB row models "not yet filled in" as `null` for nullable columns, while the
+// form schema models the same absence as `undefined` (via zod `.optional()`). Convert
+// at the boundary so a fresh/partial draft row can populate react-hook-form's
+// defaultValues without a type (or runtime) mismatch between the two representations.
+function draftToDefaultValues(draft: ApplicationDraft): Partial<FormValues> {
+  return {
+    phone: draft.phone ?? undefined,
+    country: draft.country ?? undefined,
+    nationality: draft.nationality ?? undefined,
+    birth_date: draft.birth_date ?? undefined,
+    age_group: (draft.age_group as FormValues['age_group']) ?? undefined,
+    city: draft.city ?? undefined,
+    organization: draft.organization ?? undefined,
+    field_of_work: draft.field_of_work ?? undefined,
+    preferred_language: (draft.preferred_language as FormValues['preferred_language']) ?? undefined,
+    // A fresh draft row has interests/track_interests as `null` (no DB default), not `[]`.
+    // react-hook-form's checkbox-array collection needs an array default to behave correctly,
+    // so normalize both array fields here regardless of what the draft row contains.
+    interests: draft.interests ?? [],
+    climate_experience: draft.climate_experience ?? undefined,
+    experience_level: (draft.experience_level as FormValues['experience_level']) ?? undefined,
+    past_initiatives: draft.past_initiatives ?? undefined,
+    participation_goals: draft.participation_goals ?? undefined,
+    topics_to_learn: draft.topics_to_learn ?? undefined,
+    content_type_pref: draft.content_type_pref ?? undefined,
+    track_interests: draft.track_interests ?? [],
+    priority_sessions: draft.priority_sessions ?? undefined,
+    special_needs: draft.special_needs ?? undefined,
+  };
+}
+
+export default function RegistrationForm({ draft }: { draft: ApplicationDraft }) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormValues>({
+    resolver: zodResolver(registrationSchema),
+    defaultValues: draftToDefaultValues(draft),
+  });
+
+  // Only writes the fields belonging to the step being edited, so autosaving step 1
+  // never overwrites step-2 fields (e.g. required `interests`) with their empty defaults
+  // before the user has reached step 2.
+  async function autosaveStep(fields: readonly (keyof FormValues)[]) {
+    const supabase = createClient();
+    const values = getValues();
+    const payload: TablesUpdate<'applications'> = Object.fromEntries(
+      fields.map((f) => [f, values[f]])
+    );
+    await supabase.from('applications').update(payload).eq('id', draft.id);
+  }
+
+  const router = useRouter();
+
+  // react-hook-form's handleSubmit always calls this with the validated values as the
+  // first argument; this handler doesn't need them (autosaveStep already persisted the
+  // current values via getValues()), but the parameter must stay to match SubmitHandler.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async function onSubmit(_values: FormValues) {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await autosaveStep(STEP_2_FIELDS);
+      await submitApplication(draft.id);
+      router.push('/my-application');
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Submission failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (step === 1) {
+    return (
+      <div>
+        <input {...register('phone')} placeholder="Phone" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
+        {errors.phone && <p>{errors.phone.message}</p>}
+        <input {...register('country')} placeholder="Country" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
+        {errors.country && <p>{errors.country.message}</p>}
+        <input {...register('nationality')} placeholder="Nationality" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
+        {errors.nationality && <p>{errors.nationality.message}</p>}
+        <input {...register('birth_date')} type="date" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
+        <select {...register('age_group')} onBlur={() => autosaveStep(STEP_1_FIELDS)}>
+          <option value="">Age group</option>
+          {AGE_GROUP_OPTIONS.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+        {errors.birth_date && <p>{errors.birth_date.message}</p>}
+        <input {...register('city')} placeholder="City" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
+        {errors.city && <p>{errors.city.message}</p>}
+        <input {...register('organization')} placeholder="Organization" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
+        <input {...register('field_of_work')} placeholder="Field of work" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
+        {errors.field_of_work && <p>{errors.field_of_work.message}</p>}
+        <select {...register('preferred_language')} onBlur={() => autosaveStep(STEP_1_FIELDS)}>
+          <option value="ar">العربية</option>
+          <option value="en">English</option>
+        </select>
+        <button type="button" onClick={() => setStep(2)}>Next</button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <fieldset>
+        <legend>Interests (select at least one)</legend>
+        {INTEREST_OPTIONS.map((option) => (
+          <label key={option}>
+            <input
+              type="checkbox"
+              value={option}
+              {...register('interests')}
+              onBlur={() => autosaveStep(STEP_2_FIELDS)}
+            />
+            {option}
+          </label>
+        ))}
+        {errors.interests && <p>{errors.interests.message}</p>}
+      </fieldset>
+      <textarea {...register('climate_experience')} placeholder="Climate experience" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      <select {...register('experience_level')} onBlur={() => autosaveStep(STEP_2_FIELDS)}>
+        <option value="none">None</option>
+        <option value="beginner">Beginner</option>
+        <option value="intermediate">Intermediate</option>
+        <option value="expert">Expert</option>
+      </select>
+      {errors.experience_level && <p>{errors.experience_level.message}</p>}
+      <textarea {...register('past_initiatives')} placeholder="Past initiatives" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      <textarea {...register('participation_goals')} placeholder="Participation goals" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      {errors.participation_goals && <p>{errors.participation_goals.message}</p>}
+      <textarea {...register('topics_to_learn')} placeholder="Topics to learn" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      <input {...register('content_type_pref')} placeholder="Content type preference" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      <fieldset>
+        <legend>Track interests</legend>
+        {TRACK_OPTIONS.map((option) => (
+          <label key={option}>
+            <input
+              type="checkbox"
+              value={option}
+              {...register('track_interests')}
+              onBlur={() => autosaveStep(STEP_2_FIELDS)}
+            />
+            {option}
+          </label>
+        ))}
+      </fieldset>
+      <textarea {...register('priority_sessions')} placeholder="Priority sessions" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      <textarea {...register('special_needs')} placeholder="Special needs" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
+      <button type="button" onClick={() => setStep(1)}>Back</button>
+      <button type="submit" disabled={submitting}>Submit Application</button>
+      {submitError && <p role="alert">{submitError}</p>}
+    </form>
+  );
+}

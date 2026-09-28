@@ -1,0 +1,29 @@
+-- correct_audit_logs_service_role_select_grant.sql
+--
+-- CORRECTIVE FOLLOW-UP to 20260816000000_canonical_authenticated_and_
+-- service_role_grants.sql, in the same spirit as 20260816010000/20260816030000/
+-- etc: that migration's audit swept audit_logs into its "insert-only
+-- trails/logs" bucket ("this server boundary only ever appends to these —
+-- no code path updates or re-reads its own prior audit/log rows through
+-- this client"), but that assumption was wrong. Found while running the
+-- live attendance test suite against a freshly migrated project (no prior
+-- ad-hoc grants to mask the gap): two real, non-test src/ call sites read
+-- audit_logs through the service-role client and would fail identically
+-- in production with "permission denied for table audit_logs":
+--
+--   src/lib/attendance/admission-lookup.ts
+--   (fetchAttendanceAuditLogForCaller): .select(...).eq('entity_type',
+--   'attendance_record').in('entity_id', ...) — powers the Admission
+--   Management Console's per-record audit trail view.
+--
+--   src/app/[locale]/(admin)/participants/imports/[batchId]/page.tsx:
+--   two .select(...) queries (entity_type 'import_batch' and 'application')
+--   — powers the import batch detail page's audit log display.
+--
+-- SELECT only. No INSERT change (already granted), no UPDATE/DELETE — no
+-- traced src/ call site does either of those through the service-role
+-- client; audit_logs.delete() calls exist only in test cleanup code
+-- (tests/attendance/admission-management-live.test.ts), which is
+-- deliberately out of scope for this grant per this file's own "No
+-- test-only grants" discipline.
+grant select on public.audit_logs to service_role;

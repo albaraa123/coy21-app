@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="300" height="200">
+  <rect width="300" height="200" fill="white"/>
+  <!-- Handwritten-style "orygen" in orange using path approximations -->
+  <!-- Using italic text as approximation -->
+  <text x="20" y="80" font-family="Georgia, serif" font-style="italic" font-weight="400" font-size="52" fill="#e05020">ory</text>
+  <text x="40" y="145" font-family="Georgia, serif" font-style="italic" font-weight="400" font-size="52" fill="#e05020">gen</text>
+  <!-- dot above o (like the logo) -->
+  <circle cx="42" cy="35" r="7" fill="#e05020"/>
+</svg>

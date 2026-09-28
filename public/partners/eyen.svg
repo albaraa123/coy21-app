@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 200" width="500" height="200">
+  <rect width="500" height="200" fill="white"/>
+  <!-- Bulb shape (simplified) -->
+  <ellipse cx="70" cy="85" rx="38" ry="42" fill="none" stroke="#7ececa" stroke-width="6"/>
+  <!-- Leaf on top -->
+  <path d="M70 43 Q85 30 75 18 Q60 28 70 43Z" fill="#7ececa"/>
+  <!-- Lightning bolt in bulb -->
+  <path d="M73 62 L63 82 L72 82 L67 102 L79 78 L70 78 Z" fill="#1a237e"/>
+  <!-- Stars (dots in circle) -->
+  <circle cx="70" cy="85" r="50" fill="none" stroke="#f5a623" stroke-width="0" stroke-dasharray="4 18" stroke-dashoffset="0"/>
+  <!-- 12 star dots around circle r=50 -->
+  <circle cx="120" cy="85" r="4" fill="#f5a623"/>
+  <circle cx="114" cy="60" r="4" fill="#f5a623"/>
+  <circle cx="96" cy="42" r="4" fill="#f5a623"/>
+  <circle cx="70" cy="35" r="4" fill="#f5a623"/>
+  <circle cx="44" cy="42" r="4" fill="#f5a623"/>
+  <circle cx="26" cy="60" r="4" fill="#f5a623"/>
+  <circle cx="20" cy="85" r="4" fill="#f5a623"/>
+  <circle cx="26" cy="110" r="4" fill="#f5a623"/>
+  <!-- Curved base of bulb -->
+  <path d="M48 118 Q70 135 92 118" fill="none" stroke="#1a237e" stroke-width="5"/>
+  <!-- Tail -->
+  <rect x="56" y="130" width="28" height="8" rx="2" fill="#1a237e"/>
+  <!-- Text -->
+  <text x="160" y="100" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="72" fill="#1a237e" letter-spacing="-2">EYEN</text>
+  <text x="160" y="135" font-family="Arial, sans-serif" font-weight="300" font-size="18" fill="#888888" letter-spacing="6">YOUTH ENERGY</text>
+</svg>

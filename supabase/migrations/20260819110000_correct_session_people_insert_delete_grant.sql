@@ -1,0 +1,23 @@
+-- 20260819110000_correct_session_people_insert_delete_grant.sql
+--
+-- REAL PRODUCTION DEFECT, found during Phase 9.2 while writing a live test
+-- (not a test-fixture-only gap, unlike the tags/other grant gaps flagged
+-- earlier this project).
+--
+-- ROOT CAUSE: assign_session_person_transactional and
+-- remove_session_person (supabase/migrations/20260723060000_session_
+-- people_transactional_functions.sql) are plain `language plpgsql`
+-- functions with NO `security definer` clause, so they run as the CALLING
+-- role — service_role, since both are invoked via assignSessionPerson()/
+-- removeSessionPerson() (src/app/[locale]/(admin)/agenda/sessions/[id]/
+-- actions.ts) through a service-role client, same pattern already
+-- documented for confirm_publication_transactional in
+-- 20260816040000_correct_session_people_select_grant.sql. Their bodies
+-- directly INSERT into / DELETE from session_people. service_role has
+-- never held INSERT or DELETE on this table (confirmed by grep across
+-- every migration) — only SELECT (granted in 20260816040000, for a
+-- different function's read). This means the "assign speaker/moderator/
+-- facilitator to a session" and "remove person from a session" admin
+-- features have been failing with "permission denied for table
+-- session_people" in production since these RPCs were introduced.
+grant insert, delete on public.session_people to service_role;

@@ -1,0 +1,51 @@
+// src/app/[locale]/(admin)/allocation/page.tsx
+import { getLocale, getTranslations } from 'next-intl/server';
+import { notFound } from 'next/navigation';
+import { redirect, Link } from '@/i18n/routing';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { isAgendaStaffRole } from '@/lib/validation/agenda';
+import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
+import { Card } from '@/components/ui/card';
+
+const LINKS = [
+  { href: '/allocation/extraction', key: 'extraction' },
+  { href: '/allocation/clustering', key: 'clustering' },
+  { href: '/allocation/runs', key: 'runs' },
+] as const;
+
+export default async function AllocationOverviewPage() {
+  const locale = await getLocale();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect({ href: '/log-in', locale });
+    return;
+  }
+
+  const service = createServiceRoleClient();
+  const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
+  if (!profile || !(isAgendaStaffRole(profile.role) || isProgramAttendanceStaffRole(profile.role))) {
+    notFound();
+  }
+
+  const t = await getTranslations({ locale, namespace: 'allocation.overview' });
+
+  return (
+    <div className="p-4 md:p-6">
+      <h1 className="mb-2 text-lg font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
+      <p className="mb-4 text-sm text-charcoal/70 dark:text-gray-400 md:mb-6">{t('description')}</p>
+
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {LINKS.map((link) => (
+          <li key={link.key}>
+            <Link href={link.href} className="block">
+              <Card className="h-full transition-colors hover:border-turquoise/60">
+                <p className="text-sm font-medium text-charcoal dark:text-gray-100">{t(`links.${link.key}`)}</p>
+              </Card>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

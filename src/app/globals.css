@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme {
+  /* COY21 Türkiye 2026 identity — navy primary, green accent.
+     Colors extracted directly from the official COY21 logo SVG.
+     turquoise token maps to the logo navy so all existing components
+     (buttons, focus rings, links) inherit the brand color automatically. */
+  --color-turquoise: #053269;       /* logo navy blue — primary */
+  --color-accent-orange: #3d9920;   /* logo green — accent/highlight */
+  --color-blue-sky: #019de6;        /* logo light blue — secondary accent */
+  --color-green: #3d9920;
+  --color-gold: #d9a93a;
+  --color-charcoal: #0a1a2e;
+  --color-warm-white: #f0f4f8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-thmanyah: "Thmanyah Serif Text", var(--font-thmanyah-raw);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-thmanyah), Arial, Helvetica, sans-serif;
+}
+
+@keyframes reveal-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes count-up-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Applied by the Reveal client component once an element enters the
+   viewport (via a data attribute, not a class toggle, so the initial
+   server-rendered markup is never hidden from crawlers/no-JS clients —
+   see components/motion/reveal.tsx). */
+[data-reveal='hidden'] {
+  opacity: 0;
+  transform: translateY(16px);
+}
+[data-reveal='visible'] {
+  animation: reveal-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal='hidden'] {
+    opacity: 1;
+    transform: none;
+  }
+  [data-reveal='visible'] {
+    animation: none;
+  }
+}
+
+/* Slow ambient drift for the hero's background gradient — a living-page
+   cue that stays subtle enough not to fight the foreground content.
+   Kept to background-position only (no layout-affecting properties) so
+   it costs nothing on scroll/interaction performance. */
+@keyframes gradient-drift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-gradient-drift {
+  background-size: 200% 200%;
+  animation: gradient-drift 14s ease-in-out infinite;
+}
+
+/* A gentle organic blob shape used as a decorative background layer
+   (see components/motion/blob.tsx) — pure CSS border-radius trick, no
+   SVG/asset needed. Slow rotation + scale breathing for a "living page"
+   feel without drawing attention away from foreground text. */
+@keyframes blob-float {
+  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  33% { transform: translate(3%, -4%) scale(1.05) rotate(6deg); }
+  66% { transform: translate(-3%, 3%) scale(0.97) rotate(-4deg); }
+}
+
+.animate-blob {
+  animation: blob-float 20s ease-in-out infinite;
+}
+
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes count-settle {
+  0% { transform: scale(1); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.animate-count-settle {
+  animation: count-settle 0.4s ease-out;
+}
+
+/* Route-change transition for the public site (see
+   components/motion/page-transition.tsx) — a brief fade+rise replayed on
+   every navigation since the wrapper remounts by pathname key. */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-page-enter {
+  animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Magnetic hover-lift for primary CTAs — a slightly stronger, snappier
+   scale+lift than the plain hover:-translate-y used elsewhere, reserved
+   for buttons that opt into it via .btn-magnetic so it doesn't blanket
+   every button on the site. */
+.btn-magnetic {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+.btn-magnetic:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 12px 24px -8px color-mix(in srgb, var(--color-turquoise) 45%, transparent);
+}
+.btn-magnetic:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-gradient-drift,
+  .animate-blob,
+  .animate-soft-pulse,
+  .animate-count-settle,
+  .animate-page-enter {
+    animation: none !important;
+  }
+  .btn-magnetic,
+  .btn-magnetic:hover,
+  .btn-magnetic:active {
+    transform: none !important;
+  }
+}
