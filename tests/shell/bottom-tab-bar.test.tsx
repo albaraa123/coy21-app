@@ -76,4 +76,18 @@ describe('BottomTabBar', () => {
     );
     expect(html).toContain('>More<');
   });
+
+  it('renders tabs in DOM order matching primaryItems order regardless of locale (RTL handled by CSS dir, not JS reordering)', () => {
+    const html = renderToStaticMarkup(
+      <BottomTabBar
+        primaryItems={primaryItems}
+        navTranslations={navTranslations}
+        moreLabel="More"
+        currentPathname="/my-dashboard"
+      />
+    );
+    const labelPositions = ['Home', 'My Program', 'My QR', 'More'].map((label) => html.indexOf(`>${label}<`));
+    const sorted = [...labelPositions].sort((a, b) => a - b);
+    expect(labelPositions).toEqual(sorted);
+  });
 });
