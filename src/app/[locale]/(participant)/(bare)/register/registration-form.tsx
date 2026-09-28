@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
 import { useTranslations } from 'next-intl';
@@ -60,10 +60,15 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, getValues, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(registrationSchema),
     defaultValues: draftToDefaultValues(draft),
   });
+
+  // Subscribes to live form state so step-gating re-renders as the user types.
+  // register(...)-bound inputs are uncontrolled, so a getValues() snapshot taken
+  // during render would otherwise freeze at whatever the values were at mount.
+  const watchedValues = useWatch({ control });
 
   // Only writes the fields belonging to the step being edited, so autosaving step 1
   // never overwrites step-2/3 fields (e.g. required `interests`) with their empty defaults
@@ -127,7 +132,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
         </select>
         <button
           type="button"
-          disabled={!isStepValid(1, getValues())}
+          disabled={!isStepValid(1, watchedValues)}
           onClick={() => {
             void autosaveStep(STEP_1_FIELDS);
             setStep(2);
@@ -170,7 +175,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
         <button type="button" onClick={() => setStep(1)}>Back</button>
         <button
           type="button"
-          disabled={!isStepValid(2, getValues())}
+          disabled={!isStepValid(2, watchedValues)}
           onClick={() => {
             void autosaveStep(STEP_2_FIELDS);
             setStep(3);
