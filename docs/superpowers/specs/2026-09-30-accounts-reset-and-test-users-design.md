@@ -33,7 +33,7 @@ Everything else in the original request — classification expansion and its edi
 
 A single new migration performs the reset as one atomic transaction (Postgres DDL/DML in a migration file is transactional by default — if any statement fails, nothing is deleted).
 
-**What gets truncated** (every table found via `grep -rl "references public.applications\|references applications" supabase/migrations/*.sql`, confirmed exhaustive against migration history):
+**What gets truncated** (every table found via `grep -rl "references public.applications\|references applications" supabase/migrations/*.sql`, confirmed exhaustive against migration history — corrected during spec review to add 2 tables initially missed on a manual transcription pass through the large `20260805235959_phase6_qr_issuance_reissue.sql` migration file: `qr_lifecycle_operations`, which has its own `application_id uuid not null references public.applications(id) on delete restrict`, and `qr_bulk_operation_batches`, which has no direct FK to `applications` but is referenced by `qr_lifecycle_operations.bulk_batch_id on delete restrict` and would otherwise be left silently populated with stale data after the reset):
 
 ```
 application_status_history, email_log, application_notes,
@@ -49,7 +49,7 @@ participant_invitations,
 application_travel_info, application_health_info,
 participant_account_provisioning,
 attendance_records, scan_attempts,
-qr_credentials,
+qr_lifecycle_operations, qr_bulk_operation_batches, qr_credentials,
 session_bookings, travel_legs,
 emergency_contacts, application_accommodation,
 applications
@@ -72,14 +72,16 @@ truncate table
   application_travel_info, application_health_info,
   participant_account_provisioning,
   attendance_records, scan_attempts,
-  qr_credentials,
+  qr_lifecycle_operations, qr_bulk_operation_batches, qr_credentials,
   session_bookings, travel_legs,
   emergency_contacts, application_accommodation,
   applications
 cascade;
 ```
 
-Using `truncate ... cascade` (rather than manually ordering `delete` statements) is deliberate: Postgres resolves the dependency graph itself, so the exact listed order doesn't matter and no table can be missed due to an ordering mistake — the earlier research found several of these tables use plain `references` with no `on delete` action (would block a naive `delete`), and `qr_credentials.application_id` is explicitly `on delete restrict` (would actively reject deletion). `truncate cascade` correctly overrides all of that.
+Using `truncate ... cascade` (rather than manually ordering `delete` statements) is deliberate: Postgres resolves the dependency graph itself, so the exact listed order doesn't matter and no table can be missed due to an ordering mistake — the earlier research found several of these tables use plain `references` with no `on delete` action (would block a naive `delete`), and `qr_credentials.application_id` / `qr_lifecycle_operations.application_id` / `qr_lifecycle_operations.bulk_batch_id` are all explicitly `on delete restrict` (would actively reject deletion). `truncate cascade` correctly overrides all of that — but only for tables actually named in the statement; `cascade` walks children of the *named* tables, it does not discover additional tables that reference them. This is exactly why `qr_lifecycle_operations`/`qr_bulk_operation_batches` had to be added explicitly rather than assumed to be swept up automatically — every table with any FK path back to `applications` must be named, not just the ones a manual first pass happens to catch.
+
+**Execution-time safety gate**: because this operation is genuinely irreversible and explicitly targets the real production COY21 project (not a scratch/disposable one), whoever applies this migration must first positively confirm they are connected to the correct project before running it — e.g. by checking the project ref shown by `supabase status`/the dashboard URL against the known production project ref, or by running a read-only row-count query first and having a human confirm the counts look like real production volumes (not a suspiciously empty or unfamiliar project) before proceeding. This spec does not automate that check away — the implementation plan must include an explicit manual confirmation step immediately before the truncate/delete statements run, not just a comment saying "be careful."
 
 **What is explicitly NOT truncated** (conference configuration, not user data): `conference_days`, `tracks`, `rooms`, `session_types`, `sessions`, `session_people`, `session_tags`, `tags`, `local_info_sections/items/images`, and any other non-participant-scoped table. Per your confirmation, "delete all users" means accounts and their data, not conference setup.
 
