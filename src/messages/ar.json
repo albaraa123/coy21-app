@@ -616,16 +616,10 @@
   },
   "shell": {
     "roles": {
-      "participant": "Ù…Ø´Ø§Ø±Ùƒ",
-      "super_admin": "Ù…Ø´Ø±Ù Ø¹Ø§Ù…",
-      "registration_admission_manager": "Ù…Ø¯ÙŠØ± Ø§Ù„ØªØ³Ø¬ÙŠÙ„ ÙˆØ§Ù„Ù‚Ø¨ÙˆÙ„",
-      "agenda_allocation_manager": "Ù…Ø¯ÙŠØ± Ø§Ù„Ø£Ø¬Ù†Ø¯Ø© ÙˆØ§Ù„ØªÙˆØ²ÙŠØ¹",
-      "communications_attendance_manager": "Ù…Ø¯ÙŠØ± Ø§Ù„Ø§ØªØµØ§Ù„Ø§Øª ÙˆØ§Ù„Ø­Ø¶ÙˆØ±",
-      "travel_operations_staff": "ÙØ±ÙŠÙ‚ Ø¹Ù…Ù„ÙŠØ§Øª Ø§Ù„Ø³ÙØ±",
-      "participant_care_staff": "ÙØ±ÙŠÙ‚ Ø±Ø¹Ø§ÙŠØ© Ø§Ù„Ù…Ø´Ø§Ø±ÙƒÙŠÙ†",
-      "participants_communications_manager": "Ù…Ø¯ÙŠØ± Ø§Ù„Ù…Ø´Ø§Ø±ÙƒÙŠÙ† ÙˆØ§Ù„Ø§ØªØµØ§Ù„Ø§Øª",
-      "program_attendance_manager": "Ù…Ø¯ÙŠØ± Ø§Ù„Ø¨Ø±Ù†Ø§Ù…Ø¬ ÙˆØ§Ù„Ø­Ø¶ÙˆØ±",
-      "scanner_device": "Ù…Ø³Ø¤ÙˆÙ„ Ø§Ù„Ù…Ø³Ø­ ÙˆØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø­Ø¶ÙˆØ±"
+      "participant": "مشارك",
+      "super_admin": "مشرف عام",
+      "staff": "موظف",
+      "scanner_device": "مسؤول المسح وتسجيل الحضور"
     },
     "logoutLabel": "ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬",
     "drawerAriaLabel": "Ø§Ù„Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©",
