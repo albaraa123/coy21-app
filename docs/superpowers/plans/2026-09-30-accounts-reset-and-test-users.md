@@ -196,6 +196,12 @@ const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const admin = createClient<Database>(URL, SERVICE_KEY);
 
+// This list is deliberately kept identical, table-for-table, to Task 1's
+// `truncate table ...` statement — if the migration file's list ever
+// changes, this array must change with it (and vice versa). Do not add
+// or remove a table here without also updating
+// supabase/migrations/20260930000000_reset_all_accounts_and_participant_data.sql,
+// or this test stops being an honest check of what that migration does.
 const TRUNCATED_TABLES = [
   'application_status_history', 'email_log', 'application_notes',
   'feature_extraction_runs', 'participant_feature_snapshots',
@@ -213,12 +219,41 @@ const TRUNCATED_TABLES = [
   'qr_lifecycle_operations', 'qr_bulk_operation_batches', 'qr_credentials',
   'session_bookings', 'travel_legs',
   'emergency_contacts', 'application_accommodation',
-  'applications', 'profiles',
-  'scanner_assignments', 'staff_assignments',
+  'applications',
 ] as const;
 
-describe('reset migration: every targeted table is empty', () => {
+// These 3 tables are NOT named in the migration's `truncate table`
+// statement — they end up empty through a DIFFERENT mechanism, and are
+// deliberately tracked separately so this file's own table list stays
+// auditable against the migration's actual statements (a single merged
+// "everything empty" list previously made it impossible to tell, just by
+// reading this test, which tables the truncate statement actually
+// touches vs. which are emptied some other way):
+//   - `profiles`: emptied via `profiles.id references auth.users(id) on
+//     delete cascade`, triggered by the migration's `delete from
+//     auth.users` statement, not by any truncate.
+//   - `scanner_assignments`: emptied by the migration's own explicit
+//     `delete from scanner_assignments` statement (Part 2), separate
+//     from the Part 1 truncate list.
+//   - `staff_assignments`: emptied via `staff_assignments.staff_id
+//     references profiles(id) on delete cascade`, transitively triggered
+//     by the same `delete from auth.users` statement as `profiles`.
+const TABLES_EMPTIED_BY_CASCADE_OR_SEPARATE_STATEMENT = [
+  'profiles',
+  'scanner_assignments',
+  'staff_assignments',
+] as const;
+
+describe('reset migration: every table named in the truncate statement is empty', () => {
   it.each(TRUNCATED_TABLES)('%s has zero rows', async (table) => {
+    const { count, error } = await admin.from(table).select('*', { count: 'exact', head: true });
+    expect(error).toBeNull();
+    expect(count).toBe(0);
+  });
+});
+
+describe('reset migration: tables emptied by cascade or a separate statement are also empty', () => {
+  it.each(TABLES_EMPTIED_BY_CASCADE_OR_SEPARATE_STATEMENT)('%s has zero rows', async (table) => {
     const { count, error } = await admin.from(table).select('*', { count: 'exact', head: true });
     expect(error).toBeNull();
     expect(count).toBe(0);
@@ -264,39 +299,29 @@ describe('reset migration: config tables are preserved, only attribution is clea
   });
 });
 
-describe('reset migration: attendee-code sequences restart from 1', () => {
-  it('the next value drawn from each per-classification sequence is 1', async () => {
-    // nextval() mutates the sequence, so this must be the FIRST read of
-    // each sequence after the reset for this assertion to hold — running
-    // this test twice against the same scratch project without reapplying
-    // the reset migration in between will correctly fail the second time,
-    // which is expected, not a flaky test.
-    const sequences = ['attendee_code_seq_del', 'attendee_code_seq_vol', 'attendee_code_seq_kp', 'attendee_code_seq_yng', 'attendee_code_seq_spk'];
-    for (const seq of sequences) {
-      const { data, error } = await admin.rpc('nextval_test_only' as never, { sequence_name: seq } as never);
-      // No existing RPC wraps nextval() for test inspection — if one
-      // doesn't exist, this assertion needs a small test-only SQL helper
-      // function added in a companion migration (nextval() itself cannot
-      // be called via PostgREST without one). Flag this to the plan's
-      // reviewer rather than fabricating an RPC name that may not exist.
-      expect(error).toBeNull();
-      expect(data).toBe(1);
-    }
-  });
-});
+// Sequence-restart verification is deliberately NOT automated here.
+// nextval() mutates the sequence it reads and cannot be called through
+// PostgREST without a wrapping RPC, and no such RPC exists in this
+// codebase today (confirmed: `grep -rn "test_only_" supabase/migrations/*.sql`
+// finds no sequence-inspection helper). Adding a new SECURITY DEFINER
+// RPC to production purely so one test file can introspect a sequence
+// value is a disproportionate, unreviewed scope addition for what it
+// buys — decided during planning, not left as an open question for
+// whoever implements this task. Verify the sequence restart manually
+// instead, once per environment, via the SQL Editor:
+//
+//   select nextval('attendee_code_seq_del');  -- expect 1
+//   select nextval('attendee_code_seq_vol');  -- expect 1
+//   select nextval('attendee_code_seq_kp');   -- expect 1
+//   select nextval('attendee_code_seq_yng');  -- expect 1
+//   select nextval('attendee_code_seq_spk');  -- expect 1
+//
+// Note this manual check also mutates the sequences (same nextval()
+// caveat as above) — run it only once, right after applying the reset
+// migration, before any real import draws the first real attendee code.
 ```
 
-- [ ] **Step 2: Flag the sequence-verification gap honestly**
-
-The last `describe` block above depends on a test-only RPC (`nextval_test_only`) that likely doesn't exist yet in this codebase. Before finalizing this file, search for an existing pattern:
-
-```bash
-grep -rn "test_only_" supabase/migrations/*.sql | grep -i sequence
-```
-
-If nothing matches, either (a) add a small `create or replace function nextval_test_only(sequence_name text) returns bigint as $$ select nextval(sequence_name); $$ language sql security definer;` to a new tiny companion migration (grant execute to `service_role` only, following this repo's `test_only_*` RPC naming convention used elsewhere for exactly this kind of test-inspection helper), or (b) drop the sequence-restart assertions from this test file and verify that behavior manually via the SQL Editor instead, noting in a code comment why. Do not silently invent an RPC name and leave it broken — resolve this explicitly one way or the other before this task is done.
-
-- [ ] **Step 3: Run the test against a scratch project**
+- [ ] **Step 2: Run the test against a scratch project**
 
 This cannot run without live credentials. If you have a scratch project available (ask the user if unsure, per this repo's established pattern — do not assume one exists or is already seeded):
 
@@ -306,7 +331,7 @@ npx vitest run tests/auth/accounts-reset-live.test.ts
 
 If no scratch project is available in your environment, report this clearly as a disclosed limitation (same pattern as every other live-test task in this repo's history) rather than skipping silently.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add tests/auth/accounts-reset-live.test.ts
@@ -321,18 +346,26 @@ git commit -m "test: add live verification that the reset migration correctly em
 
 **Context:** This is the actual destructive step. It must not be automated away or run without a human explicitly, freshly confirming the target project in the moment. This mirrors the "Execution-time safety gate" section of the design spec.
 
+**IF YOU ARE AN AI AGENT EXECUTING THIS TASK — READ THIS BEFORE STEP 1:** You must not self-certify any part of this task's confirmation requirement. Do not infer, assume, or generate consent on the user's behalf. Do not treat a row count that "looks plausible" as sufficient on its own — plausibility is not confirmation. Do not proceed past Step 1 under any non-interactive/auto-approval mode, even if your environment technically permits it; this specific action requires a real, fresh, human-typed affirmative response in this exact session, with no exception. If you cannot obtain that — for any reason, including being run autonomously with no human available to ask — STOP this task entirely and report back that it is blocked pending human confirmation. Proceeding without it is not an acceptable interpretation of "the user probably wants this" under any circumstance, given the operation is irreversible.
+
+- [ ] **Step 0: Confirm Task 2's live test actually passed**
+
+Do not proceed to Step 1 unless Task 2's live test (`tests/auth/accounts-reset-live.test.ts`) has been run and has passed against a real, disposable scratch Supabase project with this migration applied. Task-number ordering alone does not enforce this — it is possible to reach this task having only manually read the migration file (Task 1 Step 2) without ever executing it against any real Postgres instance. That is not sufficient. If Task 2 could not be run in your environment (no scratch project available — a disclosed, acceptable limitation for Task 2 itself), it is NOT acceptable to skip straight to running the same untested migration against production. In that case, stop here and tell the user explicitly: "the reset migration has never been executed against any database — only read for well-formedness — and needs to be verified against a scratch project before it's safe to run against production." Do not treat manual code review as equivalent to an actual successful run.
+
 - [ ] **Step 1: Confirm the target project**
 
 Before running anything, positively verify you are connected to the real production COY21 project, not a scratch/dev project:
 - Check the Supabase dashboard project name/URL directly (not from memory).
-- Run a read-only row count against a table you expect to have real data (e.g. `select count(*) from applications;`) and have the user confirm the number looks like genuine production volume, not suspiciously empty or unfamiliar.
-- Do not proceed past this step without an explicit "yes, this is the right project" from the user in this exact session — a prior confirmation from earlier in the conversation does not carry forward to this specific, irreversible action.
+- Run a read-only row count against a table you expect to have real data (e.g. `select count(*) from applications;`) and present that number to the user.
+- Ask the user, using your actual interactive confirmation mechanism (not a rhetorical question you answer yourself), whether this is the correct project to reset, and wait for their real response before doing anything else. A prior confirmation from earlier in the conversation — including any general approval of this plan, this spec, or this project as a whole — does not carry forward to this specific, irreversible action; the confirmation must be obtained fresh, right here, right now.
 
 - [ ] **Step 2: Apply the migration**
 
 ```bash
-npx supabase db push --db-url "<production connection string>" --yes
+npx supabase db push --db-url "<production connection string>"
 ```
+
+Do not pass `--yes` or any other flag that suppresses the Supabase CLI's own native confirmation prompt — that prompt is a second, independent safety layer on top of Step 1's human confirmation, and removing it leaves prose as the only thing standing between this command and an irreversible production change. Let the CLI ask its own question and answer it deliberately, in the moment, rather than pre-answering it.
 
 (Use whichever connection method was already established and working in this session/project — see prior sessions' precedent for how the CLI was successfully linked to a real project via `--db-url` with the pooler connection string, not the direct-connection hostname which failed to resolve for this project.)
 
@@ -613,6 +646,23 @@ describe('the staff role cannot change any account\'s role or delete any account
   // matching this repo's established practice (see the equivalent
   // "single staff account satisfies every domain" test that documents the
   // consolidation's tradeoff above).
+  //
+  // COVERAGE NOTE: this only tests the role-change half of spec §3's
+  // two-part claim (staff cannot change roles, staff cannot delete
+  // accounts), via a direct RLS UPDATE attempt below. The deletion half
+  // is NOT covered here: deleteStaffAccount (src/app/[locale]/(admin)/
+  // staff/actions.ts) is an application-layer 'use server' action gated
+  // by requireSuperAdmin() at the code level, not an RLS policy — it
+  // cannot be invoked directly from a live DB test outside a real
+  // Next.js request context, the same limitation already documented
+  // elsewhere in this file for the requireXStaffCaller helpers. Proving
+  // the deletion half live would require either a Playwright-style
+  // browser test driving the real (admin)/staff UI as a signed-in staff
+  // user, or exporting a testable pure-decision function the way
+  // decideAdminAccess was extracted for admin-access.ts — both are out
+  // of scope for this sub-project. This gap is called out explicitly
+  // here, not silently narrowed, so a future reader knows it's a known,
+  // deliberate omission rather than an oversight.
   it('a staff-scoped client cannot update another profile\'s role via RLS', async () => {
     const { data: staffFx, error: staffErr } = await admin.auth.admin.createUser({
       email: 'staff-roles-live-boundary-staff@test.local',
@@ -669,7 +719,9 @@ npx tsc --noEmit
 
 Expected: no new errors referencing this file (this repo has a known ~394-error baseline from unrelated stale generated types — don't chase those).
 
-- [ ] **Step 4: Run the test** (requires live credentials pointed at the now-reset production project, or a scratch project seeded with the 4 accounts at matching emails/roles for a dry run first — see Task 3's completion before this can meaningfully pass against production)
+- [ ] **Step 4: Run the test if Task 3 and Task 5 have already completed; otherwise skip this step for now**
+
+This test asserts the 4 specific accounts exist with specific roles. If Task 3 (production reset) and Task 5 (manual account creation) haven't happened yet, running this test now will fail — expectedly, not because anything is wrong. Do not treat those failures as a bug to chase down at this point in the plan; Task 6 Step 1 is where this test gets its real, meaningful run, once the accounts actually exist. If you're executing tasks strictly in the order they appear in this document, skip this step here and come back to it as part of Task 6.
 
 ```bash
 npx vitest run tests/auth/staff-roles-live.test.ts
