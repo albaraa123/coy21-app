@@ -36,6 +36,18 @@
  *    sidebar-nav.tsx's doc comment on why it must stay a stable,
  *    locale-independent identity string).
  *  - children: the routed page content, rendered inside <main>.
+ *  - bottomTabItems / moreLabel (both optional): opt-in participant-only
+ *    bottom tab bar. Omitted entirely by (admin)/layout.tsx's call site,
+ *    which keeps admin behavior byte-for-byte identical to before this
+ *    prop pair existed. When provided (currently only by
+ *    (participant)/(shell)/layout.tsx), AppShell renders
+ *    BottomTabBarClientWrapper ('use client', mirrors MobileDrawerTrigger's
+ *    role) as a further sibling inside MobileDrawerProvider — it reads
+ *    usePathname() and reuses useMobileDrawer()'s existing setOpen(true)
+ *    for the "More" tab, opening the SAME MobileDrawer instance already
+ *    wired up below, rather than any new state. <main> gets extra bottom
+ *    padding (pb-16 md:pb-0) whenever the tab bar is present so fixed-
+ *    positioned tab bar never overlaps page content on mobile.
  *
  * Composition (rewritten to fix a real RSC boundary violation — see the
  * bug-fix commit this replaced): AppShell renders Topbar (server)
@@ -58,12 +70,13 @@
  * mobile-drawer-context.tsx's doc comment for the full reasoning.
  */
 
-import type { NavGroup } from '@/lib/nav/nav-types';
+import type { NavGroup, NavItem } from '@/lib/nav/nav-types';
 import { Topbar } from './topbar';
 import { SidebarNav } from './sidebar-nav';
 import { MobileDrawer } from './mobile-drawer';
 import { MobileDrawerTrigger } from './mobile-drawer-trigger';
 import { MobileDrawerProvider } from './mobile-drawer-context';
+import { BottomTabBarClientWrapper } from './bottom-tab-bar-client-wrapper';
 
 export interface AppShellProps {
   navGroups: NavGroup[];
@@ -76,6 +89,10 @@ export interface AppShellProps {
   triggerAriaLabel: string;
   /** Plain map of NavItem/NavGroup `labelKey` -> translated display text; forwarded to SidebarNav/MobileDrawer. */
   navTranslations: Record<string, string>;
+  /** Primary-placement NavItems for the participant bottom tab bar. Omit entirely for shells (e.g. admin) that don't use one. */
+  bottomTabItems?: NavItem[];
+  /** Label for the "More" tab. Required when bottomTabItems is provided. */
+  moreLabel?: string;
   children: React.ReactNode;
 }
 
@@ -89,6 +106,8 @@ export function AppShell({
   drawerAriaLabel,
   triggerAriaLabel,
   navTranslations,
+  bottomTabItems,
+  moreLabel,
   children,
 }: AppShellProps) {
   return (
@@ -115,8 +134,15 @@ export function AppShell({
               <SidebarNav navGroups={navGroups} storageKey={storageKey} navTranslations={navTranslations} />
             </div>
           </aside>
-          <main className="min-w-0 flex-1">{children}</main>
+          <main className={`min-w-0 flex-1 ${bottomTabItems ? 'pb-16 md:pb-0' : ''}`}>{children}</main>
         </div>
+        {bottomTabItems ? (
+          <BottomTabBarClientWrapper
+            primaryItems={bottomTabItems}
+            navTranslations={navTranslations}
+            moreLabel={moreLabel ?? ''}
+          />
+        ) : null}
       </MobileDrawerProvider>
     </div>
   );

@@ -58,8 +58,8 @@
     },
     "participant": {
       "dashboard": "Dashboard",
-      "agenda": "My Bookings",
-      "schedule": "Assigned Schedule",
+      "agenda": "My Program",
+      "schedule": "Conference Program",
       "application": "My Application",
       "myQr": "My QR Code",
       "travel": "My Travel",
@@ -162,11 +162,21 @@
       "empty": "No application found yet.",
       "linkLabel": "View my application"
     },
-    "schedule": {
-      "title": "My schedule",
+    "myProgram": {
+      "title": "My Program",
       "published": "Your personal schedule has been published.",
       "notPublished": "Your personal schedule has not been published yet. Check back soon.",
-      "linkLabel": "View my schedule"
+      "linkLabel": "View my program"
+    },
+    "completeTravelInfo": {
+      "title": "Complete your travel information",
+      "description": "Submit your travel details so we can prepare for your arrival.",
+      "linkLabel": "Complete travel information"
+    },
+    "myQr": {
+      "title": "My QR",
+      "description": "Your QR code is ready to use for check-in.",
+      "linkLabel": "View my QR"
     }
   },
   "claim": {
@@ -191,6 +201,9 @@
     "title": "My application",
     "submitted": "Submitted: {date}",
     "reviewNotice": "Review is manual and may take time. You will be notified by email once a decision is made."
+  },
+  "register": {
+    "stepProgress": "Step {step} of {total}"
   },
   "myQr": {
     "title": "My QR",
@@ -617,6 +630,7 @@
     "logoutLabel": "Log out",
     "drawerAriaLabel": "Main menu",
     "triggerAriaLabel": "Open menu",
+    "moreLabel": "More",
     "unauthorized": {
       "toParticipantDashboard": "Go to my dashboard",
       "toAdminDashboard": "Go to dashboard"

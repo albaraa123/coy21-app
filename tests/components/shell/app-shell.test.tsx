@@ -17,7 +17,7 @@ vi.mock('next/image', () => ({
 }));
 
 import { AppShell } from '@/components/shell/app-shell';
-import type { NavGroup } from '@/lib/nav/nav-types';
+import type { NavGroup, NavItem } from '@/lib/nav/nav-types';
 
 const navGroups: NavGroup[] = [
   {
@@ -25,6 +25,18 @@ const navGroups: NavGroup[] = [
     items: [{ labelKey: 'nav.participants.list', href: '/participants', iconKey: 'participants' }],
   },
 ];
+
+const bottomTabItems: NavItem[] = [
+  { labelKey: 'nav.participant.dashboard', href: '/my-dashboard', iconKey: 'dashboard', placement: 'primary' },
+  { labelKey: 'nav.participant.agenda', href: '/my-agenda', iconKey: 'schedule', placement: 'primary' },
+  { labelKey: 'nav.participant.myQr', href: '/my-qr', iconKey: 'qr', placement: 'primary' },
+];
+
+const bottomTabNavTranslations = {
+  'nav.participant.dashboard': 'Home',
+  'nav.participant.agenda': 'My Program',
+  'nav.participant.myQr': 'My QR',
+};
 
 describe('AppShell (server, SSR markup)', () => {
   it('renders without throwing (no server-side data fetching / no client-only APIs at this layer)', () => {
@@ -81,5 +93,49 @@ describe('AppShell (server, SSR markup)', () => {
     );
     expect(html).toContain('Distinctive Test Name');
     expect(html).toContain('Distinctive Role');
+  });
+
+  it('renders the bottom tab bar and pads <main> with pb-16 when bottomTabItems is provided', () => {
+    const html = renderToStaticMarkup(
+      <AppShell
+        navGroups={navGroups}
+        storageKey="rcoy-participant-nav-v1"
+        userDisplay={{ name: 'Amina K.', roleLabel: 'Participant' }}
+        locale="ar"
+        logoutLabel="Log out"
+        drawerAriaLabel="Main menu"
+        triggerAriaLabel="Open menu"
+        navTranslations={bottomTabNavTranslations}
+        bottomTabItems={bottomTabItems}
+        moreLabel="More"
+      >
+        <p>Page content</p>
+      </AppShell>
+    );
+    expect(html).toContain('Home');
+    expect(html).toContain('My Program');
+    expect(html).toContain('My QR');
+    expect(html).toContain('>More<');
+    expect(html).toMatch(/<main class="[^"]*\bpb-16\b[^"]*"/);
+  });
+
+  it('omits the bottom tab bar and pb-16 padding when bottomTabItems is not provided', () => {
+    const html = renderToStaticMarkup(
+      <AppShell
+        navGroups={navGroups}
+        storageKey="rcoy-admin-nav-v1"
+        userDisplay={{ name: 'Amina K.', roleLabel: 'Admin' }}
+        locale="ar"
+        logoutLabel="Log out"
+        drawerAriaLabel="Main menu"
+        triggerAriaLabel="Open menu"
+        navTranslations={{}}
+      >
+        <p>Page content</p>
+      </AppShell>
+    );
+    expect(html).not.toContain('>More<');
+    expect(html).toMatch(/<main class="[^"]*"/);
+    expect(html).not.toMatch(/<main class="[^"]*\bpb-16\b[^"]*"/);
   });
 });

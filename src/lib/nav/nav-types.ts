@@ -15,6 +15,8 @@ export interface NavItem {
   href: string;
   iconKey: string;
   children?: NavItem[];
+  /** Which nav surface this item belongs to for participant-shell layouts using a bottom tab bar. Unused by admin nav configs. */
+  placement?: 'primary' | 'more';
 }
 
 export interface NavGroup {

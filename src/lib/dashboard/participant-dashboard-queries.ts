@@ -176,6 +176,52 @@ export async function getMySchedulePublicationState(
   };
 }
 
+export type MyTravelCompleteness = { submitted: boolean };
+
+/**
+ * Whether the caller has a travel-info submission on file, for the
+ * status-aware home screen's card-priority logic (Task 8, not this task).
+ * Two-step lookup matching getMySchedulePublicationState's established
+ * pattern above: the caller's own `applications.id` via
+ * `applicant_id = userId`, then a dependent query against
+ * `application_travel_info` scoped to that `application_id`.
+ *
+ * application_travel_info (supabase/migrations/20260730110000_application_
+ * travel_and_health_info_tables.sql) is a strict 1:1 extension of
+ * `applications`: `application_id` is BOTH its primary key and its foreign
+ * key — there is no separate surrogate `id` column, unlike
+ * schedule_publications above. Existence of that row (regardless of which
+ * of its nullable fields are actually filled in) is what "submitted" means
+ * here, mirroring how travel-ops/travel-info-management.ts's own
+ * fetchTravelInfoForCaller looks the row up (`.eq('application_id',
+ * applicationId).maybeSingle()`).
+ *
+ * No claimed application at all -> `{ kind: 'empty' }` (nothing to have
+ * submitted travel info against, not an error). A claimed application with
+ * no application_travel_info row yet -> `{ kind: 'data', value:
+ * { submitted: false } }` — a real, known "not submitted" answer, not an
+ * absence of data.
+ */
+export async function getMyTravelCompleteness(caller: DashboardParticipantCaller): Promise<CardResult<MyTravelCompleteness>> {
+  const { data: application, error: applicationError } = await caller.service
+    .from('applications')
+    .select('id')
+    .eq('applicant_id', caller.userId)
+    .maybeSingle();
+
+  if (applicationError) return { kind: 'error', message: applicationError.message };
+  if (!application) return { kind: 'empty' };
+
+  const { data: travelInfo, error: travelError } = await caller.service
+    .from('application_travel_info')
+    .select('application_id')
+    .eq('application_id', application.id)
+    .maybeSingle();
+
+  if (travelError) return { kind: 'error', message: travelError.message };
+  return { kind: 'data', value: { submitted: Boolean(travelInfo) } };
+}
+
 export type MyAttendanceForSession = { status: string; entryType: string; admittedAt: string };
 
 /**

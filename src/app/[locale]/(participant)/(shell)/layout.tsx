@@ -49,6 +49,13 @@ import type { NavGroup } from '@/lib/nav/nav-types';
 // which points at sidebar-nav.tsx) for "flat list, no group UI".
 const participantNavGroups: NavGroup[] = [{ labelKey: '', items: participantNavItems }];
 
+// The 3 primary-placement NavItems (Task 1's placement field) that the
+// bottom tab bar renders directly; the rest ("more"-placement, plus
+// primary items too, since the drawer still lists everything) remain
+// reachable via the drawer MobileDrawer/BottomTabBarClientWrapper's
+// "More" trigger already opens — see app-shell.tsx's doc comment.
+const primaryTabItems = participantNavItems.filter((item) => item.placement === 'primary');
+
 export default async function ParticipantShellLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const supabase = await createClient();
@@ -105,6 +112,8 @@ export default async function ParticipantShellLayout({ children }: { children: R
       drawerAriaLabel={t('drawerAriaLabel')}
       triggerAriaLabel={t('triggerAriaLabel')}
       navTranslations={navTranslations}
+      bottomTabItems={primaryTabItems}
+      moreLabel={t('moreLabel')}
     >
       {children}
     </AppShell>
