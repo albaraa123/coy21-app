@@ -11,9 +11,9 @@
 //
 // PRIVACY FOCUS: this is the most privacy-sensitive task in the plan. Every
 // test below either proves a real count/empty/error distinction, or proves
-// the internal staff re-check (isStaffRole, the CURRENT broadened check —
+// the internal staff re-check (isNonParticipantRole, the broadened check —
 // see admin-dashboard-queries.ts's own doc comment for why it is NOT
-// isAgendaStaffRole) actually rejects a non-staff (participant) caller,
+// the narrower isStaffRole) actually rejects a non-staff (participant) caller,
 // even though these functions are given a service-role client that could
 // otherwise read anything.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -207,7 +207,7 @@ describe('admin dashboard queries — authorization', () => {
   }, 120000);
 
   it.each<ProfileRole>(['super_admin', 'registration_admission_manager', 'agenda_allocation_manager', 'communications_attendance_manager'])(
-    'a real %s caller (current broadened isStaffRole check, all 4 roles) is authorized, not unauthorized',
+    'a real %s caller (current broadened isNonParticipantRole check, all 4 roles) is authorized, not unauthorized',
     async (role) => {
       const caller = await makeStaffCaller(role);
       const result = await getAcceptedParticipantCount(caller);
