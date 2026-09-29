@@ -37,18 +37,7 @@
 export const ROLE_LABEL_KEYS = {
   participant: 'roles.participant',
   super_admin: 'roles.super_admin',
-  registration_admission_manager: 'roles.registration_admission_manager',
-  agenda_allocation_manager: 'roles.agenda_allocation_manager',
-  communications_attendance_manager: 'roles.communications_attendance_manager',
-  // travel_operations_staff and participant_care_staff were added to the
-  // user_role enum (20260730100000) but never added here, which meant
-  // isStaffRole/STAFF_ROLES (post-login-destination.ts) never recognized
-  // them as staff -- they were redirected to /my-dashboard like a
-  // participant and hit UnauthorizedState on any /admin URL. Fixed here.
-  travel_operations_staff: 'roles.travel_operations_staff',
-  participant_care_staff: 'roles.participant_care_staff',
-  participants_communications_manager: 'roles.participants_communications_manager',
-  program_attendance_manager: 'roles.program_attendance_manager',
+  staff: 'roles.staff',
   scanner_device: 'roles.scanner_device',
 } as const;
 

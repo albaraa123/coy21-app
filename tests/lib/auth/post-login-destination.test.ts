@@ -11,19 +11,7 @@ import { isNonParticipantRole, resolvePostLoginDestination, NON_PARTICIPANT_ROLE
 // tests/auth/post-login-redirect-live.test.ts.
 describe('isNonParticipantRole / NON_PARTICIPANT_ROLES', () => {
   it('includes every non-participant role from role-label.ts', () => {
-    expect(NON_PARTICIPANT_ROLES.sort()).toEqual(
-      [
-        'super_admin',
-        'registration_admission_manager',
-        'agenda_allocation_manager',
-        'communications_attendance_manager',
-        'travel_operations_staff',
-        'participant_care_staff',
-        'participants_communications_manager',
-        'program_attendance_manager',
-        'scanner_device',
-      ].sort()
-    );
+    expect(NON_PARTICIPANT_ROLES.sort()).toEqual(['super_admin', 'staff', 'scanner_device'].sort());
   });
 
   it('is false for participant, null, and undefined', () => {

@@ -16,31 +16,19 @@ import { roleLabelKey, ROLE_LABEL_KEYS } from '@/lib/shell/role-label';
 // `shell.shell.roles.participant`), which is exactly what these
 // assertions guard against regressing.
 describe('roleLabelKey', () => {
-  it('maps every real user_role enum value to a namespace-relative roles.* key', () => {
-    // Mirrors the enum as originally defined in
-    // supabase/migrations/20260721200747_roles_and_profiles.sql, plus the
-    // roles added since: travel_operations_staff and participant_care_staff
-    // (20260730100000), participants_communications_manager and
-    // program_attendance_manager (20260803100000), and scanner_device
-    // (20260804110000). Previously this list only had the original 5 and
-    // was out of sync with both the real enum and
+  it('maps every consolidated user_role value to a namespace-relative roles.* key', () => {
+    // As of the 2026-09-29 staff role consolidation, ROLE_LABEL_KEYS holds
+    // only the 4 consolidated roles (participant, super_admin, staff,
+    // scanner_device) — the 7 deprecated staff-subtype roles (e.g.
+    // registration_admission_manager) are no longer keys here, even though
+    // they remain physically present in the Postgres user_role enum
+    // (Postgres can't drop enum values in place). See the "unrecognized
+    // role" test below for that fallback behavior, and
     // tests/lib/auth/post-login-destination.test.ts's NON_PARTICIPANT_ROLES
-    // list (renamed from STAFF_ROLES as of the 2026-09-29 staff role
-    // consolidation).
-    const REAL_ENUM_VALUES = [
-      'participant',
-      'super_admin',
-      'registration_admission_manager',
-      'agenda_allocation_manager',
-      'communications_attendance_manager',
-      'travel_operations_staff',
-      'participant_care_staff',
-      'participants_communications_manager',
-      'program_attendance_manager',
-      'scanner_device',
-    ] as const;
+    // list (renamed from STAFF_ROLES) for the derived consumer.
+    const CONSOLIDATED_ROLE_VALUES = ['participant', 'super_admin', 'staff', 'scanner_device'] as const;
 
-    for (const role of REAL_ENUM_VALUES) {
+    for (const role of CONSOLIDATED_ROLE_VALUES) {
       expect(roleLabelKey(role)).toBe(`roles.${role}`);
       expect(roleLabelKey(role)).not.toMatch(/^shell\./);
     }
@@ -54,6 +42,27 @@ describe('roleLabelKey', () => {
   it('returns undefined for an unrecognized role value rather than throwing', () => {
     expect(roleLabelKey('some_future_role')).toBeUndefined();
     expect(roleLabelKey('')).toBeUndefined();
+  });
+
+  it('returns undefined for the deprecated staff-subtype roles no longer in ROLE_LABEL_KEYS', () => {
+    // These 7 roles remain physically present in the Postgres user_role
+    // enum (never dropped) but are deliberately absent from
+    // ROLE_LABEL_KEYS post-consolidation — roleLabelKey's existing
+    // null/unrecognized fallback (see its doc comment) now correctly
+    // covers them too.
+    const DEPRECATED_ROLE_VALUES = [
+      'registration_admission_manager',
+      'agenda_allocation_manager',
+      'communications_attendance_manager',
+      'travel_operations_staff',
+      'participant_care_staff',
+      'participants_communications_manager',
+      'program_attendance_manager',
+    ] as const;
+
+    for (const role of DEPRECATED_ROLE_VALUES) {
+      expect(roleLabelKey(role)).toBeUndefined();
+    }
   });
 
   it('ROLE_LABEL_KEYS has no raw enum value leaking through as its own key label', () => {
