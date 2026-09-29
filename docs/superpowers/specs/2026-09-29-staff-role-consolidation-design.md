@@ -30,10 +30,13 @@ Every RLS policy and several `SECURITY DEFINER` RPC functions in this codebase c
 
 ## Scope of impact (confirmed via codebase scan)
 
-- 66 files under `src/` reference at least one of the 7 target roles
+- 51 files under `src/` reference at least one of the 7 target roles
 - 36 migration files under `supabase/migrations/` reference at least one of the 7 target roles; of those, 30 files contain actual `create policy` / `create function` definitions that need updating (the rest are incidental references, e.g. comments or unrelated column changes)
-- Exactly 7 `is<X>StaffRole()` function + `<X>_STAFF_ROLES` constant pairs, one per domain, all following an identical shape
-- One `staff-manager.tsx` admin UI screen with a 7-entry role dropdown
+- 6 `is<X>StaffRole()` function + `<X>_STAFF_ROLES` constant pairs, one per domain (admission-review, agenda, travel-ops, participant-care, participants-communications, program-attendance) — **not 7**: `communications_attendance_manager` has no dedicated validation file of its own; it only appears in `role-label.ts`, `admin-access.ts`, and `admin-dashboard-queries.ts` and is folded into consolidation there directly.
+- One `staff-manager.tsx` admin UI screen with an 8-entry role dropdown (`super_admin` + the 7 domain roles)
+- One naming collision to resolve (see §3a)
+- One composite-permission file to update (see §3b)
+- Inline plpgsql role checks inside `SECURITY DEFINER` RPC functions that are not expressed as `create policy` statements and so are not covered by the RLS policy consolidation in §2 (see §2a)
 
 ## Design
 
@@ -73,6 +76,23 @@ A new migration updates every policy currently matching the pattern `current_use
 
 **Confirmed security implication**: policies that previously distinguished between domains (e.g. an admission-review policy visible only to `registration_admission_manager`, a travel policy visible only to `travel_operations_staff`) now all resolve through the same `is_staff()` check. Any `staff` account can access all of it. This is the tradeoff the user explicitly approved.
 
+### 2a. Inline plpgsql role checks (not expressed as RLS policies)
+
+Some `SECURITY DEFINER` RPC functions check the caller's role via an inline plpgsql `if` statement against a fetched column value, rather than through a `create policy using (...)` clause — these are NOT touched by the drop/recreate policy migration in §2 and need their own pass. Confirmed instances:
+
+- `supabase/migrations/20260805235959_phase6_qr_issuance_reissue.sql` — 14+ occurrences of the pattern `if v_caller_role not in ('super_admin', 'program_attendance_manager') then ...` (or similar per-domain variants) at multiple call sites within the file.
+- `supabase/migrations/20260811210000_fix_staff_blocker_resolver_channel_check.sql` — same pattern.
+
+Because plpgsql can call SQL functions directly, these are updated to call `is_staff()` instead of re-deriving the caller's role and comparing against a literal list, e.g.:
+
+```plpgsql
+if not is_staff() then
+  raise exception '...';
+end if;
+```
+
+replacing the old `if v_caller_role not in (...) then`. A new migration (or the same one from §2) must locate and rewrite every such inline check — this requires an explicit line-by-line pass over the two files above (and a final `grep` across all migrations for any other `not in ('super_admin', '<role>')`-shaped literal check before considering this step complete), not just the `create policy` search from §2.
+
 ### 3. Code consolidation in `src/`
 
 New shared module:
@@ -85,9 +105,24 @@ export function isStaffRole(role: string | null | undefined): boolean {
 }
 ```
 
-The 7 existing `is<X>StaffRole()` functions and their backing `<X>_STAFF_ROLES` constants (in `admission-review.ts`, `travel-ops.ts`, `participants-communications.ts`, `participant-care.ts`, `program-attendance.ts`, `agenda.ts`, and the communications/attendance validation file) are deleted outright — not kept as deprecated wrappers, since there is no external consumer of this code outside this repo. All call sites (identified across the 66 files) are updated to import `isStaffRole` from the new shared module instead.
+The 6 existing `is<X>StaffRole()` functions and their backing `<X>_STAFF_ROLES` constants (in `admission-review.ts`, `travel-ops.ts`, `participants-communications.ts`, `participant-care.ts`, `program-attendance.ts`, `agenda.ts`) are deleted outright — not kept as deprecated wrappers, since there is no external consumer of this code outside this repo. All call sites (identified across the 51 files) are updated to import `isStaffRole` from the new shared module instead. Any remaining direct references to `communications_attendance_manager` (in `role-label.ts`, `admin-access.ts`, `admin-dashboard-queries.ts`) are updated to use `isStaffRole`/`'staff'` the same way.
 
 `provision-staff-account.ts` requires no structural change — it already takes `role` as a generic string parameter; only the values passed to it change (call sites that used to pass one of the 7 roles now pass `'staff'`).
+
+### 3a. Naming collision: `src/lib/auth/post-login-destination.ts`
+
+This file already exports `STAFF_ROLES` and `isStaffRole` — but with a different, wider semantic: "any non-participant role," derived from `ROLE_LABEL_KEYS`, which currently includes `scanner_device`. This is a genuine name collision with the new shared module proposed in §3, which means something narrower ("staff or super_admin", excluding `scanner_device`).
+
+Resolution: the new shared check from §3 is named `isStaffRole` and lives in `src/lib/auth/is-staff-role.ts` as planned. The existing, wider check in `post-login-destination.ts` is renamed to `isNonParticipantRole`/`NON_PARTICIPANT_ROLES` (or similar) to reflect what it actually tests, and its call sites (`admin-access.ts`, its own tests) are updated to the new name. Both checks are needed and are semantically distinct — one collapses onto the other only by coincidence of the old 10-role model; the rename resolves the collision honestly instead of merging two different concepts.
+
+### 3b. Composite permission file: `src/lib/validation/funding-type.ts`
+
+This file defines two functions composed from calls to multiple domain-specific `is<X>StaffRole` functions:
+
+- `isFundingTypeStaffRole(role)` = `isProgramAttendanceStaffRole(role) || isTravelOpsStaffRole(role)`
+- `canReadAttendanceConfirmation(role)` = `isFundingTypeStaffRole(role) || isParticipantCareStaffRole(role)`
+
+Once the 3 domain functions it depends on are deleted per §3, both composite functions collapse to the same check — `isStaffRole(role)` — since every one of their constituent domains is now folded into the single `staff` role. Both functions are updated to call `isStaffRole` directly; the file's existing comments explaining the historical read/write distinction are updated to note that the distinction no longer exists post-consolidation (this is a real, intentional behavior change: `participant_care_staff`'s previously read-only reach into `attendance_confirmation` becomes read/write, consistent with the rest of this consolidation's tradeoff).
 
 ### 4. `staff-manager.tsx` admin UI
 
