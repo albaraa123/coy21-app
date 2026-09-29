@@ -81,6 +81,7 @@ A new migration updates every policy currently matching the pattern `current_use
 Some `SECURITY DEFINER` RPC functions check the caller's role via an inline plpgsql `if` statement against a fetched column value, rather than through a `create policy using (...)` clause — these are NOT touched by the drop/recreate policy migration in §2 and need their own pass. Confirmed instances:
 
 - `supabase/migrations/20260805235959_phase6_qr_issuance_reissue.sql` — 14+ occurrences of the pattern `if v_caller_role not in ('super_admin', 'program_attendance_manager') then ...` (or similar per-domain variants) at multiple call sites within the file.
+- `supabase/migrations/20260810000000_fix_qr_finalizer_audit_actor_type_cast.sql` — same pattern (`v_caller_role not in ('super_admin', 'program_attendance_manager')` at lines 282 and 681, `v_caller_role` declared at lines 50 and 468).
 - `supabase/migrations/20260811210000_fix_staff_blocker_resolver_channel_check.sql` — same pattern.
 
 Because plpgsql can call SQL functions directly, these are updated to call `is_staff()` instead of re-deriving the caller's role and comparing against a literal list, e.g.:
