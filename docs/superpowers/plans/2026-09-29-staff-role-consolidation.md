@@ -15,9 +15,10 @@
 ## File Structure
 
 **New files:**
-- `supabase/migrations/20260929000000_add_staff_role_and_migrate.sql` — enum addition + data migration + `is_staff()` helper
+- `supabase/migrations/20260929000000_add_staff_role_and_migrate.sql` — enum addition only (must be its own migration/transaction; see Task 1)
+- `supabase/migrations/20260929000001_migrate_staff_profiles_and_add_helper.sql` — data migration + `is_staff()` helper (depends on the enum value from the file above being committed first)
 - `supabase/migrations/20260929010000_consolidate_rls_policies_to_staff.sql` — drop/recreate ~30 RLS policies to use `is_staff()`
-- `supabase/migrations/20260929020000_consolidate_inline_role_checks_to_staff.sql` — rewrite inline plpgsql checks in the 3 RPC-bearing migrations' functions (via `create or replace function`)
+- `supabase/migrations/20260929020000_consolidate_inline_role_checks_to_staff.sql` — rewrite inline plpgsql checks in the RPC-bearing migrations' functions (via `create or replace function`) — 5 files identified (see Task 3), not 3
 - `src/lib/auth/is-staff-role.ts` — the new shared `isStaffRole()` / `STAFF_ROLES` (narrow: staff + super_admin)
 
 **Modified files (renamed export, not deleted):**
@@ -147,12 +148,14 @@ git commit -m "feat: add staff enum value, migrate existing staff profiles, add 
 
 - [ ] **Step 1: Enumerate every policy to change**
 
-Run this from the project root to get the definitive list (do not rely on a hand-typed list — re-derive it, since migration history may have shifted since the spec was written):
+Run this from the project root to get the definitive list (do not rely on a hand-typed list — re-derive it, since migration history may have shifted since the spec was written). Include the `not in` variant, not just `in` — both shapes appear in this codebase:
 
 ```bash
-grep -rn "current_user_role() in (" supabase/migrations/ | grep -E "registration_admission_manager|agenda_allocation_manager|communications_attendance_manager|travel_operations_staff|participant_care_staff|participants_communications_manager|program_attendance_manager"
+grep -rn "current_user_role() in (\|current_user_role() not in (" supabase/migrations/ | grep -E "registration_admission_manager|agenda_allocation_manager|communications_attendance_manager|travel_operations_staff|participant_care_staff|participants_communications_manager|program_attendance_manager"
 grep -rn "current_user_role() = '" supabase/migrations/ | grep -E "registration_admission_manager|agenda_allocation_manager|communications_attendance_manager|travel_operations_staff|participant_care_staff|participants_communications_manager|program_attendance_manager"
 ```
+
+Note: some matches from this search are `create policy` clauses (belong in this task) and some are inline plpgsql `if` checks inside function bodies (belong in Task 3, not here) — e.g. `current_user_role() not in (...)` inside `supabase/migrations/20260820120000_rollback_import_batch_security_definer.sql` and `20260820140000_add_attendance_confirmation_to_import.sql` are plpgsql checks, not policies. When triaging each match, check whether it sits inside a `create policy ... using (...)` statement (this task) or inside a `create function ... $$ ... $$` body (Task 3) before deciding where it belongs.
 
 For each match, note: the migration file it's defined in (for reference only — you will NOT edit that file), the exact `create policy <name> on <table> for <command> ...` statement it belongs to (search upward in the same file from the matched line to find the enclosing `create policy` statement), and whether it's a `using` clause, a `with check` clause, or both.
 
@@ -224,15 +227,25 @@ git commit -m "feat: consolidate RLS policies to use is_staff() instead of 7 dom
 
 **Files:**
 - Create: `supabase/migrations/20260929020000_consolidate_inline_role_checks_to_staff.sql`
-- Reference (read-only): `supabase/migrations/20260805235959_phase6_qr_issuance_reissue.sql`, `supabase/migrations/20260810000000_fix_qr_finalizer_audit_actor_type_cast.sql`, `supabase/migrations/20260811210000_fix_staff_blocker_resolver_channel_check.sql`
+- Reference (read-only): `supabase/migrations/20260805235959_phase6_qr_issuance_reissue.sql`, `supabase/migrations/20260810000000_fix_qr_finalizer_audit_actor_type_cast.sql`, `supabase/migrations/20260811210000_fix_staff_blocker_resolver_channel_check.sql`, `supabase/migrations/20260820120000_rollback_import_batch_security_definer.sql`, `supabase/migrations/20260820140000_add_attendance_confirmation_to_import.sql`
 
-**Context:** Some `SECURITY DEFINER` RPC functions check the caller's role via an inline plpgsql `if` statement comparing a fetched column value (e.g. `v_caller_role`) against a literal list, rather than through an RLS policy — these are NOT covered by Task 2 and need their own pass. Since these are full function bodies, the fix is `create or replace function` with the complete corrected body — Postgres has no way to patch a single `if` statement inside an existing function.
+**Context:** Some `SECURITY DEFINER` RPC functions check the caller's role via an inline plpgsql `if` statement — either comparing a fetched variable (e.g. `v_caller_role not in (...)`) or calling `current_user_role() not in (...)` directly inside the function body — rather than through an RLS policy. These are NOT covered by Task 2 (which only targets `create policy` statements) and need their own pass. Since these are full function bodies, the fix is `create or replace function` with the complete corrected body — Postgres has no way to patch a single `if` statement inside an existing function.
+
+Two additional files beyond the 3 named in the design spec were found during plan review: `20260820120000_rollback_import_batch_security_definer.sql:129` and `20260820140000_add_attendance_confirmation_to_import.sql:516`, both containing `if current_user_role() not in ('agenda_allocation_manager', 'participants_communications_manager', 'super_admin') then`. This is the same class of problem (an inline check inside a `SECURITY DEFINER` function body) even though it uses `current_user_role()` directly instead of a `v_caller_role` variable — the grep in Step 1 below is widened accordingly to catch both shapes, so this task's own verification step (not just the 2 files known in advance) is what makes the file list complete, not a fixed list.
 
 - [ ] **Step 1: Locate every affected function**
 
 ```bash
-grep -n "v_caller_role\|caller_role not in" supabase/migrations/20260805235959_phase6_qr_issuance_reissue.sql supabase/migrations/20260810000000_fix_qr_finalizer_audit_actor_type_cast.sql supabase/migrations/20260811210000_fix_staff_blocker_resolver_channel_check.sql
+grep -n "v_caller_role\|caller_role not in\|current_user_role() not in" supabase/migrations/20260805235959_phase6_qr_issuance_reissue.sql supabase/migrations/20260810000000_fix_qr_finalizer_audit_actor_type_cast.sql supabase/migrations/20260811210000_fix_staff_blocker_resolver_channel_check.sql supabase/migrations/20260820120000_rollback_import_batch_security_definer.sql supabase/migrations/20260820140000_add_attendance_confirmation_to_import.sql
 ```
+
+Then, independently of the file list above, sweep the ENTIRE migrations directory for the same patterns to confirm no 6th file exists that plan review didn't catch either:
+
+```bash
+grep -rln "v_caller_role\|caller_role not in\|current_user_role() not in" supabase/migrations/
+```
+
+If this returns any file not already in the list above, add it — do not treat the 5 files named in this task as exhaustive; treat this grep as the actual source of truth.
 
 For each match, identify the enclosing `create function` / `create or replace function` statement (search upward from the match to the nearest `create [or replace] function <name>`). Build a list of distinct function names that need a full `create or replace function` in the new migration.
 
@@ -270,13 +283,13 @@ end if;
 grep -n "not in ('super_admin'" supabase/migrations/20260929020000_consolidate_inline_role_checks_to_staff.sql
 ```
 
-Expected: zero matches in the NEW file (everything should now route through `is_staff()`). Then re-run the full-history sweep from the design spec to confirm no other migration file beyond the 3 already known contains this pattern:
+Expected: zero matches in the NEW file (everything should now route through `is_staff()`). Then re-run the full-history sweep to confirm no other migration file beyond the 5 already known contains this pattern:
 
 ```bash
-grep -rlE "v_caller_role|caller_role not in" supabase/migrations/
+grep -rlE "v_caller_role|caller_role not in|current_user_role\(\) not in" supabase/migrations/
 ```
 
-Expected: exactly the 3 files already identified, still present (historical files are never edited) — if a 4th file appears, it was missed in prior research; add its functions to this task before proceeding.
+Expected: exactly the 5 files already identified in this task, still present (historical files are never edited) — if a 6th file appears, it was missed in prior research; add its functions to this task before proceeding.
 
 - [ ] **Step 5: Apply and test the affected RPCs manually**
 
@@ -558,7 +571,7 @@ git add -A
 git commit -m "refactor: remove 6 domain-specific staff role checks (superseded by isStaffRole); delete 4 now-empty files"
 ```
 
-(Deliberately committing a temporarily-broken build state here — Task 8 fixes every call site next. Two atomic commits is clearer history than one giant mixed commit, and this plan's execution model runs Task 8 immediately after.)
+(Deliberately committing a temporarily-broken build state here — Task 8 fixes every call site next. Two atomic commits is clearer history than one giant mixed commit, and this plan's execution model runs Task 8 immediately after. **If execution is interrupted between this commit and Task 8's commit** (crash, session end, etc.): whoever resumes must complete Task 8 before doing anything else on this branch — do not attempt to run the app, run the full test suite for any purpose other than confirming Task 8 fixed it, or start a different task while the build is in this state. If Task 8 cannot be completed immediately, `git revert` this commit instead of leaving the branch broken.)
 
 ---
 
@@ -593,7 +606,7 @@ Work through the file list from Step 1 systematically — group by directory for
 
 This file's `isHrefVisible` function currently branches per-href to different domain checks (see the file's own doc comment explaining the href → required-check mapping). After consolidation, EVERY branch collapses to the same `isStaffRole(role)` check, which means the entire per-href branching structure becomes dead logic — there is no longer any href-specific visibility difference between staff accounts.
 
-Do not just mechanically swap each branch's function call and leave the branching structure in place (that would be technically correct but leaves ~70 lines of now-pointless dead code and a doc comment that actively lies about per-role visibility differences that no longer exist). Instead, simplify `isHrefVisible` to:
+Do not just mechanically swap each branch's function call and leave the branching structure in place (that would be technically correct but leaves ~70 lines of now-pointless dead code and a doc comment that actively lies about per-role visibility differences that no longer exist). Note one subtlety: `ANY_STAFF_HREFS` currently returns `true` unconditionally with NO role check at all (not even the old domain checks) — collapsing the whole function to a single `isStaffRole(role)` call means those hrefs become role-gated for the first time. This is a no-op in practice, since `filterAdminNavGroups` is only ever called from `(admin)/layout.tsx` after `decideAdminAccess` has already required `isNonParticipantRole` (Task 5) to reach this code at all, but call it out in the file's rewritten doc comment as a deliberate tightening, not an oversight. Simplify `isHrefVisible` to:
 
 ```typescript
 function isHrefVisible(role: string | null | undefined): boolean {
