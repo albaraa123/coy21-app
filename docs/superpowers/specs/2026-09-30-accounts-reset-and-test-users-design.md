@@ -83,15 +83,39 @@ Using `truncate ... cascade` (rather than manually ordering `delete` statements)
 
 **Execution-time safety gate**: because this operation is genuinely irreversible and explicitly targets the real production COY21 project (not a scratch/disposable one), whoever applies this migration must first positively confirm they are connected to the correct project before running it — e.g. by checking the project ref shown by `supabase status`/the dashboard URL against the known production project ref, or by running a read-only row-count query first and having a human confirm the counts look like real production volumes (not a suspiciously empty or unfamiliar project) before proceeding. This spec does not automate that check away — the implementation plan must include an explicit manual confirmation step immediately before the truncate/delete statements run, not just a comment saying "be careful."
 
-**What is explicitly NOT truncated** (conference configuration, not user data): `conference_days`, `tracks`, `rooms`, `session_types`, `sessions`, `session_people`, `session_tags`, `tags`, `local_info_sections/items/images`, and any other non-participant-scoped table. Per your confirmation, "delete all users" means accounts and their data, not conference setup.
+**What is explicitly NOT truncated** (conference configuration, not user data, rows are kept): `conference_days`, `tracks`, `rooms`, `session_types`, `sessions`, `session_people`, `session_tags`, `tags`, `people`, `audit_logs`, `local_info_sections/items/images`, and any other non-participant-scoped table. Per your confirmation, "delete all users" means accounts and their data, not conference setup. (`scanner_assignments` is a partial exception — see immediately below — its rows are deleted, not kept, since they lose all meaning once the accounts they link no longer exist.)
 
-**After truncating application-domain tables**, delete every row in `profiles` and `auth.users`:
+**Before deleting `auth.users`, nullify every "who did this" column on the config tables above.** Several of them still carry an `updated_by`/`actor_id`/`scanned_by`/`assigned_by`/`linked_profile_id` column that references `profiles(id)` with no `on delete` action (plain `references profiles(id)`, defaulting to Postgres's `no action`, i.e. restrict). If any of those columns is non-null when `delete from auth.users` runs — which is likely, since a project with any staff/scanner activity will have audit trails recorded on these tables — the delete will raise a foreign-key-violation error and the whole migration rolls back (transactional, so this fails safely rather than partially, but it does mean the reset as a naive single `delete from auth.users` would simply not work). This was caught during spec review, not assumed correct without checking.
+
+The fix: null out these columns first, keeping the row itself (so the config data — room names, session titles, day definitions — survives untouched, only the "who last touched this" attribution is cleared, which is expected and correct since the person who touched it no longer exists):
+
+```sql
+update rooms set updated_by = null where updated_by is not null;
+update tracks set updated_by = null where updated_by is not null;
+update session_types set updated_by = null where updated_by is not null;
+update conference_days set updated_by = null where updated_by is not null;
+update tags set updated_by = null where updated_by is not null;
+update people set updated_by = null, linked_profile_id = null where updated_by is not null or linked_profile_id is not null;
+update sessions set updated_by = null where updated_by is not null;
+update session_people set updated_by = null where updated_by is not null;
+update session_tags set updated_by = null where updated_by is not null;
+update audit_logs set actor_id = null where actor_id is not null;
+delete from scanner_assignments;
+```
+
+`scanner_assignments` is deleted outright rather than nullified — both of its profile-referencing columns (`scanner_user_id`, `assigned_by`) are `not null`, so nullifying isn't possible, and an assignment record that points at a now-deleted scanner/staff account has no meaning to preserve (unlike a room or session, which still makes sense to keep with an anonymous "last updated by" trail). `scanner_assignments` was not already in the main truncate list because it has no FK to `applications` — it only references `profiles` directly — so it's called out here specifically rather than folded into the earlier list.
+
+This list was derived by searching every migration for `references profiles(id)` (not just `references applications`, which is a narrower search than the truncate-list derivation above) and checking each hit's `on delete` behavior; any hit landing on a table already in the truncate list above is not repeated here since that table is being emptied anyway.
+
+**Then**, delete every row in `profiles` and `auth.users`:
 
 ```sql
 delete from auth.users;
 ```
 
-Since `profiles.id references auth.users(id) on delete cascade`, this single statement also removes every `profiles` row. No separate `profiles` truncate is needed or safe to do first (truncating `profiles` before `auth.users` would leave orphaned `auth.users` rows with no matching profile, which is worse — deleting `auth.users` first, letting cascade clean up `profiles`, is correct and matches the existing cascade already declared in the base schema migration).
+Since `profiles.id references auth.users(id) on delete cascade`, this single statement also removes every `profiles` row. No separate `profiles` truncate is needed or safe to do first (truncating `profiles` before `auth.users` would leave orphaned `auth.users` rows with no matching profile, which is worse — deleting `auth.users` first, letting cascade clean up `profiles`, is correct and matches the existing cascade already declared in the base schema migration). By this point every other FK into `profiles` has already been cleared (either by truncating the referencing table earlier, or by the nullify/delete statements just above), so this delete cannot hit a foreign-key violation.
+
+**Failure/recovery note**: because every statement above runs inside one migration file, a failure at any point (an FK violation from a table this spec's research missed, despite two review passes) rolls the entire transaction back automatically — nothing is left half-deleted. If that happens, the correct response is to stop, diagnose the specific FK violation Postgres reports (it names the exact table and constraint), add the missing handling to the migration, and re-run from a clean state — not to work around it with a broader hammer like `disable trigger` or dropping constraints, which would remove real data-integrity protection from a still-live schema.
 
 **Sequences**: the 5 per-classification attendee-code sequences (`attendee_code_seq_del/vol/kp/yng/spk`, from `20260822000000_coy21_attendee_codes.sql`) are reset to restart from 1, so the first real import after this reset gets clean `COY21-DEL-0001`-style numbering rather than continuing from wherever test data left off:
 
