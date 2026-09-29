@@ -31,13 +31,3 @@ export const statusTransitionSchema = z
 export const noteBodySchema = z.object({
   body: z.string().trim().min(1, 'Note cannot be empty'),
 });
-
-// Single source of truth for "is this profile.role one of the roles allowed
-// to act as admission-review staff". Import this everywhere the check is
-// needed (page.tsx's page-level gate, actions.ts's requireStaffCaller, and
-// the authorization test) instead of re-implementing the role list, so the
-// two-role list only ever needs to change in one place.
-export const ADMISSION_STAFF_ROLES = ['registration_admission_manager', 'super_admin'] as const;
-export function isAdmissionStaffRole(role: string | null | undefined): boolean {
-  return role != null && (ADMISSION_STAFF_ROLES as readonly string[]).includes(role);
-}

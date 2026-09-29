@@ -1,9 +1,9 @@
 'use server';
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
 import { getResendConfig } from '@/lib/email/resend-config';
 import { Resend } from 'resend';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export type AudienceKey =
   | 'all_accepted'
@@ -36,7 +36,7 @@ export async function sendBulkEmail(params: {
     .eq('id', user.id)
     .single();
 
-  if (!isParticipantsCommunicationsStaffRole(profile?.role)) {
+  if (!isStaffRole(profile?.role)) {
     return { sent: 0, failed: 0, error: 'Not authorized' };
   }
 
@@ -91,7 +91,7 @@ export async function previewAudienceCount(audience: AudienceKey): Promise<numbe
     .eq('id', user.id)
     .single();
 
-  if (!isParticipantsCommunicationsStaffRole(profile?.role)) return 0;
+  if (!isStaffRole(profile?.role)) return 0;
 
   const service = createServiceRoleClient();
   const recipients = await resolveAudience(service, audience);

@@ -29,8 +29,10 @@
 //      data, not just against hand-written role strings.
 //
 // Task 7 code-review fix: decideAdminAccess switched from isAgendaStaffRole
-// (2 of 4 non-participant roles) to isStaffRole (all 4) — see
-// admin-access.ts's doc comment for why (registration_admission_manager
+// (2 of 4 non-participant roles) to isNonParticipantRole (all of them;
+// renamed from isStaffRole as of the 2026-09-29 staff role consolidation
+// — see docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md)
+// — see admin-access.ts's doc comment for why (registration_admission_manager
 // and communications_attendance_manager were genuine staff getting
 // redirected into an UnauthorizedState dead end). ALL_STAFF_ROLES below
 // extends this file's existing single-role staff case into a loop over
@@ -40,7 +42,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import { decideAdminAccess } from '@/lib/shell/admin-access';
-import { STAFF_ROLES } from '@/lib/auth/post-login-destination';
+import { NON_PARTICIPANT_ROLES } from '@/lib/auth/post-login-destination';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -132,13 +134,16 @@ describe('(admin)/layout.tsx access gate — live', () => {
     expect(decision).toEqual({ kind: 'authorized' });
   }, 60000);
 
-  it.each(STAFF_ROLES)(
+  it.each(NON_PARTICIPANT_ROLES)(
     'a real %s profile row is classified authorized by the same query+decision pair the layout uses (Task 7 fix: all 4 staff roles, not just agenda-scoped ones)',
     async (role) => {
       const email = `${EMAIL_PREFIX}${role}-${Date.now()}@${EMAIL_DOMAIN}`;
       const userId = await createTestUser(email);
 
-      const { error: updateError } = await admin.from('profiles').update({ role }).eq('id', userId);
+      const { error: updateError } = await admin
+        .from('profiles')
+        .update({ role: role as Database['public']['Enums']['user_role'] })
+        .eq('id', userId);
       expect(updateError).toBeNull();
 
       const { data: profile, error } = await admin.from('profiles').select('role, full_name').eq('id', userId).maybeSingle();

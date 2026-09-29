@@ -10,9 +10,8 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAdmissionStaffRole } from '@/lib/validation/admission-review';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
 import AccountsTable, { type AccountRow } from './accounts-table';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function ParticipantAccountsPage() {
   const locale = await getLocale();
@@ -27,7 +26,7 @@ export default async function ParticipantAccountsPage() {
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !(isAdmissionStaffRole(profile.role) || isParticipantsCommunicationsStaffRole(profile.role))) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 

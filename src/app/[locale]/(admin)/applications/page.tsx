@@ -2,7 +2,8 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { APPLICATION_STATUSES, isAdmissionStaffRole } from '@/lib/validation/admission-review';
+import { APPLICATION_STATUSES } from '@/lib/validation/admission-review';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { isSelfRegistrationEnabled } from '@/lib/feature-flags';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +30,7 @@ export default async function ApplicationsListPage({
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !isAdmissionStaffRole(profile.role)) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 

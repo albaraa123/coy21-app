@@ -3968,6 +3968,7 @@ export type Database = {
         | "participants_communications_manager"
         | "program_attendance_manager"
         | "scanner_device"
+        | "staff"
     }
     CompositeTypes: {
       qr_credential_lifecycle_result: {
@@ -4174,6 +4175,7 @@ export const Constants = {
         "participants_communications_manager",
         "program_attendance_manager",
         "scanner_device",
+        "staff",
       ],
     },
   },

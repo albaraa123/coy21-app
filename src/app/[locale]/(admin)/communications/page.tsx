@@ -8,8 +8,8 @@ import { getLocale } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
 import { ComposeForm } from './compose-form';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function CommunicationsPage() {
   const locale = await getLocale();
@@ -28,7 +28,7 @@ export default async function CommunicationsPage() {
     .eq('id', user.id)
     .single();
 
-  if (!isParticipantsCommunicationsStaffRole(profile?.role)) {
+  if (!isStaffRole(profile?.role)) {
     redirect({ href: '/dashboard', locale });
     return;
   }

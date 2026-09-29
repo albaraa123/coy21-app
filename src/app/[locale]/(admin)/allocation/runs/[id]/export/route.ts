@@ -6,9 +6,8 @@
 // same role gate as the run detail page (isAgendaStaffRole or
 // isProgramAttendanceStaffRole) rather than introducing a new check.
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole } from '@/lib/validation/agenda';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
 import { toSafeCsv } from '@/lib/import/csv-export';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,7 +22,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !(isAgendaStaffRole(profile.role) || isProgramAttendanceStaffRole(profile.role))) {
+  if (!profile || !isStaffRole(profile.role)) {
     return new Response('Not found', { status: 404 });
   }
 

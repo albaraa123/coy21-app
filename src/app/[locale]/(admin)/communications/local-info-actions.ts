@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -11,7 +12,13 @@ async function requireAdmin() {
   if (!user) return { error: 'Not authenticated' as const, user: null };
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !['super_admin', 'participants_communications_manager'].includes(profile.role)) {
+  // 2026-09-29 staff role consolidation: was a hand-rolled
+  // ['super_admin', 'participants_communications_manager'].includes(...)
+  // check — participants_communications_manager no longer exists as an
+  // assignable role (migrated to 'staff'), so this was silently locking
+  // out every staff account until fixed. See
+  // docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md.
+  if (!profile || !isStaffRole(profile.role)) {
     return { error: 'Not authorized' as const, user: null };
   }
   return { error: null, user };

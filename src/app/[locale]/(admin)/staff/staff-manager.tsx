@@ -16,18 +16,12 @@ type StaffProfile = {
 
 const STAFF_ROLES = [
   { value: 'super_admin', label: 'Super Admin' },
-  { value: 'registration_admission_manager', label: 'Registration & Admission' },
-  { value: 'agenda_allocation_manager', label: 'Agenda & Allocation' },
-  { value: 'communications_attendance_manager', label: 'Communications & Attendance' },
-  { value: 'travel_operations_staff', label: 'Travel Operations' },
-  { value: 'participant_care_staff', label: 'Participant Care' },
-  { value: 'participants_communications_manager', label: 'Participants Communications' },
-  { value: 'program_attendance_manager', label: 'Program Attendance' },
+  { value: 'staff', label: 'Staff' },
 ] as const;
 
 const ROLE_LABELS: Record<string, string> = Object.fromEntries(STAFF_ROLES.map((r) => [r.value, r.label]));
 
-const EMPTY_FORM = { fullName: '', email: '', role: 'registration_admission_manager' as string, password: '' };
+const EMPTY_FORM = { fullName: '', email: '', role: 'staff' as string, password: '' };
 
 export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
   const router = useRouter();

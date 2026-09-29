@@ -11,16 +11,18 @@
 // check — not RLS — is the actual authorization gate here, exactly as
 // documented in server-helpers.ts's own doc comment for the same pattern.
 //
-// STAFF CHECK: uses isStaffRole/STAFF_ROLES from
-// src/lib/auth/post-login-destination.ts — the CURRENT, broadened check
-// covering all 4 non-participant roles (super_admin,
-// registration_admission_manager, agenda_allocation_manager,
-// communications_attendance_manager), established as the correct check by
-// Task 7's code-review fix to decideAdminAccess (src/lib/shell/
-// admin-access.ts). Deliberately NOT isAgendaStaffRole (src/lib/validation/
-// agenda.ts), which only covers 2 of the 4 roles and would incorrectly
-// return 'unauthorized' for a genuine registration_admission_manager or
-// communications_attendance_manager viewing their own dashboard.
+// STAFF CHECK: uses isNonParticipantRole/NON_PARTICIPANT_ROLES from
+// src/lib/auth/post-login-destination.ts (renamed from isStaffRole/
+// STAFF_ROLES as of the 2026-09-29 staff role consolidation — see
+// docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md —
+// to resolve a naming collision with the new, narrower isStaffRole in
+// src/lib/auth/is-staff-role.ts) — the broadened check covering every
+// non-participant role, established as the correct check by Task 7's
+// code-review fix to decideAdminAccess (src/lib/shell/admin-access.ts).
+// Deliberately NOT the narrower isStaffRole (src/lib/auth/is-staff-role.ts),
+// which excludes scanner_device and would incorrectly return
+// 'unauthorized' for a genuine scanner_device caller viewing their own
+// dashboard.
 //
 // PRIVACY: getRecentImportBatches and getPendingInvitationsSummary are
 // explicitly documented at each call site as never selecting sensitive
@@ -28,7 +30,7 @@
 // most privacy-sensitive task in the whole plan; every select() below is
 // an intentional, minimal column list, not `select('*')`.
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { isStaffRole } from '@/lib/auth/post-login-destination';
+import { isNonParticipantRole } from '@/lib/auth/post-login-destination';
 import type { CardResult } from './dashboard-types';
 
 type ServiceClient = ReturnType<typeof createServiceRoleClient>;
@@ -47,7 +49,7 @@ export type DashboardStaffCaller = { userId: string; service: ServiceClient };
 async function verifyStaffCaller(caller: DashboardStaffCaller): Promise<boolean> {
   const { data: profile, error } = await caller.service.from('profiles').select('role').eq('id', caller.userId).maybeSingle();
   if (error || !profile) return false;
-  return isStaffRole(profile.role);
+  return isNonParticipantRole(profile.role);
 }
 
 export type ImportBatchSummary = {

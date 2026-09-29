@@ -618,13 +618,7 @@
     "roles": {
       "participant": "Participant",
       "super_admin": "Super Admin",
-      "registration_admission_manager": "Registration & Admission Manager",
-      "agenda_allocation_manager": "Agenda & Allocation Manager",
-      "communications_attendance_manager": "Communications & Attendance Manager",
-      "travel_operations_staff": "Travel Operations Staff",
-      "participant_care_staff": "Participant Care Staff",
-      "participants_communications_manager": "Participants & Communications Manager",
-      "program_attendance_manager": "Program & Attendance Manager",
+      "staff": "Staff",
       "scanner_device": "QR & Attendance Operator"
     },
     "logoutLabel": "Log out",

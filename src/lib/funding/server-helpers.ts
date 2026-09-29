@@ -1,11 +1,22 @@
 // src/lib/funding/server-helpers.ts
 //
 // Mirrors src/lib/travel-ops/server-helpers.ts's requireTravelOpsStaffCaller
-// exact shape. Two callers here because this page ("Participant Status")
-// now has two distinct access levels: full (program_attendance_manager /
-// travel_operations_staff / super_admin — read+write both fields) and
-// care-read-only (participant_care_staff — read attendance_confirmation
-// only, never funding_type, never write).
+// exact shape. Two callers here for historical reasons: this page
+// ("Participant Status") used to have two distinct access levels — full
+// (program_attendance_manager / travel_operations_staff / super_admin —
+// read+write both fields) and care-read-only (participant_care_staff —
+// read attendance_confirmation only, never funding_type, never write).
+//
+// As of the 2026-09-29 staff role consolidation (see
+// docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md),
+// that distinction no longer exists: isFundingTypeStaffRole and
+// canReadAttendanceConfirmation both collapse to the same isStaffRole
+// check (see src/lib/validation/funding-type.ts's own doc comment), so
+// every account that can reach requireAttendanceConfirmationReadCaller
+// below can equally reach requireFundingStaffCaller and write both
+// fields. Kept as two separate functions purely for call-site clarity
+// (read-intent vs. write-intent), not because they enforce different
+// access levels anymore.
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { isFundingTypeStaffRole, canReadAttendanceConfirmation } from '@/lib/validation/funding-type';
 
@@ -42,10 +53,12 @@ export async function requireFundingStaffCaller(): Promise<{ userId: string; ser
   return { userId, service };
 }
 
-// Read-only reach: participant_care_staff may call this to search/view
-// attendance_confirmation, but no write action in this feature ever accepts
-// this caller shape — every update function calls requireFundingStaffCaller
-// instead, which participant_care_staff never satisfies.
+// Read-intent helper: still used by every read-only view of
+// attendance_confirmation, but as of the 2026-09-29 consolidation any
+// caller satisfying this check also satisfies requireFundingStaffCaller
+// above (both delegate to the same isStaffRole check) — see this file's
+// header comment. Kept separate for call-site clarity, not as an actual
+// read-only boundary.
 export async function requireAttendanceConfirmationReadCaller(): Promise<{ userId: string; service: ServiceClient }> {
   const { userId, service, role } = await resolveCallerRole();
   if (!canReadAttendanceConfirmation(role)) {

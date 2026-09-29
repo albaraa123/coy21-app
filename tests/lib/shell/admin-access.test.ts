@@ -13,13 +13,25 @@ import { decideAdminAccess } from '@/lib/shell/admin-access';
 // page-level auth tests already covering the same createClient() +
 // createServiceRoleClient() + isAgendaStaffRole pattern.
 //
-// Task 7 code-review fix: decideAdminAccess now uses isStaffRole (all 4
-// non-participant roles) instead of isAgendaStaffRole (2 of 4) — see
-// admin-access.ts's doc comment. The 'is unauthorized for a non-agenda
-// staff role' case below was flipped from unauthorized to authorized
-// accordingly, and a case for the 4th role
-// (communications_attendance_manager) was added alongside it so all 4
-// staff roles have explicit coverage here, not just 3.
+// Task 7 code-review fix: decideAdminAccess now uses isNonParticipantRole
+// (all non-participant roles; renamed from isStaffRole as of the
+// 2026-09-29 staff role consolidation — see
+// docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md)
+// instead of isAgendaStaffRole (2 of 4) — see admin-access.ts's doc
+// comment.
+//
+// 2026-09-29 staff role consolidation: isNonParticipantRole derives its
+// role list from role-label.ts's ROLE_LABEL_KEYS, which now holds only
+// the 4 consolidated roles (participant, super_admin, staff,
+// scanner_device) — the 7 deprecated staff-subtype roles (e.g.
+// registration_admission_manager) are no longer recognized as
+// non-participant roles here, even though they remain physically present
+// in the Postgres user_role enum (Postgres can't drop enum values in
+// place). The per-deprecated-role cases below were replaced with a
+// single case for the new 'staff' role, plus an explicit case proving a
+// deprecated role string is now correctly treated as unauthorized (not
+// silently still authorized), documenting this as an intentional
+// consequence of the consolidation rather than a regression.
 describe('decideAdminAccess', () => {
   it('redirects when there is no authenticated user', () => {
     expect(decideAdminAccess(null, null)).toEqual({ kind: 'redirect-unauthenticated' });
@@ -40,19 +52,18 @@ describe('decideAdminAccess', () => {
     });
   });
 
-  it('is authorized for registration_admission_manager (not agenda-scoped, but still staff)', () => {
-    expect(decideAdminAccess('user-1', 'registration_admission_manager')).toEqual({ kind: 'authorized' });
-  });
-
-  it('is authorized for communications_attendance_manager (not agenda-scoped, but still staff)', () => {
-    expect(decideAdminAccess('user-1', 'communications_attendance_manager')).toEqual({ kind: 'authorized' });
-  });
-
-  it('is authorized for agenda_allocation_manager', () => {
-    expect(decideAdminAccess('user-1', 'agenda_allocation_manager')).toEqual({ kind: 'authorized' });
+  it('is authorized for staff', () => {
+    expect(decideAdminAccess('user-1', 'staff')).toEqual({ kind: 'authorized' });
   });
 
   it('is authorized for super_admin', () => {
     expect(decideAdminAccess('user-1', 'super_admin')).toEqual({ kind: 'authorized' });
+  });
+
+  it('is unauthorized for a deprecated staff-subtype role, since it is no longer in ROLE_LABEL_KEYS', () => {
+    expect(decideAdminAccess('user-1', 'registration_admission_manager')).toEqual({
+      kind: 'unauthorized',
+      destinationHref: '/my-dashboard',
+    });
   });
 });

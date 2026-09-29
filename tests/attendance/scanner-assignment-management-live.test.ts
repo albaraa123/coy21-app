@@ -32,7 +32,7 @@ import {
   reassignToRoomForCaller,
 } from '@/lib/attendance/scanner-assignment-management';
 import { scanAttemptConfirmForCaller } from '@/lib/attendance/scan-attempt';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -118,7 +118,7 @@ const managerCaller = () => ({ userId: managerId, service: admin });
 beforeAll(async () => {
   const { data: manager } = await admin.auth.admin.createUser({ email: `sam-manager-${randomUUID()}@test.local`, password: 'password123', email_confirm: true });
   managerId = manager!.user!.id;
-  await admin.from('profiles').update({ role: 'program_attendance_manager' }).eq('id', managerId);
+  await admin.from('profiles').update({ role: 'staff' }).eq('id', managerId);
   auditLogActorIds.push(managerId);
 
   const { data: participant } = await admin.auth.admin.createUser({ email: `sam-participant-${randomUUID()}@test.local`, password: 'password123', email_confirm: true });
@@ -127,9 +127,13 @@ beforeAll(async () => {
 
   scannerDeviceId = await createScannerAccount('target');
 
+  // otherStaffId is used below only as a "target account exists but is not
+  // scanner_device" fixture (resource validation, not caller authorization)
+  // — any non-scanner_device role works for that, and 'staff' is the
+  // correct real-world value post-consolidation.
   const { data: otherStaff } = await admin.auth.admin.createUser({ email: `sam-otherstaff-${randomUUID()}@test.local`, password: 'password123', email_confirm: true });
   otherStaffId = otherStaff!.user!.id;
-  await admin.from('profiles').update({ role: 'agenda_allocation_manager' }).eq('id', otherStaffId);
+  await admin.from('profiles').update({ role: 'staff' }).eq('id', otherStaffId);
 
   // Reuse-or-create: service_role has no DELETE grant on conference_days
   // on the disposable project, so a prior interrupted run's row (its
@@ -251,27 +255,25 @@ describe('authorized management', () => {
 
 describe('unauthorized role boundary (requireProgramAttendanceStaffCaller predicate)', () => {
   // requireProgramAttendanceStaffCaller's ENTIRE authorization logic is
-  // isProgramAttendanceStaffRole(profile.role) — proven directly against
-  // real fixture roles, matching scanner-device-access-live.test.ts's
-  // established pattern for this exact structural constraint.
+  // isStaffRole(profile.role) — proven directly against real fixture roles,
+  // matching scanner-device-access-live.test.ts's established pattern for
+  // this exact structural constraint. Post-consolidation, every former
+  // staff-domain role (agenda, program-attendance, etc.) maps to the single
+  // 'staff' role, so there is no longer an "unrelated staff role rejected"
+  // case to prove — any staff account is accepted.
   it('rejects participant role', async () => {
     const { data: profile } = await admin.from('profiles').select('role').eq('id', participantRoleUserId).single();
-    expect(isProgramAttendanceStaffRole(profile!.role)).toBe(false);
+    expect(isStaffRole(profile!.role)).toBe(false);
   });
 
   it('rejects scanner_device role', async () => {
     const { data: profile } = await admin.from('profiles').select('role').eq('id', scannerDeviceId).single();
-    expect(isProgramAttendanceStaffRole(profile!.role)).toBe(false);
+    expect(isStaffRole(profile!.role)).toBe(false);
   });
 
-  it('rejects an unrelated staff role (agenda_allocation_manager)', async () => {
-    const { data: profile } = await admin.from('profiles').select('role').eq('id', otherStaffId).single();
-    expect(isProgramAttendanceStaffRole(profile!.role)).toBe(false);
-  });
-
-  it('accepts program_attendance_manager', async () => {
+  it('accepts staff', async () => {
     const { data: profile } = await admin.from('profiles').select('role').eq('id', managerId).single();
-    expect(isProgramAttendanceStaffRole(profile!.role)).toBe(true);
+    expect(isStaffRole(profile!.role)).toBe(true);
   });
 });
 

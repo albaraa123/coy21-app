@@ -11,7 +11,7 @@
 // redirect()/rendering UnauthorizedState based on what this function
 // returns — this module has zero Next.js/Supabase imports.
 //
-// STAFF CHECK (Task 7 code-review fix): this gate now uses isStaffRole
+// STAFF CHECK (Task 7 code-review fix): this gate now uses isNonParticipantRole
 // (src/lib/auth/post-login-destination.ts) instead of the narrower
 // isAgendaStaffRole (src/lib/validation/agenda.ts). isAgendaStaffRole only
 // covers 2 of the 4 non-participant roles (agenda_allocation_manager,
@@ -28,10 +28,11 @@
 // moment they reached ANY /participants-style URL, including the one
 // Task 7's post-login redirect (resolvePostLoginDestination) now sends
 // them to right after signing in, which was a dead end for exactly those
-// 2 roles. isStaffRole is the "is this any kind of staff" check (all 4
-// non-participant roles, derived from role-label.ts's ROLE_LABEL_KEYS) —
-// the correct scope for this layout-level, not-page-specific gate.
-import { isStaffRole } from '@/lib/auth/post-login-destination';
+// 2 roles. isNonParticipantRole is the "is this any kind of staff" check
+// (all 4 non-participant roles, derived from role-label.ts's
+// ROLE_LABEL_KEYS) — the correct scope for this layout-level,
+// not-page-specific gate.
+import { isNonParticipantRole } from '@/lib/auth/post-login-destination';
 
 export type AdminAccessDecision =
   | { kind: 'redirect-unauthenticated' }
@@ -51,7 +52,7 @@ export function decideAdminAccess(
   if (!userId) {
     return { kind: 'redirect-unauthenticated' };
   }
-  if (!isStaffRole(role)) {
+  if (!isNonParticipantRole(role)) {
     // A participant (or any non-staff role) landed on an admin URL — send
     // them to the participant landing page, per the approved plan.
     return { kind: 'unauthorized', destinationHref: '/my-dashboard' };

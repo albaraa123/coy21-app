@@ -9,10 +9,9 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole } from '@/lib/validation/agenda';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
 import { Card } from '@/components/ui/card';
 import InvitationControls from './invitation-controls';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function ParticipantDetailPage({ params }: { params: Promise<{ applicationId: string }> }) {
   const locale = await getLocale();
@@ -28,7 +27,7 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !(isAgendaStaffRole(profile.role) || isParticipantsCommunicationsStaffRole(profile.role))) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
   // Sensitive-answer visibility (Task 20 investigation point 4): the

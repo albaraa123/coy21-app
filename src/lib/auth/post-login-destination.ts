@@ -32,8 +32,8 @@
 // the temporary detour is no longer needed. This mirrors the equivalent
 // update to claim/page.tsx's post-claim redirect (see that file) — same
 // resolution, same forward pointer now fulfilled.
-// isStaffRole / STAFF_ROLES are also now the authoritative "is this user
-// staff at all" check for src/lib/shell/admin-access.ts's decideAdminAccess
+// isNonParticipantRole / NON_PARTICIPANT_ROLES are also now the authoritative
+// "is this user staff at all" check for src/lib/shell/admin-access.ts's decideAdminAccess
 // (the (admin)/layout.tsx chrome gate) — added there as a code-review
 // follow-up after isAgendaStaffRole (2 of 4 roles) let 2 genuinely-staff
 // roles get redirected here by resolvePostLoginDestination straight into
@@ -47,12 +47,12 @@
 // avoiding a shell -> auth -> shell import cycle.
 import { ROLE_LABEL_KEYS } from '@/lib/shell/role-label';
 
-export const STAFF_ROLES = (Object.keys(ROLE_LABEL_KEYS) as (keyof typeof ROLE_LABEL_KEYS)[]).filter(
+export const NON_PARTICIPANT_ROLES = (Object.keys(ROLE_LABEL_KEYS) as (keyof typeof ROLE_LABEL_KEYS)[]).filter(
   (role) => role !== 'participant'
 );
 
-export function isStaffRole(role: string | null | undefined): boolean {
-  return role != null && (STAFF_ROLES as readonly string[]).includes(role);
+export function isNonParticipantRole(role: string | null | undefined): boolean {
+  return role != null && (NON_PARTICIPANT_ROLES as readonly string[]).includes(role);
 }
 
 export type PostLoginDestination = { href: string };
@@ -67,7 +67,7 @@ export type PostLoginDestination = { href: string };
  */
 export function resolvePostLoginDestination(role: string | null | undefined): PostLoginDestination {
   // Checked BEFORE the general staff branch below: scanner_device is
-  // also in STAFF_ROLES (it's a real non-participant role), but a
+  // also in NON_PARTICIPANT_ROLES (it's a real non-participant role), but a
   // scanner terminal has no use for the full admin dashboard shell — its
   // only job is /scanner. super_admin is deliberately NOT special-cased
   // here even though it's also in SCANNER_DEVICE_ROLES
@@ -78,7 +78,7 @@ export function resolvePostLoginDestination(role: string | null | undefined): Po
   if (role === 'scanner_device') {
     return { href: '/scanner' };
   }
-  if (isStaffRole(role)) {
+  if (isNonParticipantRole(role)) {
     return { href: '/dashboard' };
   }
   return { href: '/my-dashboard' };

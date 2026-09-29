@@ -11,8 +11,7 @@
 // participants_communications_manager access to agenda/allocation/schedule
 // actions it is explicitly denied.
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole } from '@/lib/validation/agenda';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 
@@ -31,11 +30,10 @@ export async function requireImportStaffCaller(): Promise<{ userId: string; serv
   const service = createServiceRoleClient();
   const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
   if (error || !profile) throw new Error('Profile not found');
-  // Single source of truth for these checks is isAgendaStaffRole
-  // (src/lib/validation/agenda.ts) and isParticipantsCommunicationsStaffRole
-  // (src/lib/validation/participants-communications.ts) — update those
-  // helpers, not this call site, if the allowed role sets change.
-  if (!isAgendaStaffRole(profile.role) && !isParticipantsCommunicationsStaffRole(profile.role)) {
+  // Single source of truth for this check is isStaffRole
+  // (src/lib/auth/is-staff-role.ts) — update that helper, not this call
+  // site, if the allowed role set changes.
+  if (!isStaffRole(profile.role)) {
     throw new Error('Not authorized');
   }
 

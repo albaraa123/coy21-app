@@ -23,17 +23,17 @@
 // the exact same structural constraint documented and solved in
 // tests/auth/staff-roles-live.test.ts ("server-action caller guards enforce
 // the correct access boundaries" describe block): that suite asserts the
-// underlying role predicate (isProgramAttendanceStaffRole) directly against
+// underlying role predicate (isStaffRole, the single shared check that
+// replaced the former per-domain isXStaffRole predicates) directly against
 // a fixture's persisted role, since that predicate is the *entire*
 // authorization logic inside requireProgramAttendanceStaffCaller — the only
 // other lines in that function are "look up the caller's own session" and
 // "look up their profile.role", neither of which a role-boundary test needs
 // to re-prove. This file follows that identical, established pattern for
-// scenarios 2 and 5: isProgramAttendanceStaffRole(scannerRole) === false
-// (scenario 2) and isProgramAttendanceStaffRole(managerRole) === true
-// (scenario 5), each read from the real fixture's real persisted
-// profiles.role via the service-role client — combined with a live,
-// end-to-end proof that a program_attendance_manager caller genuinely CAN
+// scenarios 2 and 5: isStaffRole(scannerRole) === false (scenario 2) and
+// isStaffRole(managerRole) === true (scenario 5), each read from the real
+// fixture's real persisted profiles.role via the service-role client —
+// combined with a live, end-to-end proof that a staff caller genuinely CAN
 // invoke admitOverrideForCaller/correctAttendanceForCaller/
 // transferAttendanceForCaller (already covered in
 // tests/attendance/admission-management-live.test.ts, and re-confirmed
@@ -51,7 +51,7 @@ import {
   correctAttendanceForCaller,
   transferAttendanceForCaller,
 } from '@/lib/attendance/admission-management';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -171,7 +171,7 @@ beforeAll(async () => {
     email_confirm: true,
   });
   managerId = manager!.user!.id;
-  await admin.from('profiles').update({ role: 'program_attendance_manager' }).eq('id', managerId);
+  await admin.from('profiles').update({ role: 'staff' }).eq('id', managerId);
 
   const { data: staff } = await admin.auth.admin.createUser({
     email: `scanner-access-staff-${runId}@test.local`,
@@ -179,7 +179,7 @@ beforeAll(async () => {
     email_confirm: true,
   });
   staffId = staff!.user!.id;
-  await admin.from('profiles').update({ role: 'agenda_allocation_manager' }).eq('id', staffId);
+  await admin.from('profiles').update({ role: 'staff' }).eq('id', staffId);
 
   // conference_date is UNIQUE — derive a collision-proof value from a
   // random day offset within a far-future year reserved for this
@@ -265,32 +265,32 @@ describe('scenario 1: scanAttemptConfirmForCaller rejects a session outside the 
   });
 });
 
-describe('scenarios 2 & 5: requireProgramAttendanceStaffCaller boundary — scanner_device excluded, program_attendance_manager admitted', () => {
+describe('scenarios 2 & 5: requireProgramAttendanceStaffCaller boundary — scanner_device excluded, staff admitted', () => {
   // requireProgramAttendanceStaffCaller (src/lib/program-attendance/server-helpers.ts)
   // is a 'use server' function that resolves the CALLING request's own
   // session via createClient() -> supabase.auth.getUser() (next/headers's
   // cookies()), which a live test run from Node cannot forge without a real
   // Next.js request context. Its entire authorization logic beyond "resolve
   // the caller's own session and profile" is a single line:
-  //   if (!isProgramAttendanceStaffRole(profile.role)) throw new Error('Not authorized');
+  //   if (!isStaffRole(profile.role)) throw new Error('Not authorized');
   // This is the same structural constraint documented and resolved in
   // tests/auth/staff-roles-live.test.ts's "server-action caller guards
   // enforce the correct access boundaries" block, which asserts the
   // predicate directly against a fixture's real persisted role rather than
   // calling the guard itself. Followed identically here.
-  it('scenario 2: isProgramAttendanceStaffRole(scanner_device) is false — the exact check requireProgramAttendanceStaffCaller performs on a scanner_device caller\'s persisted role', async () => {
+  it('scenario 2: isStaffRole(scanner_device) is false — the exact check requireProgramAttendanceStaffCaller performs on a scanner_device caller\'s persisted role', async () => {
     const { data: profile } = await admin.from('profiles').select('role').eq('id', scannerId).single();
     expect(profile?.role).toBe('scanner_device');
-    expect(isProgramAttendanceStaffRole(profile?.role)).toBe(false);
+    expect(isStaffRole(profile?.role)).toBe(false);
   });
 
-  it('scenario 5: isProgramAttendanceStaffRole(program_attendance_manager) is true — the exact check requireProgramAttendanceStaffCaller performs on a program_attendance_manager caller\'s persisted role', async () => {
+  it('scenario 5: isStaffRole(staff) is true — the exact check requireProgramAttendanceStaffCaller performs on a staff caller\'s persisted role', async () => {
     const { data: profile } = await admin.from('profiles').select('role').eq('id', managerId).single();
-    expect(profile?.role).toBe('program_attendance_manager');
-    expect(isProgramAttendanceStaffRole(profile?.role)).toBe(true);
+    expect(profile?.role).toBe('staff');
+    expect(isStaffRole(profile?.role)).toBe(true);
   });
 
-  it('scenario 5 (live, end-to-end): a program_attendance_manager caller genuinely CAN invoke admitOverrideForCaller/correctAttendanceForCaller/transferAttendanceForCaller against the real RPCs, confirming the boundary is a real permission split rather than "scanner is denied everything, staff included"', async () => {
+  it('scenario 5 (live, end-to-end): a staff caller genuinely CAN invoke admitOverrideForCaller/correctAttendanceForCaller/transferAttendanceForCaller against the real RPCs, confirming the boundary is a real permission split rather than "scanner is denied everything, staff included"', async () => {
     const sessionAId = await createSession({ session_code: 'SCANNER-ACCESS-BOUNDARY-A', admission_policy: 'restricted', capacity: 10 });
     const sessionBId = await createSession({ session_code: 'SCANNER-ACCESS-BOUNDARY-B', admission_policy: 'open', capacity: 10 });
     await assignScannerToSession(sessionAId);

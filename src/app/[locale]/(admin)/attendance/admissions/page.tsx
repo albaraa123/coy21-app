@@ -13,9 +13,9 @@
 import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
 import { notFound } from 'next/navigation';
 import AdmissionManagementConsole from './admission-management-console';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function AdmissionsPage() {
   const locale = await getLocale();
@@ -30,7 +30,7 @@ export default async function AdmissionsPage() {
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !isProgramAttendanceStaffRole(profile.role)) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 
