@@ -5,7 +5,7 @@
 // isTravelOpsStaffRole instead. New for Phase 8.6 — no equivalent existed
 // for this role before this file.
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isTravelOpsStaffRole } from '@/lib/validation/travel-ops';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 
@@ -31,10 +31,10 @@ export async function requireTravelOpsStaffCaller(): Promise<{ userId: string; s
   const service = createServiceRoleClient();
   const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
   if (error || !profile) throw new Error('Profile not found');
-  // Single source of truth for this check is isTravelOpsStaffRole in
-  // src/lib/validation/travel-ops.ts — update that helper, not this call
-  // site, if the allowed role set changes.
-  if (!isTravelOpsStaffRole(profile.role)) {
+  // Single source of truth for this check is isStaffRole in
+  // src/lib/auth/is-staff-role.ts — update that helper, not this call site,
+  // if the allowed role set changes.
+  if (!isStaffRole(profile.role)) {
     throw new Error('Not authorized');
   }
 

@@ -8,8 +8,8 @@ import { getLocale } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isTravelOpsStaffRole } from '@/lib/validation/travel-ops';
 import { Card } from '@/components/ui/card';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function ArrivalsPage() {
   const locale = await getLocale();
@@ -22,7 +22,7 @@ export default async function ArrivalsPage() {
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !isTravelOpsStaffRole(profile.role)) notFound();
+  if (!profile || !isStaffRole(profile.role)) notFound();
 
   // All travel legs with participant name + attendee code, sorted by arrival time
   const { data: legs } = await service

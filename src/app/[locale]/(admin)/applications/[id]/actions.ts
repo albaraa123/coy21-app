@@ -4,9 +4,9 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import {
   statusTransitionSchema,
   noteBodySchema,
-  isAdmissionStaffRole,
   type ApplicationStatus,
 } from '@/lib/validation/admission-review';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 // The service-role client bypasses RLS entirely, so this role check — not
 // RLS — is the actual authorization gate for every write in this file. Every
@@ -24,12 +24,13 @@ async function requireStaffCaller() {
     .eq('id', user.id)
     .single();
   if (error || !profile) throw new Error('Profile not found');
-  // Single source of truth for this check is isAdmissionStaffRole in
-  // src/lib/validation/admission-review.ts, also used by page.tsx's page-level
-  // gate and mirrored (via the same helper) by
-  // tests/server-actions/admission-review-authorization.test.ts — update the
-  // helper, not this call site, if the allowed role set changes.
-  if (!isAdmissionStaffRole(profile.role)) {
+  // Single source of truth for this check is isStaffRole in
+  // src/lib/auth/is-staff-role.ts (replaces isAdmissionStaffRole as of the
+  // 2026-09-29 staff role consolidation), also used by page.tsx's
+  // page-level gate and mirrored by
+  // tests/server-actions/admission-review-authorization.test.ts — update
+  // the helper, not this call site, if the allowed role set changes.
+  if (!isStaffRole(profile.role)) {
     throw new Error('Not authorized');
   }
 
@@ -94,7 +95,7 @@ export async function assignReviewer(applicationId: string, reviewerId: string |
       .eq('id', reviewerId)
       .single();
     if (reviewerError || !reviewerProfile) throw new Error('Reviewer not found');
-    if (!isAdmissionStaffRole(reviewerProfile.role)) {
+    if (!isStaffRole(reviewerProfile.role)) {
       throw new Error('Target user is not an authorized reviewer');
     }
   }

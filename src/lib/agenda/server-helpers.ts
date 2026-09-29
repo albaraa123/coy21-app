@@ -8,8 +8,7 @@
 // from `'use server'` action files, matching the same convention Phase 1/2
 // already rely on.
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole } from '@/lib/validation/agenda';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 import type { Json } from '@/types/database';
 
 type ServiceClient = ReturnType<typeof createServiceRoleClient>;
@@ -30,14 +29,10 @@ export async function requireAgendaStaffCaller(): Promise<{ userId: string; serv
   const service = createServiceRoleClient();
   const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
   if (error || !profile) throw new Error('Profile not found');
-  // Single source of truth for these checks is isAgendaStaffRole
-  // (src/lib/validation/agenda.ts) and isProgramAttendanceStaffRole
-  // (src/lib/validation/program-attendance.ts) — update those helpers, not
-  // this call site, if the allowed role sets change. program_attendance_
-  // manager's responsibilities (agenda, feature extraction, clustering,
-  // allocation, schedule publication) are the same domain
-  // agenda_allocation_manager already covers here.
-  if (!isAgendaStaffRole(profile.role) && !isProgramAttendanceStaffRole(profile.role)) {
+  // Single source of truth for this check is isStaffRole
+  // (src/lib/auth/is-staff-role.ts) — update that helper, not this call
+  // site, if the allowed role set changes.
+  if (!isStaffRole(profile.role)) {
     throw new Error('Not authorized');
   }
 

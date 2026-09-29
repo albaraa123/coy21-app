@@ -3,10 +3,10 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole, SESSION_VALID_TRANSITIONS, type SessionStatus } from '@/lib/validation/agenda';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
+import { SESSION_VALID_TRANSITIONS, type SessionStatus } from '@/lib/validation/agenda';
 import { Badge } from '@/components/ui/badge';
 import SessionControls from './session-controls';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 const STATUS_BADGE_VARIANT: Record<string, 'mandatory' | 'elective' | 'cancelled' | 'changed' | 'pending' | 'neutral'> = {
   draft: 'neutral',
@@ -28,7 +28,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !(isAgendaStaffRole(profile.role) || isProgramAttendanceStaffRole(profile.role))) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 

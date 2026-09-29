@@ -10,7 +10,7 @@ import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { CsvExportButton } from './csv-export-button';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 // ---------------------------------------------------------------------------
 // Query helpers — all run as service role so RLS doesn't filter results.
@@ -81,7 +81,7 @@ export default async function ReportsPage() {
     .eq('id', user.id)
     .single();
 
-  if (!isParticipantsCommunicationsStaffRole(profile?.role)) {
+  if (!isStaffRole(profile?.role)) {
     redirect({ href: '/dashboard', locale });
     return;
   }

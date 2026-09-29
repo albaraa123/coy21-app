@@ -3,9 +3,8 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole } from '@/lib/validation/agenda';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
 import RollbackTrigger from './rollback-trigger';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 // Minimal standalone rollback trigger, per Task 16 Step 3's explicit
 // fallback: "if Task 18 isn't done yet, add a minimal standalone rollback
@@ -27,7 +26,7 @@ export default async function RollbackImportPage({ params }: { params: Promise<{
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !(isAgendaStaffRole(profile.role) || isParticipantsCommunicationsStaffRole(profile.role))) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 

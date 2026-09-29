@@ -3,9 +3,8 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole } from '@/lib/validation/agenda';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
 import PreviewTable from './preview-table';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function PreviewImportPage({ params }: { params: Promise<{ batchId: string }> }) {
   const locale = await getLocale();
@@ -21,7 +20,7 @@ export default async function PreviewImportPage({ params }: { params: Promise<{ 
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !(isAgendaStaffRole(profile.role) || isParticipantsCommunicationsStaffRole(profile.role))) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 

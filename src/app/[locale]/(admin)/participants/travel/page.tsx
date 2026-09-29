@@ -8,9 +8,9 @@
 import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isTravelOpsStaffRole } from '@/lib/validation/travel-ops';
 import { notFound } from 'next/navigation';
 import TravelOpsConsole from './travel-ops-console';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function TravelOpsPage() {
   const locale = await getLocale();
@@ -25,7 +25,7 @@ export default async function TravelOpsPage() {
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !isTravelOpsStaffRole(profile.role)) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 

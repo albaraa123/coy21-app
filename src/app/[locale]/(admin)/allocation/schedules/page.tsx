@@ -3,9 +3,8 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isAgendaStaffRole } from '@/lib/validation/agenda';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
 import RunList from './run-list';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function SchedulePublicationOverviewPage() {
   const locale = await getLocale();
@@ -18,7 +17,7 @@ export default async function SchedulePublicationOverviewPage() {
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !(isAgendaStaffRole(profile.role) || isProgramAttendanceStaffRole(profile.role))) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 

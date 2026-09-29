@@ -2,7 +2,8 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { ADMISSION_STAFF_ROLES, VALID_TRANSITIONS, isAdmissionStaffRole, type ApplicationStatus } from '@/lib/validation/admission-review';
+import { VALID_TRANSITIONS, type ApplicationStatus } from '@/lib/validation/admission-review';
+import { STAFF_ROLES, isStaffRole } from '@/lib/auth/is-staff-role';
 import { isSelfRegistrationEnabled } from '@/lib/feature-flags';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +35,7 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !isAdmissionStaffRole(profile.role)) {
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 
@@ -75,7 +76,7 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
   const { data: reviewers } = await service
     .from('profiles')
     .select('id, full_name')
-    .in('role', [...ADMISSION_STAFF_ROLES]);
+    .in('role', [...STAFF_ROLES]);
 
   const validNextStatuses = VALID_TRANSITIONS[application.status as ApplicationStatus] ?? [];
 

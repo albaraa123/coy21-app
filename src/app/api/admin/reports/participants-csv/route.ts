@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isParticipantsCommunicationsStaffRole } from '@/lib/validation/participants-communications';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export async function GET() {
   const supabase = await createClient();
@@ -22,7 +22,7 @@ export async function GET() {
     .eq('id', user.id)
     .single();
 
-  if (!isParticipantsCommunicationsStaffRole(profile?.role)) {
+  if (!isStaffRole(profile?.role)) {
     return new NextResponse('Forbidden', { status: 403 });
   }
 
