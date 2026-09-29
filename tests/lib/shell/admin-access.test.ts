@@ -13,10 +13,13 @@ import { decideAdminAccess } from '@/lib/shell/admin-access';
 // page-level auth tests already covering the same createClient() +
 // createServiceRoleClient() + isAgendaStaffRole pattern.
 //
-// Task 7 code-review fix: decideAdminAccess now uses isStaffRole (all 4
-// non-participant roles) instead of isAgendaStaffRole (2 of 4) — see
-// admin-access.ts's doc comment. The 'is unauthorized for a non-agenda
-// staff role' case below was flipped from unauthorized to authorized
+// Task 7 code-review fix: decideAdminAccess now uses isNonParticipantRole
+// (all non-participant roles; renamed from isStaffRole as of the
+// 2026-09-29 staff role consolidation — see
+// docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md)
+// instead of isAgendaStaffRole (2 of 4) — see admin-access.ts's doc
+// comment. The 'is unauthorized for a non-agenda staff role' case below
+// was flipped from unauthorized to authorized
 // accordingly, and a case for the 4th role
 // (communications_attendance_manager) was added alongside it so all 4
 // staff roles have explicit coverage here, not just 3.

@@ -24,7 +24,9 @@ describe('roleLabelKey', () => {
     // program_attendance_manager (20260803100000), and scanner_device
     // (20260804110000). Previously this list only had the original 5 and
     // was out of sync with both the real enum and
-    // tests/lib/auth/post-login-destination.test.ts's STAFF_ROLES list.
+    // tests/lib/auth/post-login-destination.test.ts's NON_PARTICIPANT_ROLES
+    // list (renamed from STAFF_ROLES as of the 2026-09-29 staff role
+    // consolidation).
     const REAL_ENUM_VALUES = [
       'participant',
       'super_admin',

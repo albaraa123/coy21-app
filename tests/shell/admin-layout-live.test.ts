@@ -29,8 +29,10 @@
 //      data, not just against hand-written role strings.
 //
 // Task 7 code-review fix: decideAdminAccess switched from isAgendaStaffRole
-// (2 of 4 non-participant roles) to isStaffRole (all 4) — see
-// admin-access.ts's doc comment for why (registration_admission_manager
+// (2 of 4 non-participant roles) to isNonParticipantRole (all of them;
+// renamed from isStaffRole as of the 2026-09-29 staff role consolidation
+// — see docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md)
+// — see admin-access.ts's doc comment for why (registration_admission_manager
 // and communications_attendance_manager were genuine staff getting
 // redirected into an UnauthorizedState dead end). ALL_STAFF_ROLES below
 // extends this file's existing single-role staff case into a loop over
