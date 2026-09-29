@@ -5,16 +5,19 @@ import { redirect } from '@/i18n/routing';
 import { getLocale } from 'next-intl/server';
 import { z } from 'zod';
 
-const STAFF_ROLES = [
-  'super_admin',
-  'registration_admission_manager',
-  'agenda_allocation_manager',
-  'communications_attendance_manager',
-  'travel_operations_staff',
-  'participant_care_staff',
-  'participants_communications_manager',
-  'program_attendance_manager',
-] as const;
+// As of the 2026-09-29 staff role consolidation (see
+// docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md),
+// the 7 domain-specific staff roles this list used to enumerate
+// (registration_admission_manager, agenda_allocation_manager,
+// communications_attendance_manager, travel_operations_staff,
+// participant_care_staff, participants_communications_manager,
+// program_attendance_manager) collapsed into a single 'staff' role. This
+// schema must reject them so a super_admin can no longer assign a
+// deprecated role through this action, matching staff-manager.tsx's
+// shrunk dropdown — assigning one here would silently diverge from what
+// the UI offers and from every isStaffRole()-based authorization check
+// elsewhere in the codebase.
+const STAFF_ROLES = ['super_admin', 'staff'] as const;
 
 type StaffRole = (typeof STAFF_ROLES)[number];
 
