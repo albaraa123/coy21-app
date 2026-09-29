@@ -2,6 +2,7 @@ import { getLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { LocalInfoManager } from './local-info-manager';
 
 export default async function AdminLocalInfoPage() {
@@ -15,7 +16,13 @@ export default async function AdminLocalInfoPage() {
 
   const service = createServiceRoleClient();
   const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !['super_admin', 'participants_communications_manager'].includes(profile.role)) {
+  // 2026-09-29 staff role consolidation: was a hand-rolled
+  // ['super_admin', 'participants_communications_manager'].includes(...)
+  // check — participants_communications_manager no longer exists as an
+  // assignable role (migrated to 'staff'), so this was silently locking
+  // out every staff account until fixed. See
+  // docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md.
+  if (!profile || !isStaffRole(profile.role)) {
     notFound();
   }
 
