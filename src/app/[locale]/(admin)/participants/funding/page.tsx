@@ -1,13 +1,20 @@
 // src/app/[locale]/(admin)/participants/funding/page.tsx
 //
-// "Participant Status" — funding_type (full access: program_attendance_
-// manager / travel_operations_staff / super_admin) and
-// attendance_confirmation (full access to read+write; participant_care_staff
-// gets read-only). Page-level gate uses canReadAttendanceConfirmation (the
-// broader of the two checks) so care staff can open the page at all; the
-// console component itself hides funding_type and every write control for
-// a caller who only satisfies the read-only check, resolved via
-// isFundingTypeStaffRole passed down as a prop.
+// "Participant Status" — funding_type and attendance_confirmation.
+//
+// HISTORY: before the 2026-09-29 staff role consolidation (see
+// docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md),
+// funding_type had full access for program_attendance_manager /
+// travel_operations_staff / super_admin only, while
+// attendance_confirmation additionally gave participant_care_staff
+// READ-ONLY access. That consolidation merged all of those roles into a
+// single 'staff' role, so canReadAttendanceConfirmation and
+// isFundingTypeStaffRole (src/lib/validation/funding-type.ts) now both
+// resolve to the same check — hasFullAccess below is effectively always
+// true for any caller who passes the page-level gate. The two checks are
+// kept as separate calls for readability (matching the console
+// component's existing prop shape), not because they still enforce
+// different access levels.
 import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
