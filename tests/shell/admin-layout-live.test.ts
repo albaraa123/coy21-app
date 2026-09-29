@@ -140,7 +140,10 @@ describe('(admin)/layout.tsx access gate — live', () => {
       const email = `${EMAIL_PREFIX}${role}-${Date.now()}@${EMAIL_DOMAIN}`;
       const userId = await createTestUser(email);
 
-      const { error: updateError } = await admin.from('profiles').update({ role }).eq('id', userId);
+      const { error: updateError } = await admin
+        .from('profiles')
+        .update({ role: role as Database['public']['Enums']['user_role'] })
+        .eq('id', userId);
       expect(updateError).toBeNull();
 
       const { data: profile, error } = await admin.from('profiles').select('role, full_name').eq('id', userId).maybeSingle();
