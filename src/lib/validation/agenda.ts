@@ -1,13 +1,5 @@
 import { z } from 'zod';
 
-// Single source of truth for "is this profile.role allowed to manage the
-// agenda". Separate from Phase 2's isAdmissionStaffRole — different phase,
-// different role list, deliberately not shared.
-export const AGENDA_STAFF_ROLES = ['agenda_allocation_manager', 'super_admin'] as const;
-export function isAgendaStaffRole(role: string | null | undefined): boolean {
-  return role != null && (AGENDA_STAFF_ROLES as readonly string[]).includes(role);
-}
-
 export const SESSION_STATUSES = ['draft', 'published', 'confirmed', 'cancelled', 'completed'] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 

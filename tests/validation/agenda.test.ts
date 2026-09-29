@@ -1,28 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isAgendaStaffRole,
   sessionStatusTransitionSchema, SESSION_VALID_TRANSITIONS,
   weightSchema, checkinWindowSchema,
 } from '@/lib/validation/agenda';
-
-describe('isAgendaStaffRole', () => {
-  it('accepts agenda_allocation_manager', () => {
-    expect(isAgendaStaffRole('agenda_allocation_manager')).toBe(true);
-  });
-  it('accepts super_admin', () => {
-    expect(isAgendaStaffRole('super_admin')).toBe(true);
-  });
-  it('rejects registration_admission_manager (staff, but not agenda staff)', () => {
-    expect(isAgendaStaffRole('registration_admission_manager')).toBe(false);
-  });
-  it('rejects participant', () => {
-    expect(isAgendaStaffRole('participant')).toBe(false);
-  });
-  it('rejects null/undefined', () => {
-    expect(isAgendaStaffRole(null)).toBe(false);
-    expect(isAgendaStaffRole(undefined)).toBe(false);
-  });
-});
 
 describe('SESSION_VALID_TRANSITIONS state machine', () => {
   it('draft can only go to published', () => {
