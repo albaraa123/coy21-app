@@ -8,7 +8,6 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
-import { isAdmissionStaffRole } from '@/lib/validation/admission-review';
 import {
   createAccountsForSelectedForCaller,
   sendLoginDetailsForCaller,
@@ -46,7 +45,7 @@ beforeAll(async () => {
   if (error || !actor.user) throw new Error(`Failed to create actor: ${error?.message}`);
   actorId = actor.user.id;
   createdAuthUserIds.push(actorId);
-  await admin.from('profiles').update({ role: 'registration_admission_manager' }).eq('id', actorId);
+  await admin.from('profiles').update({ role: 'staff' }).eq('id', actorId);
 }, 60000);
 
 afterAll(async () => {
@@ -271,15 +270,11 @@ describe('audit logging', () => {
   }, 60000);
 });
 
-describe('role authorization', () => {
-  it('isAdmissionStaffRole grants exactly super_admin and registration_admission_manager, no other role', () => {
-    expect(isAdmissionStaffRole('super_admin')).toBe(true);
-    expect(isAdmissionStaffRole('registration_admission_manager')).toBe(true);
-    expect(isAdmissionStaffRole('agenda_allocation_manager')).toBe(false);
-    expect(isAdmissionStaffRole('communications_attendance_manager')).toBe(false);
-    expect(isAdmissionStaffRole('travel_operations_staff')).toBe(false);
-    expect(isAdmissionStaffRole('participant_care_staff')).toBe(false);
-    expect(isAdmissionStaffRole('participant')).toBe(false);
-    expect(isAdmissionStaffRole(null)).toBe(false);
-  });
-});
+// The former "role authorization" describe block here re-tested
+// isAdmissionStaffRole's exact allowed-role set in isolation (no live DB
+// involved) — that domain-specific predicate no longer exists; all 7
+// former staff-domain roles are now the single 'staff' role, gated by the
+// shared isStaffRole helper, and its allowed-set behavior (staff/super_admin
+// accepted, all else rejected) is already covered by plain unit tests in
+// tests/auth/is-staff-role.test.ts. Removed as redundant rather than
+// rewritten, since nothing here exercised the real database.

@@ -26,7 +26,7 @@ import type { Database } from '@/types/database';
 import { getMyQrState } from '@/lib/attendance/participant-qr';
 import { issueMyQrCredential, reissueMyQrCredential } from '@/lib/attendance/qr-credential-issuance';
 import { parseCanonicalQrPayload, hashQrToken } from '@/lib/attendance/qr-token-crypto';
-import { isProgramAttendanceStaffRole } from '@/lib/validation/program-attendance';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { isScannerDeviceRole } from '@/lib/validation/scanner-device';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -194,7 +194,7 @@ describe('displayed QR -> scanner: the reconstructed payload actually admits thr
     const scannerId = scanner!.user!.id;
     await admin.from('profiles').update({ role: 'scanner_device' }).eq('id', scannerId);
     const { data: staff } = await admin.auth.admin.createUser({ email: `pqr-staff-${randomUUID()}@test.local`, password: 'password123', email_confirm: true });
-    await admin.from('profiles').update({ role: 'program_attendance_manager' }).eq('id', staff!.user!.id);
+    await admin.from('profiles').update({ role: 'staff' }).eq('id', staff!.user!.id);
     await admin.from('scanner_assignments').insert({ scanner_user_id: scannerId, session_id: sessionId, assigned_by: staff!.user!.id });
 
     const fx = await createApplicant('scan-roundtrip', 'accepted');
@@ -288,11 +288,11 @@ describe('role boundary (documented, matches the established live-test pattern f
     expect(state.kind).toBe('NOT_YET_AVAILABLE');
   });
 
-  it('a program_attendance_manager account has no application, so its own getMyQrState call resolves to NOT_YET_AVAILABLE', async () => {
+  it('a staff account has no application, so its own getMyQrState call resolves to NOT_YET_AVAILABLE', async () => {
     const { data: staff } = await admin.auth.admin.createUser({ email: `pqr-role-staff-${randomUUID()}@test.local`, password: 'password123', email_confirm: true });
     otherUserIds.push(staff!.user!.id);
-    await admin.from('profiles').update({ role: 'program_attendance_manager' }).eq('id', staff!.user!.id);
-    expect(isProgramAttendanceStaffRole('program_attendance_manager')).toBe(true);
+    await admin.from('profiles').update({ role: 'staff' }).eq('id', staff!.user!.id);
+    expect(isStaffRole('staff')).toBe(true);
 
     const state = await getMyQrState({ userId: staff!.user!.id, service: admin });
     expect(state.kind).toBe('NOT_YET_AVAILABLE');
