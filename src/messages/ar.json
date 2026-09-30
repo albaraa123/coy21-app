@@ -11,7 +11,8 @@
       "schedulePublication": "Ù†Ø´Ø± Ø§Ù„Ø¬Ø¯ÙˆÙ„",
       "attendance": "Ø§Ù„Ø­Ø¶ÙˆØ±",
       "reporting": "Ø§Ù„ØªÙ‚Ø§Ø±ÙŠØ±",
-      "staff": "Staff"
+      "staff": "Staff",
+      "settings": "الإعدادات"
     },
     "participants": {
       "list": "Ø§Ù„Ù…Ø´Ø§Ø±ÙƒÙˆÙ†",
@@ -55,6 +56,9 @@
     "staff": {
       "list": "Staff",
       "assignments": "Assignments"
+    },
+    "settings": {
+      "email": "إعدادات البريد الإلكتروني"
     },
     "participant": {
       "dashboard": "Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…",
@@ -1861,6 +1865,29 @@
       "countryLabel": "Ø§Ù„Ø¯ÙˆÙ„Ø©",
       "nationalityLabel": "Ø§Ù„Ø¬Ù†Ø³ÙŠØ©"
     }
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "description": "إدارة الإعدادات العامة للمنصة.",
+    "sandboxModeTitle": "وضع اختبار البريد الإلكتروني",
+    "sandboxModeDescription": "عند التفعيل، يتم توجيه جميع الرسائل الصادرة إلى بريد الاختبار أدناه بدلاً من المشاركين الفعليين.",
+    "statusEnabled": "وضع الاختبار مفعّل",
+    "statusDisabled": "وضع الاختبار غير مفعّل",
+    "enableButton": "تفعيل وضع الاختبار",
+    "disableButton": "إيقاف وضع الاختبار",
+    "disableConfirmPrompt": "اكتب DISABLE لإيقاف وضع الاختبار واستئناف إرسال الرسائل الفعلية للمشاركين.",
+    "disableConfirmButton": "تأكيد الإيقاف",
+    "cancel": "إلغاء",
+    "sandboxEnabled": "تم تفعيل وضع الاختبار.",
+    "sandboxDisabled": "تم إيقاف وضع الاختبار.",
+    "toggleError": "تعذر تحديث وضع الاختبار",
+    "recipientTitle": "بريد الاختبار",
+    "recipientDescription": "يتم إرسال جميع الرسائل أثناء تفعيل وضع الاختبار إلى هذا العنوان بدلاً من ذلك.",
+    "recipientLabel": "البريد الإلكتروني للمستلم",
+    "recipientSaveButton": "حفظ المستلم",
+    "recipientSaved": "تم حفظ بريد المستلم.",
+    "recipientSaveError": "تعذر حفظ بريد المستلم",
+    "recipientNotSet": "لم يتم تحديد مستلم"
   }
 }
 

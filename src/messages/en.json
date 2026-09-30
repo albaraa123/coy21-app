@@ -11,7 +11,8 @@
       "schedulePublication": "Schedule Publication",
       "attendance": "Attendance",
       "reporting": "Reporting",
-      "staff": "Staff"
+      "staff": "Staff",
+      "settings": "Settings"
     },
     "participants": {
       "list": "All Participants",
@@ -55,6 +56,9 @@
     "staff": {
       "list": "Staff",
       "assignments": "Assignments"
+    },
+    "settings": {
+      "email": "Email Settings"
     },
     "participant": {
       "dashboard": "Dashboard",
@@ -1861,5 +1865,28 @@
       "countryLabel": "Country",
       "nationalityLabel": "Nationality"
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage system-wide configuration for the platform.",
+    "sandboxModeTitle": "Email Sandbox Mode",
+    "sandboxModeDescription": "While enabled, all outgoing emails are redirected to the sandbox recipient below instead of real participants.",
+    "statusEnabled": "Sandbox mode on",
+    "statusDisabled": "Sandbox mode off",
+    "enableButton": "Enable sandbox mode",
+    "disableButton": "Disable sandbox mode",
+    "disableConfirmPrompt": "Type DISABLE to turn off sandbox mode and resume sending real emails to participants.",
+    "disableConfirmButton": "Confirm disable",
+    "cancel": "Cancel",
+    "sandboxEnabled": "Sandbox mode enabled.",
+    "sandboxDisabled": "Sandbox mode disabled.",
+    "toggleError": "Failed to update sandbox mode",
+    "recipientTitle": "Sandbox Recipient",
+    "recipientDescription": "All emails sent while sandbox mode is on are delivered to this address instead.",
+    "recipientLabel": "Recipient email",
+    "recipientSaveButton": "Save recipient",
+    "recipientSaved": "Recipient email saved.",
+    "recipientSaveError": "Failed to save recipient email",
+    "recipientNotSet": "No recipient set"
   }
 }
