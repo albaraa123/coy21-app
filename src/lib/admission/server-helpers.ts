@@ -20,6 +20,12 @@ type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 // this helper. Every exported Phase C server action must call this before
 // any service-role read/write or Auth Admin/email operation, and must not
 // contain an early return that skips it.
+//
+// `session` is the caller's own authenticated client — use it only when an
+// RPC needs a real `auth.uid()` (e.g. issueStaffQrCredential/
+// reissueStaffQrCredential's reservation step, which is SECURITY DEFINER
+// and derives the caller from auth.uid() internally). For every ordinary
+// privileged read/write, use `service`, not `session`.
 export async function requireAdmissionStaffCaller(): Promise<{ userId: string; session: SupabaseClient<Database>; service: ServiceClient }> {
   const supabase = await createClient();
   const {

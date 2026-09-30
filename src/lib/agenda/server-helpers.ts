@@ -20,6 +20,12 @@ type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 // service-role read/write, and must not contain an early return that skips
 // it. Mirrors Phase 2's requireStaffCaller in
 // src/app/[locale]/(admin)/applications/[id]/actions.ts.
+//
+// `session` is the caller's own authenticated client — use it only when an
+// RPC needs a real `auth.uid()` (e.g. issueStaffQrCredential/
+// reissueStaffQrCredential's reservation step, which is SECURITY DEFINER
+// and derives the caller from auth.uid() internally). For every ordinary
+// privileged read/write, use `service`, not `session`.
 export async function requireAgendaStaffCaller(): Promise<{ userId: string; session: SupabaseClient<Database>; service: ServiceClient }> {
   const supabase = await createClient();
   const {
