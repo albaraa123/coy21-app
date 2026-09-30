@@ -19,8 +19,14 @@ import {
   retryFailedForSelected,
   retryFailedEmailsForSelected,
   resetSelectedToTemporaryPassword,
+  changeClassificationForSelected,
   type ProvisioningItemResult,
+  type ClassificationChangeResult,
 } from './actions';
+import ClassificationDialog from './classification-dialog';
+import type { Database } from '@/types/database';
+
+type ParticipantType = Database['public']['Enums']['participant_type'];
 
 export type AccountStatus =
   | 'no_account' | 'account_created' | 'password_change_required'
@@ -39,9 +45,10 @@ export interface AccountRow {
   lastLoginEmailSentAt: string | null;
   loginEmailSendCount: number;
   lastErrorMessage: string | null;
+  participantType: string | null;
 }
 
-type BulkActionKind = 'create' | 'createAndSend' | 'send' | 'resend' | 'retryFailed' | 'retryFailedEmails' | 'reset';
+type BulkActionKind = 'create' | 'createAndSend' | 'send' | 'resend' | 'retryFailed' | 'retryFailedEmails' | 'reset' | 'changeClassification';
 
 // Threshold above which the confirmation dialog carries an extra, more
 // prominent warning before sending — design doc section 14/15, §9's
@@ -82,6 +89,10 @@ export default function AccountsTable({
   batches: { id: string; name: string }[];
 }) {
   const t = useTranslations('participants.accounts');
+  // Reuses the same types.* keys as participants/[applicationId]/
+  // classification-controls.tsx (Task 5) rather than duplicating the 5
+  // participant_type labels under a second namespace.
+  const tTypes = useTranslations('participants.classification');
   const [search, setSearch] = useState('');
   const [batchFilter, setBatchFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -91,6 +102,13 @@ export default function AccountsTable({
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<ProvisioningItemResult[] | null>(null);
+  // Separate from `results` above: changeClassificationForSelected returns
+  // ClassificationChangeResult[], a different outcome union than every
+  // other bulk action here (ProvisioningItemResult[]) — kept in its own
+  // state rather than forcing a combined union onto `results` and
+  // `progressSummary`, which are typed specifically around
+  // ProvisioningItemResult's outcome values.
+  const [classificationResults, setClassificationResults] = useState<ClassificationChangeResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const filteredRows = useMemo(() => {
@@ -167,6 +185,13 @@ export default function AccountsTable({
         case 'reset':
           outcome = await resetSelectedToTemporaryPassword(ids);
           break;
+        case 'changeClassification':
+          // Never reached: the classification dialog calls
+          // runClassificationChange directly (it needs the selected
+          // participant_type, which this kind-only signature doesn't
+          // carry) instead of going through runAction. This case exists
+          // only so the switch stays exhaustive over BulkActionKind.
+          throw new Error('changeClassification must be run via runClassificationChange');
       }
       setResults(outcome);
     } catch (err) {
@@ -177,6 +202,34 @@ export default function AccountsTable({
       setResetConfirmText('');
     }
   }
+
+  async function runClassificationChange(newType: ParticipantType) {
+    setProcessing(true);
+    setError(null);
+    setClassificationResults(null);
+    try {
+      const ids = [...selected];
+      const outcome = await changeClassificationForSelected(ids, newType);
+      setClassificationResults(outcome);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('genericError'));
+    } finally {
+      setProcessing(false);
+      setPendingAction(null);
+    }
+  }
+
+  const classificationProgressSummary = useMemo(() => {
+    if (!classificationResults) return null;
+    const count = (outcome: ClassificationChangeResult['outcome']) => classificationResults.filter((r) => r.outcome === outcome).length;
+    return {
+      selected: selected.size,
+      updatedOnly: count('updated_only'),
+      numberRegenerated: count('number_regenerated'),
+      reissued: count('reissued'),
+      failed: count('error'),
+    };
+  }, [classificationResults, selected.size]);
 
   const progressSummary = useMemo(() => {
     if (!results) return null;
@@ -276,6 +329,7 @@ export default function AccountsTable({
               <th scope="col" className="px-4 py-2 text-start font-medium">{t('colUsername')}</th>
               <th scope="col" className="px-4 py-2 text-start font-medium">{t('colTempPassword')}</th>
               <th scope="col" className="px-4 py-2 text-start font-medium">{t('colBatch')}</th>
+              <th scope="col" className="px-4 py-2 text-start font-medium">{t('colParticipantType')}</th>
               <th scope="col" className="px-4 py-2 text-start font-medium">{t('colAccountStatus')}</th>
               <th scope="col" className="px-4 py-2 text-start font-medium">{t('colEmailStatus')}</th>
               <th scope="col" className="px-4 py-2 text-start font-medium">{t('colLastEmail')}</th>
@@ -299,6 +353,9 @@ export default function AccountsTable({
                   {temporaryPasswordDisplay(row.accountStatus, row.mustChangePassword)}
                 </td>
                 <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{row.importBatchName ?? ''}</td>
+                <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
+                  {row.participantType ? tTypes(`types.${row.participantType}`) : ''}
+                </td>
                 <td className="px-4 py-2">
                   <Badge variant={ACCOUNT_STATUS_BADGE[row.accountStatus]}>{row.accountStatus}</Badge>
                 </td>
@@ -338,9 +395,21 @@ export default function AccountsTable({
         <Button type="button" size="sm" variant="destructive" disabled={selected.size === 0} onClick={() => setPendingAction('reset')}>
           {t('actionResetPassword')}
         </Button>
+        <Button type="button" size="sm" variant="secondary" disabled={selected.size === 0} onClick={() => setPendingAction('changeClassification')}>
+          {t('actionChangeClassification')}
+        </Button>
       </div>
 
-      {pendingAction && (
+      {pendingAction === 'changeClassification' && (
+        <ClassificationDialog
+          selectedCount={selected.size}
+          processing={processing}
+          onConfirm={(newType) => void runClassificationChange(newType)}
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
+
+      {pendingAction && pendingAction !== 'changeClassification' && (
         <div role="dialog" className="flex flex-col gap-3 rounded-lg border border-gold bg-gold/10 p-4 dark:border-amber-700 dark:bg-amber-900/20">
           <h2 className="text-sm font-semibold text-charcoal dark:text-gray-100">{t('confirmTitle')}</h2>
           <p className="text-sm text-charcoal dark:text-gray-100">{t('confirmSelected', { count: dialogCounts.total })}</p>
@@ -400,6 +469,16 @@ export default function AccountsTable({
           <p className="text-sm text-charcoal dark:text-gray-100">{t('progressConflicts', { count: progressSummary.conflicts })}</p>
           <p className="text-sm text-charcoal dark:text-gray-100">{t('progressSkipped', { count: progressSummary.skipped })}</p>
           <p className="text-sm text-charcoal dark:text-gray-100">{t('progressRemaining', { count: progressSummary.remaining })}</p>
+        </div>
+      )}
+
+      {classificationProgressSummary && (
+        <div className="flex flex-col gap-1 rounded-lg border border-charcoal/10 p-4 dark:border-gray-700">
+          <p className="text-sm text-charcoal dark:text-gray-100">{t('progressSelected', { count: classificationProgressSummary.selected })}</p>
+          <p className="text-sm text-charcoal dark:text-gray-100">{t('changeClassificationUpdatedOnly', { count: classificationProgressSummary.updatedOnly })}</p>
+          <p className="text-sm text-charcoal dark:text-gray-100">{t('changeClassificationNumberRegenerated', { count: classificationProgressSummary.numberRegenerated })}</p>
+          <p className="text-sm text-charcoal dark:text-gray-100">{t('changeClassificationReissued', { count: classificationProgressSummary.reissued })}</p>
+          <p className="text-sm text-charcoal dark:text-gray-100">{t('progressFailed', { count: classificationProgressSummary.failed })}</p>
         </div>
       )}
     </div>

@@ -10,6 +10,7 @@ import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers';
 import { writeAuditLog } from '@/lib/agenda/server-helpers';
 import { provisionParticipantAccount, resetToTemporaryPassword, APPROVED_TEMP_PASSWORD } from '@/lib/auth/provision-participant-account';
 import { sendLoginDetailsEmail } from '@/lib/email/resend';
+import { reclassifyApplication } from '@/lib/participants/reclassify';
 import { CHUNK_SIZE } from '@/lib/validation/import';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
@@ -263,4 +264,56 @@ export async function resetSelectedToTemporaryPassword(applicationIds: string[])
     await writeAuditLog(service, { entityType: 'application', entityId: applicationId, action: 'provisioning_failed', actorId: userId, metadata: { stage: 'password_reset' } });
     return { applicationId, outcome: 'error', errorMessage: result.errorMessage };
   });
+}
+
+export interface ClassificationChangeResult {
+  applicationId: string;
+  outcome: 'updated_only' | 'number_regenerated' | 'reissued' | 'error';
+  errorMessage?: string;
+}
+
+// A separate, local chunking helper — deliberately NOT a reuse of
+// processInChunks above. That function's handler return type is hardcoded
+// to ProvisioningItemResult (a closed union that doesn't include the
+// outcome values reclassifyApplication returns, e.g. 'number_regenerated'/
+// 'reissued'), so forcing this action through it would not typecheck.
+// Matches the same bounded-concurrency chunking SHAPE (CHUNK_SIZE outer /
+// ITEM_CONCURRENCY inner), reusing both of those existing constants.
+async function processClassificationChangesInChunks(
+  applicationIds: string[],
+  handler: (applicationId: string) => Promise<ClassificationChangeResult>
+): Promise<ClassificationChangeResult[]> {
+  const results: ClassificationChangeResult[] = [];
+  for (let i = 0; i < applicationIds.length; i += CHUNK_SIZE) {
+    const chunk = applicationIds.slice(i, i + CHUNK_SIZE);
+    for (let j = 0; j < chunk.length; j += ITEM_CONCURRENCY) {
+      const slice = chunk.slice(j, j + ITEM_CONCURRENCY);
+      const sliceResults = await Promise.all(slice.map(handler));
+      results.push(...sliceResults);
+    }
+  }
+  return results;
+}
+
+export async function changeClassificationForSelectedForCaller(
+  applicationIds: string[],
+  newParticipantType: Database['public']['Enums']['participant_type'],
+  caller: { userId: string; session: SupabaseClient<Database>; service: ServiceClient }
+): Promise<ClassificationChangeResult[]> {
+  return processClassificationChangesInChunks(applicationIds, async (applicationId) => {
+    const result = await reclassifyApplication(caller.session, caller.service, {
+      applicationId,
+      newParticipantType,
+      actorId: caller.userId,
+    });
+    return { applicationId: result.applicationId, outcome: result.outcome, errorMessage: result.errorMessage };
+  });
+}
+
+export async function changeClassificationForSelected(
+  applicationIds: string[],
+  newParticipantType: Database['public']['Enums']['participant_type']
+): Promise<ClassificationChangeResult[]> {
+  const caller = await requireAdmissionStaffCaller();
+  return changeClassificationForSelectedForCaller(applicationIds, newParticipantType, caller);
 }

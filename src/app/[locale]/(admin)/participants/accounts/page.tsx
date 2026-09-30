@@ -38,7 +38,7 @@ export default async function ParticipantAccountsPage() {
   const { data: applications } = await service
     .from('applications')
     .select(
-      'id, full_name, imported_email, import_batch_id, import_batches(original_filename), participant_account_provisioning(account_status, email_status, must_change_password, normalized_email, last_login_email_sent_at, login_email_send_count, last_error_message, auth_user_id)'
+      'id, full_name, imported_email, import_batch_id, participant_type, import_batches(original_filename), participant_account_provisioning(account_status, email_status, must_change_password, normalized_email, last_login_email_sent_at, login_email_send_count, last_error_message, auth_user_id)'
     )
     .not('imported_email', 'is', null)
     .order('created_at', { ascending: false })
@@ -58,6 +58,7 @@ export default async function ParticipantAccountsPage() {
       fullName: app.full_name ?? '',
       username: provisioning?.normalized_email ?? app.imported_email ?? '',
       importBatchId: app.import_batch_id,
+      participantType: app.participant_type,
       importBatchName: app.import_batches?.original_filename ?? null,
       accountStatus: provisioning?.account_status ?? 'no_account',
       emailStatus: provisioning?.email_status ?? 'not_sent',
