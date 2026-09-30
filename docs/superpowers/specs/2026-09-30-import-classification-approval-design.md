@@ -40,21 +40,23 @@ Nullable, unique (mirrors the existing `linked_profile_id uuid unique references
 
 ### 1.3. Retroactive backfill (one-time, point-in-time migration)
 
-A single migration, run once:
+Confirmed against the real schema: `applications.full_name` (single `text` column, nullable, added by `20260731100000_phase_b_import_field_extensions.sql`) is the source-of-truth name for an application record regardless of claim status — it is populated by import and is distinct from `profiles.full_name`, which only exists once an application is claimed into a real account. Because `applications.full_name` was added after some earlier imports, and because not every accepted/claimed application is guaranteed to have had it backfilled, the name lookup falls back to `profiles.full_name` (via `applicant_id`) when `applications.full_name` is null, before finally falling back to a literal placeholder:
 
 ```sql
 insert into people (full_name_ar, full_name_en, linked_application_id, is_active, is_public)
 select
-  coalesce(a.full_name, 'Unknown'), coalesce(a.full_name, 'Unknown'),
+  coalesce(a.full_name, p.full_name, 'Unknown'),
+  coalesce(a.full_name, p.full_name, 'Unknown'),
   a.id, true, false
 from applications a
+left join profiles p on p.id = a.applicant_id
 where a.participant_type = 'speaker'
-  and not exists (select 1 from people p where p.linked_application_id = a.id);
+  and not exists (select 1 from people pe where pe.linked_application_id = a.id);
 ```
 
-(Exact column name for the applicant's name on `applications` — e.g. `full_name` vs. separate ar/en columns — must be confirmed against the real schema before this migration is finalized in the implementation plan; the design intent is "copy whatever name is available into both `full_name_ar` and `full_name_en`".)
+`people` has no native Arabic/English name distinction to draw from either source — both `full_name_ar` and `full_name_en` are seeded with the same value, exactly as before; staff corrects them manually afterward per the design decision in this section's parent context.
 
-This uses the same trigger logic described in §3 conceptually, but as a one-time backfill statement rather than the trigger itself, since the trigger only fires on future `UPDATE`s, not on rows that already had `participant_type = 'speaker'` before this migration ran.
+This uses the same name-resolution logic as the trigger described in §4.1, but as a one-time backfill statement rather than the trigger itself, since the trigger only fires on future `UPDATE`s, not on rows that already had `participant_type = 'speaker'` before this migration ran.
 
 ---
 
@@ -64,11 +66,11 @@ This uses the same trigger logic described in §3 conceptually, but as a one-tim
 
 `updateApplicationStatus(applicationId, 'accepted')` in `src/app/[locale]/(admin)/applications/[id]/actions.ts` gains one new step, inline, after the existing status-transition write and before returning: if `applications.application_number is null`, generate one via `next_application_number(participant_type)` and persist it in the same update. If a number already exists (re-entry to `accepted` after a prior `waitlisted`/`rejected` detour), it is left untouched — no new number is generated.
 
-`next_application_number` currently has no TypeScript RPC wrapper (it has only ever been called from inside other PL/pgSQL functions). This design adds one: either a thin `supabase.rpc('next_application_number', { p_type: participantType })` call, or folds the number generation into a small new SQL function callable from the Server Action (e.g. `accept_application_and_issue_number(application_id uuid)`) that does the read-modify-write atomically to avoid a race between two staff members accepting different applications concurrently. The latter is preferred given the sequence-based code generation already happens exclusively in PL/pgSQL elsewhere in this codebase — the implementation plan should follow that established convention rather than introducing the first-ever client-side call to a raw generation RPC.
+`next_application_number` currently has no TypeScript RPC wrapper (it has only ever been called from inside other PL/pgSQL functions). `nextval()`-based sequence generation is already atomic and race-free by Postgres semantics regardless of whether it's called via a raw RPC or wrapped in a new function — so that is not, by itself, a reason to prefer one over the other. The actual race to guard against is different: the "only generate a number if `application_number is null`" check and the write must happen atomically for a *single* application, so two concurrent accept-attempts on the *same* application (e.g. a double-click, or two staff members both loading and accepting the same record) can't both pass the null-check and each generate a wasted/duplicate number. This is naturally solved by folding the check-and-generate into one SQL function (e.g. `accept_application_and_issue_number(application_id uuid)`, called from the Server Action) that does `update applications set application_number = coalesce(application_number, next_application_number(participant_type)) where id = ... returning application_number` in one statement — the existing `updateApplicationStatus`'s established optimistic-concurrency pattern (`.eq('status', oldStatus)` guard) is a separate, unrelated race-guard for the status transition itself and doesn't cover this. The implementation plan should follow the established convention of doing sequence-based code generation in PL/pgSQL (matching every other call site of `next_application_number`), which also naturally gives this single-statement atomicity for free.
 
 ### 2.2. QR issuance remains a separate, manual staff action
 
-No automatic QR issuance on acceptance. `src/lib/attendance/qr-credential-issuance.ts`'s `issueStaffQrCredential` already exists but currently has **zero Server Action callers anywhere in the codebase**. This design adds the first one: a new Server Action and an "Issue QR" control on `applications/[id]`, visible only when `status = 'accepted'` and no active `qr_credentials` row exists for the application. Wires straight to the existing function — no new SQL.
+No automatic QR issuance on acceptance. `src/lib/attendance/qr-credential-issuance.ts` already exports both `issueStaffQrCredential` (fresh issuance) and `reissueStaffQrCredential` (line 188 — wraps `request_staff_qr_reissue_transactional` → Node token generation → `finalize_qr_reissue_for_server`, the exact pair used in §3.4 below), but **neither has a Server Action caller anywhere in the codebase today** — both are fully implemented, wired to nothing. This design adds the first caller for `issueStaffQrCredential`: a new Server Action and an "Issue QR" control on `applications/[id]`, visible only when `status = 'accepted'` and no active `qr_credentials` row exists for the application. Wires straight to the existing function — no new SQL.
 
 ### 2.3. Moving away from `accepted`
 
@@ -96,12 +98,10 @@ All three edit paths funnel through one shared Server Action / helper. Its behav
 
 - **Not yet `accepted`** (no `application_number`, no QR): plain column update. No side effects.
 - **`accepted`, no active QR credential** (number exists, QR was never issued or was revoked by an earlier status change): the `application_number` is regenerated for the new `participant_type` via the same mechanism as §2.1. No QR action (there is none to reissue).
-- **`accepted`, with an active QR credential**: the full reissue sequence runs inline in the same Server Action:
+- **`accepted`, with an active QR credential**: the full reissue sequence runs via the existing, already-fully-implemented `reissueStaffQrCredential` (`src/lib/attendance/qr-credential-issuance.ts:188`) — this is the staff-specific counterpart to the participant self-service `reissueMyQrCredential` used by `my-qr/actions.ts`'s `reissueMyQrCredentialAction`, and it already wraps the exact `request_staff_qr_reissue_transactional` → Node token generation → `finalize_qr_reissue_for_server` sequence needed here. No new reissue logic is required, only a new caller:
   1. Regenerate `application_number` for the new type (as above).
-  2. `request_staff_qr_reissue_transactional` (reserves the reissue operation).
-  3. Node-side cryptographic token generation (mirrors the existing pattern in `src/app/[locale]/(participant)/(shell)/my-qr/actions.ts`'s `reissueMyQrCredentialAction`).
-  4. `finalize_qr_reissue_for_server`, using the existing `reissue_reason_code = 'administrative_correction'` value — no new reason code or constraint migration needed.
-  5. If `applications.applicant_id` is set (the participant has a claimed account), send a notification email via `sendEmailGuarded` informing them their code changed. If unclaimed, no email is sent (there is no account to notify, and email would go nowhere useful).
+  2. Call `reissueStaffQrCredential(requester, service, { requestKey, applicationId, expectedCurrentCredentialId, reissueReasonCode: 'administrative_correction', reissueNote, bulkBatchId? })` — the existing `'administrative_correction'` value already in `qr_credentials_reissue_reason_code_valid`'s check constraint, no new reason code or constraint migration needed.
+  3. If `applications.applicant_id` is set (the participant has a claimed account), send a notification email via `sendEmailGuarded` informing them their code changed. If unclaimed, no email is sent (there is no account to notify, and email would go nowhere useful).
 
 The old `application_number` value is not separately archived — it is simply overwritten, and the change is captured by this codebase's existing `audit_logs` table (the same pattern already used for other sensitive mutations), which is judged sufficient for review purposes.
 
@@ -116,14 +116,25 @@ Bulk edit (3.2) applies this same per-application logic to each selected applica
 A new `AFTER UPDATE FOR EACH ROW` trigger on `applications`, modeled directly on the existing `applications_revoke_qr_on_ineligibility` trigger's shape (narrow guard, `SECURITY DEFINER`, idempotent):
 
 ```sql
-if new.participant_type = 'speaker'
-   and (old.participant_type is distinct from 'speaker')
-   and not exists (select 1 from people where linked_application_id = new.id)
-then
-  insert into people (full_name_ar, full_name_en, linked_application_id, is_active, is_public)
-  values (coalesce(new.full_name, 'Unknown'), coalesce(new.full_name, 'Unknown'), new.id, true, false);
-end if;
+declare
+  v_display_name text;
+begin
+  if new.participant_type = 'speaker'
+     and (old.participant_type is distinct from 'speaker')
+     and not exists (select 1 from people where linked_application_id = new.id)
+  then
+    select coalesce(new.full_name, p.full_name, 'Unknown') into v_display_name
+    from (values (1)) as _dummy
+    left join profiles p on p.id = new.applicant_id;
+
+    insert into people (full_name_ar, full_name_en, linked_application_id, is_active, is_public)
+    values (v_display_name, v_display_name, new.id, true, false);
+  end if;
+  return new;
+end;
 ```
+
+Uses the same `applications.full_name` → `profiles.full_name` (via `applicant_id`) → literal-placeholder fallback chain as the backfill migration in §1.3, for the same reason: `applications.full_name` may be unset even for a claimed application. The implementation plan should factor this fallback lookup into one shared function (e.g. `resolve_application_display_name(applicant_id uuid, application_full_name text)`) called from both the trigger and the backfill migration, rather than duplicating the `coalesce`/join logic in two places.
 
 Fires regardless of *why* `participant_type` became `'speaker'` — individual edit, bulk edit, or (once §1.1 ships) any future non-import path. It does **not** fire from the import pipeline directly, since `apply_import_row_transactional` performs an `INSERT`, not an `UPDATE` — a newly imported row classified `speaker` from the start needs a separate one-time check at commit time, OR (simpler, preferred) the import flow is left to rely on this same trigger by ensuring the insert path also invokes the equivalent logic. The implementation plan should resolve this exactly: either extend `apply_import_row_transactional` to call the same `people`-creation logic directly for `INSERT`s classified `speaker`, or add a companion `AFTER INSERT` trigger sharing the same underlying function. Both are equivalent in effect; the plan should pick whichever keeps the logic in exactly one place (e.g., a shared `create_speaker_people_record_if_needed(application_id)` function called from both the `AFTER INSERT` and `AFTER UPDATE` triggers).
 
@@ -156,5 +167,7 @@ Per the user's explicit requirements, the implementation plan must include tests
 - Reclassifying an application changes `participant_type` correctly in each of the 3 edit paths (individual, bulk, import-preview).
 - Reclassifying an `accepted` application with an active QR: old `application_number` is replaced, old QR credential is invalidated (`status = 'replaced'`), a new active QR credential exists, and — only when `applicant_id` is set — exactly one notification email is sent via the guarded send layer (and zero emails when `applicant_id` is null).
 - Reclassifying a not-yet-accepted application: plain column update, no `application_number`/QR/email side effects.
-- Speaker linking: classifying an application as `speaker` (via import, individual edit, or bulk edit) creates exactly one linked `people` row; reclassifying away from `speaker` leaves the `people` row and its `session_people` links untouched; the retroactive backfill migration links all pre-existing `speaker` applications exactly once (idempotent — running it twice creates no duplicates).
+- Speaker linking: classifying an application as `speaker` (via import, individual edit, or bulk edit) creates exactly one linked `people` row; reclassifying away from `speaker` leaves the `people` row and its `session_people` links untouched; the retroactive backfill migration links all pre-existing `speaker` applications exactly once (idempotent — running it twice creates no duplicates); the name-fallback chain (`applications.full_name` → `profiles.full_name` → `'Unknown'`) is exercised for a claimed application whose `applications.full_name` is null.
 - Moving an `accepted` application away from `accepted` (e.g. to `rejected`) still triggers the existing QR-revocation behavior unchanged, while `application_number` remains on the record.
+- Bulk edit (§3.2) applied to a single batch containing applications in different states (some not-yet-accepted, some accepted-without-QR, some accepted-with-active-QR): each application takes the correct branch of §3.4's logic independently — a not-yet-accepted row in the batch gets a plain column update with no side effects, while an accepted-with-QR row in the *same* batch gets a full reissue, and the batch's success/failure summary correctly attributes each outcome to its row.
+- Two concurrent `accept` calls targeting the **same** application (e.g. simulating a double-click or two staff sessions) never produce two different `application_number` values or two `next_application_number()` sequence increments for that one application — exactly one number is generated and both calls observe the same final value.
