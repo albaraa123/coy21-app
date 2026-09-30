@@ -48,7 +48,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const service = createServiceRoleClient();
-  const { data: profile } = await service.from('profiles').select('role, full_name').eq('id', user.id).maybeSingle();
+  // profiles and email_settings are independent reads (different tables,
+  // neither depends on the other's result) — fetched in parallel rather
+  // than sequentially, matching this codebase's established Promise.all
+  // convention for independent reads. email_settings is fetched here even
+  // though an unauthorized caller never uses it, trading one wasted read
+  // on the rare unauthorized path for one fewer round-trip on the common
+  // authorized path.
+  const [{ data: profile }, emailSettings] = await Promise.all([
+    service.from('profiles').select('role, full_name').eq('id', user.id).maybeSingle(),
+    fetchEmailSettings(),
+  ]);
 
   const decision = decideAdminAccess(user.id, profile?.role);
   const t = await getTranslations({ locale, namespace: 'shell' });
@@ -85,12 +95,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     name: profile?.full_name || user.email || '',
     roleLabel: key ? t(key) : t('roles.participant'),
   };
-
-  // Separate read from Task 2's fetchEmailSettings() call at send-time —
-  // same helper/table, but this one drives the banner's display rather
-  // than gating a send. Placed after the authorization checks above so an
-  // unauthorized caller (who never reaches AppShell) doesn't pay for it.
-  const emailSettings = await fetchEmailSettings();
 
   return (
     <AppShell
