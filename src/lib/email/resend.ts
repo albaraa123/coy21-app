@@ -4,7 +4,6 @@ import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
   fullName: string;
-  applicationNumber: string;
   locale: 'ar' | 'en';
 }): Promise<{ id: string | null; error: string | null }> {
   const configResult = getResendConfig();
@@ -15,13 +14,13 @@ export async function sendRegistrationConfirmationEmail(params: {
 
   const subject =
     params.locale === 'ar'
-      ? `ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ Ø§Ù„ØªØ³Ø¬ÙŠÙ„ - ${params.applicationNumber}`
-      : `Registration Received - ${params.applicationNumber}`;
+      ? `ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ Ø§Ù„ØªØ³Ø¬ÙŠÙ„`
+      : `Registration Received`;
 
   const body =
     params.locale === 'ar'
-      ? `Ù…Ø±Ø­Ø¨Ø§Ù‹ ${params.fullName}ØŒ\n\nØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ ØªØ³Ø¬ÙŠÙ„Ùƒ Ø¨Ù†Ø¬Ø§Ø­ (${params.applicationNumber}). ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø¹Ù„Ù… Ø£Ù† Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨ Ù„Ø§ ÙŠØ¹Ù†ÙŠ Ø§Ù„Ù‚Ø¨ÙˆÙ„ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ ÙÙŠ Ø§Ù„Ù…Ø¤ØªÙ…Ø±ØŒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ Ø¨Ø¹Ø¯ Ø§Ù†ØªÙ‡Ø§Ø¡ ÙØ±ÙŠÙ‚ Ø§Ù„Ù…Ø¤ØªÙ…Ø± Ù…Ù† Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø·Ù„Ø¨Ø§Øª.`
-      : `Hello ${params.fullName},\n\nYour registration application (${params.applicationNumber}) has been received. Please note that receipt does not constitute final admission â€” we will contact you once the review team has finished processing applications.`;
+      ? `Ù…Ø±Ø­Ø¨Ø§Ù‹ ${params.fullName}ØŒ\n\nØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ ØªØ³Ø¬ÙŠÙ„Ùƒ Ø¨Ù†Ø¬Ø§Ø­. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø¹Ù„Ù… Ø£Ù† Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨ Ù„Ø§ ÙŠØ¹Ù†ÙŠ Ø§Ù„Ù‚Ø¨ÙˆÙ„ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ ÙÙŠ Ø§Ù„Ù…Ø¤ØªÙ…Ø±ØŒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ Ø¨Ø¹Ø¯ Ø§Ù†ØªÙ‡Ø§Ø¡ ÙØ±ÙŠÙ‚ Ø§Ù„Ù…Ø¤ØªÙ…Ø± Ù…Ù† Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø·Ù„Ø¨Ø§Øª.`
+      : `Hello ${params.fullName},\n\nYour registration application has been received. Please note that receipt does not constitute final admission â€” we will contact you once the review team has finished processing applications.`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
