@@ -37,6 +37,11 @@ export async function fetchEmailSettings(): Promise<EmailSettings> {
   };
 }
 
+// Cached on first call and reused for the life of the process, regardless
+// of which caller's apiKey triggered creation. Safe today because every
+// caller resolves apiKey from the same single getResendConfig() source —
+// this app has one Resend account, never multiple keys/tenants in one
+// process. Revisit if that ever changes.
 let resendClient: Resend | null = null;
 function getResendClient(apiKey: string): Resend {
   if (!resendClient) {
