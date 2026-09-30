@@ -427,7 +427,61 @@ Remove the now-unused `Resend` import if nothing else in this file needs it.
 
 - [ ] **Step 9: Update `travel-reminders/route.ts`**
 
-Same pattern — fetch settings once before the `BATCH_SIZE` loop, thread it into `sendTravelReminder`'s parameters (add `settings: EmailSettings` to that function's signature), replace its `resend.emails.send({...})` call with `sendEmailGuarded({...})`. Since `sendTravelReminder` already takes a `resend: Resend` param that becomes unnecessary once it calls `sendEmailGuarded` instead (which takes `apiKey` and constructs its own client internally), remove the `resend` param and pass `apiKey: config.apiKey` instead — update the `Promise.all(batch.map((recipient) => sendTravelReminder(...)))` call site to match the new signature.
+Same pattern as Steps 5/7/8, but this call site is structurally different: it uses `Promise.all` batching (`BATCH_SIZE = 10`) rather than a plain loop, and the per-recipient send logic lives in a separate `sendTravelReminder` helper function that currently takes a `resend: Resend` instance as a parameter. `sendEmailGuarded` constructs its own client internally from an `apiKey` string, so `sendTravelReminder` no longer needs (or should keep) a `Resend` param.
+
+Fetch settings once, right after `const service = createServiceRoleClient();` (before the batching loop):
+
+```typescript
+import { fetchEmailSettings, sendEmailGuarded } from '@/lib/email/send-guarded';
+
+// ... replace `const resend = new Resend(config.apiKey);` with:
+const settings = await fetchEmailSettings();
+```
+
+Update the batching loop's call site — `resend` is no longer threaded through, `settings` is:
+
+```typescript
+const BATCH_SIZE = 10;
+for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+  const batch = recipients.slice(i, i + BATCH_SIZE);
+  const results = await Promise.all(
+    batch.map((recipient) => sendTravelReminder(settings, config, appUrl, recipient))
+  );
+  for (const ok of results) {
+    if (ok) sent++;
+    else failed++;
+  }
+}
+```
+
+Update `sendTravelReminder`'s signature — drop the `resend: Resend` param, add `settings: EmailSettings` as the new first param, and replace its `resend.emails.send({...})` call with `sendEmailGuarded({...})`:
+
+```typescript
+async function sendTravelReminder(
+  settings: EmailSettings,
+  config: { fromEmail: string; replyToEmail: string; supportEmail: string; apiKey: string },
+  appUrl: string,
+  profile: { email: string; fullName: string }
+): Promise<boolean> {
+  // ...unchanged subject/text/html construction above...
+
+  const { error: sendErr } = await sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: profile.email,
+    subject,
+    text,
+    html,
+    originalRecipientDescription: `${profile.fullName} <${profile.email}>`,
+  });
+
+  return !sendErr;
+}
+```
+
+`config` here is the object returned by `getResendConfig()` — confirm it already exposes `apiKey` alongside `fromEmail`/`replyToEmail`/`supportEmail` (it does, per `resend-config.ts`); if the local `config` destructuring in this route only pulls a subset of fields into the object passed to `sendTravelReminder`, widen it to include `apiKey`. Remove the now-unused `Resend` import if nothing else in this file needs it.
 
 - [ ] **Step 10: Run the full email-related test suite**
 
@@ -463,25 +517,33 @@ git commit -m "feat: add guarded email send layer, route all 5 existing send pat
 
 **Context:** `requireSuperAdmin()` is currently duplicated verbatim in these two files. This task extracts it to a shared location before Task 4 needs a third copy for the settings actions — do this extraction now rather than adding a fourth near-duplicate.
 
-- [ ] **Step 1: Read both existing copies to confirm they're identical**
+- [ ] **Step 1: Read both existing copies — they are NOT identical, do not assume otherwise**
 
-```bash
-diff <(sed -n '/async function requireSuperAdmin/,/^}/p' "src/app/[locale]/(admin)/staff/actions.ts") <(sed -n '/async function requireSuperAdmin/,/^}/p' "src/app/[locale]/(admin)/staff/assignments/actions.ts")
-```
+Despite the design spec describing these as "identical shape," they differ in a real way. Confirmed directly:
 
-If they differ in any way beyond whitespace, stop and report the difference rather than assuming they're interchangeable — the design spec's research found them "identical shape," but re-verify before extracting.
+- `src/app/[locale]/(admin)/staff/actions.ts:24-38` — queries `profiles.select('role')`, returns `{ service }` only.
+- `src/app/[locale]/(admin)/staff/assignments/actions.ts:8-22` — queries `profiles.select('id, role')`, returns `{ service, userId: profile.id }`. `userId` is used by this file's `createAssignment` (line 48: `created_by: userId`).
 
-- [ ] **Step 2: Write the shared module**
+The shared function must return the **superset** shape (`{ service, userId }`) so `assignments/actions.ts`'s existing `userId` usage keeps working, and so Task 4's settings actions can use `userId` too instead of the awkward inline `createClient()`/`auth.getUser()` re-fetch a naive extraction would otherwise need. `staff/actions.ts`'s 3 call sites only ever destructure `{ service }` today — receiving an object that also has a `userId` field is harmless to them (unused destructured fields are simply not requested), so widening the shared function's return shape does not break `staff/actions.ts`.
+
+- [ ] **Step 2: Write the shared module with the superset return shape**
 
 ```typescript
 // src/lib/auth/require-super-admin.ts
 //
 // Extracted from src/app/[locale]/(admin)/staff/actions.ts and
-// src/app/[locale]/(admin)/staff/assignments/actions.ts, which had
-// identical copies of this function. Any Server Action that must be
-// callable by super_admin only (not any staff role) uses this — do not
-// use isStaffRole/is_staff() for this purpose, which is deliberately
-// broader.
+// src/app/[locale]/(admin)/staff/assignments/actions.ts. These two
+// files' local copies were NOT identical before this extraction —
+// assignments/actions.ts's version also returned `userId` (the caller's
+// own profile id, used for `created_by` on inserts) and queried
+// `profiles.select('id, role')` instead of just `role`. This shared
+// version uses assignments/actions.ts's superset shape so both files'
+// existing usages keep working: staff/actions.ts's 3 call sites only
+// ever destructured `{ service }` and are unaffected by the extra field.
+//
+// Any Server Action that must be callable by super_admin only (not any
+// staff role) uses this — do not use isStaffRole/is_staff() for this
+// purpose, which is deliberately broader.
 import { getLocale } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
@@ -495,19 +557,19 @@ export async function requireSuperAdmin() {
     throw new Error('Unauthenticated');
   }
   const service = createServiceRoleClient();
-  const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile } = await service.from('profiles').select('id, role').eq('id', user.id).single();
   if (!profile || profile.role !== 'super_admin') {
     throw new Error('Forbidden: super_admin only');
   }
-  return { service };
+  return { service, userId: profile.id };
 }
 ```
 
-- [ ] **Step 2: Update both existing call sites**
+- [ ] **Step 3: Update both existing call sites**
 
-In `src/app/[locale]/(admin)/staff/actions.ts` and `src/app/[locale]/(admin)/staff/assignments/actions.ts`, delete the local `requireSuperAdmin` function definition and add `import { requireSuperAdmin } from '@/lib/auth/require-super-admin';` at the top. No call-site changes needed — same function name, same signature, same behavior.
+In both `src/app/[locale]/(admin)/staff/actions.ts` and `src/app/[locale]/(admin)/staff/assignments/actions.ts`: delete the local `requireSuperAdmin` function definition, add `import { requireSuperAdmin } from '@/lib/auth/require-super-admin';` at the top. `assignments/actions.ts`'s existing `const { service, userId } = await requireSuperAdmin();` (line 37) and its `userId` usage (line 48) need NO changes — the shared function's return shape matches exactly. `staff/actions.ts`'s existing `const { service } = await requireSuperAdmin();` call sites (lines 48, 76, 87) also need no changes — they simply don't destructure the now-available `userId` field, which is fine.
 
-- [ ] **Step 3: Run the existing staff-management test suite**
+- [ ] **Step 4: Run the existing staff-management test suite**
 
 ```bash
 grep -rl "requireSuperAdmin\|createStaffAccount\|updateStaffRole\|deleteStaffAccount" tests/ 
@@ -515,7 +577,7 @@ grep -rl "requireSuperAdmin\|createStaffAccount\|updateStaffRole\|deleteStaffAcc
 
 Run whatever test files that returns, confirm all still pass unchanged.
 
-- [ ] **Step 4: Run typecheck**
+- [ ] **Step 5: Run typecheck**
 
 ```bash
 npx tsc --noEmit
@@ -523,11 +585,11 @@ npx tsc --noEmit
 
 Expected: no new errors.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/lib/auth/require-super-admin.ts "src/app/[locale]/(admin)/staff/actions.ts" "src/app/[locale]/(admin)/staff/assignments/actions.ts"
-git commit -m "refactor: extract requireSuperAdmin to a shared module"
+git commit -m "refactor: extract requireSuperAdmin to a shared module, using the userId-returning superset shape"
 ```
 
 ---
@@ -551,7 +613,7 @@ import { revalidatePath } from 'next/cache';
 const DISABLE_CONFIRMATION_PHRASE = 'DISABLE';
 
 export async function updateSandboxRecipient(email: string): Promise<{ error: string | null }> {
-  const { service } = await requireSuperAdmin();
+  const { service, userId } = await requireSuperAdmin();
   const trimmed = email.trim();
   if (trimmed.length === 0) {
     return { error: 'Recipient email cannot be empty' };
@@ -562,10 +624,9 @@ export async function updateSandboxRecipient(email: string): Promise<{ error: st
     return { error: 'Enter a valid email address' };
   }
 
-  const { data: { user } } = await (await import('@/lib/supabase/server')).createClient().then((c) => c.auth.getUser());
   const { error } = await service
     .from('email_settings')
-    .update({ sandbox_recipient_email: trimmed, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+    .update({ sandbox_recipient_email: trimmed, updated_at: new Date().toISOString(), updated_by: userId })
     .eq('id', true);
 
   if (error) return { error: error.message };
@@ -574,11 +635,10 @@ export async function updateSandboxRecipient(email: string): Promise<{ error: st
 }
 
 export async function enableSandboxMode(): Promise<{ error: string | null }> {
-  const { service } = await requireSuperAdmin();
-  const { data: { user } } = await (await import('@/lib/supabase/server')).createClient().then((c) => c.auth.getUser());
+  const { service, userId } = await requireSuperAdmin();
   const { error } = await service
     .from('email_settings')
-    .update({ sandbox_enabled: true, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+    .update({ sandbox_enabled: true, updated_at: new Date().toISOString(), updated_by: userId })
     .eq('id', true);
 
   if (error) return { error: error.message };
@@ -587,15 +647,14 @@ export async function enableSandboxMode(): Promise<{ error: string | null }> {
 }
 
 export async function disableSandboxMode(confirmationText: string): Promise<{ error: string | null }> {
-  const { service } = await requireSuperAdmin();
+  const { service, userId } = await requireSuperAdmin();
   if (confirmationText !== DISABLE_CONFIRMATION_PHRASE) {
     return { error: `You must type exactly "${DISABLE_CONFIRMATION_PHRASE}" to confirm.` };
   }
 
-  const { data: { user } } = await (await import('@/lib/supabase/server')).createClient().then((c) => c.auth.getUser());
   const { error } = await service
     .from('email_settings')
-    .update({ sandbox_enabled: false, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+    .update({ sandbox_enabled: false, updated_at: new Date().toISOString(), updated_by: userId })
     .eq('id', true);
 
   if (error) return { error: error.message };
@@ -604,7 +663,7 @@ export async function disableSandboxMode(confirmationText: string): Promise<{ er
 }
 ```
 
-(The `await (await import(...))...` pattern for getting the current user's id for `updated_by` is awkward — check this codebase's existing Server Actions, e.g. `src/app/[locale]/(admin)/staff/actions.ts`, for the established cleaner pattern of obtaining `user.id` inside a Server Action already holding a `createClient()` session client, and match that instead of the inline-import shown here, which is a placeholder for "get the current user's id, however this codebase normally does it in a Server Action.")
+This is exactly why Task 3's shared `requireSuperAdmin()` was corrected to return `{ service, userId }` rather than the narrower `{ service }` — these three actions all need `userId` for `updated_by`, and now get it directly from the same call that already does the super_admin check, with no second client/session fetch needed.
 
 - [ ] **Step 2: Check for an existing test pattern for similar settings-style actions**
 
@@ -786,6 +845,8 @@ git commit -m "test: add live RLS verification for email_settings table"
 
 **Context:** Per the design spec's Testing section: confirms zero remaining direct `new Resend(...)` / `.emails.send()` construction anywhere in `src/` outside `send-guarded.ts` itself — with an explicit exclusion for `src/app/api/webhooks/resend/route.ts`'s unrelated `new Resend('webhook_verify_only')` signature-verification usage (this exclusion was added during spec review specifically to prevent a permanent false positive; do not omit it).
 
+**Scope note:** `walk()` below only scans `src/`, not `tests/`. This is deliberate — every real email-send call site in this codebase lives under `src/` (the 5 sites this plan touches, plus the excluded webhook route), and test files legitimately contain their own `new Resend(...)` mock/stub constructions (e.g. `tests/email/resend-send.test.ts`'s `vi.mock('resend', ...)` shim) that are not production send paths and would be false positives if swept. Do not widen `walk()` to include `tests/` — that would break this test against its own supporting fixtures. The test's docstring and assertion name should make this `src/`-only scope explicit so a future reader doesn't assume a broader guarantee than what's actually checked.
+
 - [ ] **Step 1: Write the test**
 
 ```typescript
@@ -797,6 +858,11 @@ git commit -m "test: add live RLS verification for email_settings table"
 // src/ routes through sendEmailGuarded rather than constructing its own
 // Resend client. See docs/superpowers/specs/2026-09-30-email-sandbox-mode-design.md's
 // Testing section for why the webhook route is explicitly excluded.
+//
+// Scope: this only scans src/, not tests/. Every real send call site lives
+// under src/; test files legitimately mock `new Resend(...)` (e.g.
+// tests/email/resend-send.test.ts's vi.mock('resend', ...) shim) and would
+// be false positives if swept. Do not widen walk() to include tests/.
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
