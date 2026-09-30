@@ -75,6 +75,8 @@ No `INSERT`/`DELETE` policy — the single row is seeded by the migration itself
 
 Two new functions in a new file `src/lib/email/send-guarded.ts` — a settings reader and the guard itself. Splitting them (rather than having the guard silently re-query settings on every call) matters specifically because of `sendBulkEmail`'s send loop (see below): a caller sending N emails in a loop must fetch `email_settings` **once**, not N times.
 
+`fetchEmailSettings()` uses `createServiceRoleClient()`, matching every one of this feature's send call sites (Server Actions and cron routes, none of which act on behalf of an end-user browser session at the point they send email). This means the RLS `SELECT` policy from part 1 is not actually exercised by this design's own read path — service-role bypasses RLS entirely. The policy is still worth having as defense-in-depth (any future direct-client read of `email_settings`, e.g. from a client component checking sandbox state without going through a Server Action, would need it and should get the same `is_staff()` visibility the admin banner assumes), but it is not what makes `fetchEmailSettings()` itself safe to call from these send paths — that safety comes from the paths themselves already being server-only, super_admin-or-staff-gated, or Bearer-token-gated (the cron routes), not from this table's RLS.
+
 ```ts
 // Fetches the current email_settings row once. Callers that send more than
 // one email in a single invocation (sendBulkEmail's per-recipient loop,
@@ -158,3 +160,4 @@ The disable action itself is a Server Action gated by (the newly-shared) `requir
 - A UI for previewing what a redirected email will look like before enabling/disabling sandbox mode.
 - Rate-limiting or deduplication of redirected emails landing in the sandbox inbox (e.g. if cron reminders fire for hundreds of bookings, the sandbox inbox receives hundreds of redirected messages — accepted per the "uniform behavior across all 5 paths" decision in part 2).
 - Any change to the Supabase Auth invitation email's own content or template — it is blocked, not modified, while sandbox mode is on.
+- Switching `sendBulkEmail` from its current per-recipient serial `.emails.send()` loop to Resend's native batch-send endpoint (up to 100 emails/call) — confirmed to exist and would reduce round-trips for large audiences, but is an unrelated performance change to existing send infrastructure, not something this feature needs in order to work correctly. Worth a future, separate iteration.
