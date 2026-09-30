@@ -12,10 +12,25 @@ import type { Database } from '@/types/database';
 // provisioning flow can reuse it instead of duplicating this exact
 // pagination logic. Re-imported here — no behavior change to this file.
 import { findExistingAuthUserByEmail } from '@/lib/auth/find-user-by-email';
+// Task 9 (design doc): participant registration invitations go through
+// Supabase Auth's own inviteUserByEmail, a channel this codebase does not
+// control the email body of — it cannot be redirected/prefixed to the
+// sandbox recipient like the other 5 send paths (Task 2). Per the approved
+// design, invitations are blocked outright while sandbox mode is enabled,
+// rather than partially routed.
+import { fetchEmailSettings } from '@/lib/email/send-guarded';
 
 type ServiceClient = SupabaseClient<Database>;
 
 export async function sendInvitation(service: ServiceClient, applicationId: string, actorId: string) {
+  // Guard runs before any DB write (including the participant_invitations
+  // upsert below) so a blocked attempt leaves no trace and cannot race with
+  // the orphaned-Auth-user concern documented on that upsert's error check.
+  const settings = await fetchEmailSettings();
+  if (settings.sandboxEnabled) {
+    throw new Error('Invitations are disabled while sandbox mode is enabled.');
+  }
+
   const { data: application, error: appError } = await service
     .from('applications')
     .select('id, imported_email, applicant_id')
@@ -120,6 +135,14 @@ export async function sendInvitation(service: ServiceClient, applicationId: stri
  * always misfire as a false positive against its own prior invite).
  */
 export async function resendInvitation(service: ServiceClient, applicationId: string) {
+  // Same guard as sendInvitation — see its comment above. Checked before any
+  // read/write here too, so behavior is consistent regardless of which
+  // function a caller reaches first.
+  const settings = await fetchEmailSettings();
+  if (settings.sandboxEnabled) {
+    throw new Error('Invitations are disabled while sandbox mode is enabled.');
+  }
+
   const { data: existing, error } = await service
     .from('participant_invitations')
     .select('status, resend_count, imported_email, invited_user_id')
