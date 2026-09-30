@@ -30,11 +30,16 @@ export interface ProvisioningItemResult {
 // for the same reason the import chunk loop's concurrency is safe.
 const ITEM_CONCURRENCY = 10;
 
-async function processInChunks<T>(
-  items: T[],
-  handler: (item: T) => Promise<ProvisioningItemResult>
-): Promise<ProvisioningItemResult[]> {
-  const results: ProvisioningItemResult[] = [];
+// Generic over the per-item result type — reused by every bulk action in
+// this file, including changeClassificationForSelectedForCaller, whose
+// ClassificationChangeResult outcome union is disjoint from
+// ProvisioningItemResult's. Widened from an originally-concrete
+// `Promise<ProvisioningItemResult>` handler/return (a real, low-risk
+// generalization: every existing caller already infers T and its own
+// concrete result type from the handler it passes, so this change is
+// backward-compatible for all of them).
+async function processInChunks<T, R>(items: T[], handler: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
   for (let i = 0; i < items.length; i += CHUNK_SIZE) {
     const chunk = items.slice(i, i + CHUNK_SIZE);
     for (let j = 0; j < chunk.length; j += ITEM_CONCURRENCY) {
@@ -272,35 +277,16 @@ export interface ClassificationChangeResult {
   errorMessage?: string;
 }
 
-// A separate, local chunking helper — deliberately NOT a reuse of
-// processInChunks above. That function's handler return type is hardcoded
-// to ProvisioningItemResult (a closed union that doesn't include the
-// outcome values reclassifyApplication returns, e.g. 'number_regenerated'/
-// 'reissued'), so forcing this action through it would not typecheck.
-// Matches the same bounded-concurrency chunking SHAPE (CHUNK_SIZE outer /
-// ITEM_CONCURRENCY inner), reusing both of those existing constants.
-async function processClassificationChangesInChunks(
-  applicationIds: string[],
-  handler: (applicationId: string) => Promise<ClassificationChangeResult>
-): Promise<ClassificationChangeResult[]> {
-  const results: ClassificationChangeResult[] = [];
-  for (let i = 0; i < applicationIds.length; i += CHUNK_SIZE) {
-    const chunk = applicationIds.slice(i, i + CHUNK_SIZE);
-    for (let j = 0; j < chunk.length; j += ITEM_CONCURRENCY) {
-      const slice = chunk.slice(j, j + ITEM_CONCURRENCY);
-      const sliceResults = await Promise.all(slice.map(handler));
-      results.push(...sliceResults);
-    }
-  }
-  return results;
-}
-
 export async function changeClassificationForSelectedForCaller(
   applicationIds: string[],
   newParticipantType: Database['public']['Enums']['participant_type'],
   caller: { userId: string; session: SupabaseClient<Database>; service: ServiceClient }
 ): Promise<ClassificationChangeResult[]> {
-  return processClassificationChangesInChunks(applicationIds, async (applicationId) => {
+  // processInChunks is now generic over the result type (widened above
+  // specifically to support this call site) — reuses the exact same
+  // bounded-concurrency chunking as every other bulk action in this file,
+  // rather than a second, duplicate implementation.
+  return processInChunks(applicationIds, async (applicationId) => {
     const result = await reclassifyApplication(caller.session, caller.service, {
       applicationId,
       newParticipantType,
