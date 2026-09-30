@@ -253,6 +253,8 @@
       "claimed": "ØªÙ… Ø§Ù„Ø±Ø¨Ø·",
       "claimedYes": "Ù†Ø¹Ù…",
       "claimedNo": "Ù„Ø§ (Ù…Ø³ØªÙˆØ±Ø¯ØŒ ØºÙŠØ± Ù…Ø±ØªØ¨Ø·)",
+      "applicationNumber": "رقم الطلب",
+      "participantType": "تصنيف المشارك",
       "importedEmail": "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ±Ø¯",
       "phone": "Ø§Ù„Ù‡Ø§ØªÙ",
       "country": "Ø§Ù„Ø¯ÙˆÙ„Ø©",
@@ -292,6 +294,22 @@
       "revoke": "Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø¯Ø¹ÙˆØ©",
       "revoking": "Ø¬Ø§Ø±Ù Ø§Ù„Ø¥Ù„ØºØ§Ø¡â€¦",
       "genericError": "ÙØ´Ù„ Ø§Ù„Ø¥Ø¬Ø±Ø§Ø¡"
+    },
+        "classification": {
+      "title": "التصنيف",
+      "participantType": "تصنيف المشارك",
+      "save": "حفظ",
+      "saving": "جارٍ الحفظ…",
+      "issueQr": "إصدار رمز QR",
+      "issuingQr": "جارٍ الإصدار…",
+      "genericError": "فشل الإجراء",
+      "types": {
+        "delegate": "مندوب",
+        "volunteer": "متطوع",
+        "knowledge_partner": "شريك معرفي",
+        "youngo": "يونغو",
+        "speaker": "متحدث"
+      }
     },
     "import": {
       "upload": {

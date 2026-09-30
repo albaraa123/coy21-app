@@ -253,6 +253,8 @@
       "claimed": "Claimed",
       "claimedYes": "Yes",
       "claimedNo": "No (imported, unclaimed)",
+      "applicationNumber": "Application number",
+      "participantType": "Participant type",
       "importedEmail": "Imported email",
       "phone": "Phone",
       "country": "Country",
@@ -292,6 +294,22 @@
       "revoke": "Revoke invitation",
       "revoking": "Revoking…",
       "genericError": "Action failed"
+    },
+    "classification": {
+      "title": "Classification",
+      "participantType": "Participant type",
+      "save": "Save",
+      "saving": "Saving…",
+      "issueQr": "Issue QR",
+      "issuingQr": "Issuing…",
+      "genericError": "Action failed",
+      "types": {
+        "delegate": "Delegate",
+        "volunteer": "Volunteer",
+        "knowledge_partner": "Knowledge partner",
+        "youngo": "YOUNGO",
+        "speaker": "Speaker"
+      }
     },
     "import": {
       "upload": {
