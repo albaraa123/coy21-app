@@ -27,3 +27,6 @@ create policy "only super_admin can update email settings"
   on email_settings for update
   using (current_user_role() = 'super_admin')
   with check (current_user_role() = 'super_admin');
+
+-- no insert/delete policy: this is a seeded singleton row, never created
+-- or removed by the app after this migration runs.
