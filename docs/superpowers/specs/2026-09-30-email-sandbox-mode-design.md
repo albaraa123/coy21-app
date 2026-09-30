@@ -73,10 +73,24 @@ No `INSERT`/`DELETE` policy — the single row is seeded by the migration itself
 
 ### 2. The interception point: a single guarded send wrapper
 
-A new function, `sendEmailGuarded` (exact name TBD in the plan), in a new file `src/lib/email/send-guarded.ts`, becomes the only place in the codebase that's allowed to call `resend.emails.send(...)` directly. It has the same parameter shape as the underlying Resend call, plus one addition — a human-readable description of the original recipient for use in the redirect banner:
+Two new functions in a new file `src/lib/email/send-guarded.ts` — a settings reader and the guard itself. Splitting them (rather than having the guard silently re-query settings on every call) matters specifically because of `sendBulkEmail`'s send loop (see below): a caller sending N emails in a loop must fetch `email_settings` **once**, not N times.
 
 ```ts
+// Fetches the current email_settings row once. Callers that send more than
+// one email in a single invocation (sendBulkEmail's per-recipient loop,
+// both cron routes' per-booking/per-participant loops) MUST call this once
+// before the loop and pass the resolved value into every sendEmailGuarded
+// call inside it — never call this inside the loop itself, which would
+// turn a single audience send into one extra DB round-trip per recipient
+// (up to ~500 for the `all_accepted` audience). Callers that send exactly
+// one email (sendRegistrationConfirmationEmail, sendLoginDetailsEmail) may
+// call this immediately before their single sendEmailGuarded call — the
+// single-extra-round-trip cost there is negligible and not worth a second
+// code path just to skip it.
+async function fetchEmailSettings(): Promise<{ sandboxEnabled: boolean; sandboxRecipientEmail: string | null }>
+
 async function sendEmailGuarded(params: {
+  settings: { sandboxEnabled: boolean; sandboxRecipientEmail: string | null };
   apiKey: string;
   from: string;
   replyTo: string;
@@ -91,11 +105,10 @@ async function sendEmailGuarded(params: {
 }): Promise<{ id: string | null; error: string | null }>
 ```
 
-**Behavior**:
-1. Read the current `email_settings` row (service-role client — this function runs server-side only, never client-side).
-2. If `sandbox_enabled = false`: call `resend.emails.send()` with `params` exactly as given (unmodified real-recipient send — today's behavior, unchanged).
-3. If `sandbox_enabled = true` and `sandbox_recipient_email` is `null`/empty: **do not call Resend at all**. Return `{ id: null, error: 'Sandbox mode is enabled but no recipient email is configured. Set one in Settings before any email can be sent.' }`. This is a clear, typed failure the caller's existing error-handling already knows how to surface — not a silent no-op.
-4. If `sandbox_enabled = true` and a recipient is configured: call `resend.emails.send()` with `to` replaced by `sandbox_recipient_email`, and both `text`/`html` bodies prefixed with a clearly-marked block naming the original intended recipient and the platform's sandbox-mode state, e.g.:
+**Behavior** (using the caller-supplied `params.settings`, never re-fetching):
+1. If `settings.sandboxEnabled = false`: call `resend.emails.send()` with the rest of `params` exactly as given (unmodified real-recipient send — today's behavior, unchanged).
+2. If `settings.sandboxEnabled = true` and `settings.sandboxRecipientEmail` is `null`/empty: **do not call Resend at all**. Return `{ id: null, error: 'Sandbox mode is enabled but no recipient email is configured. Set one in Settings before any email can be sent.' }`. This is a clear, typed failure the caller's existing error-handling already knows how to surface — not a silent no-op.
+3. If `settings.sandboxEnabled = true` and a recipient is configured: call `resend.emails.send()` with `to` replaced by `settings.sandboxRecipientEmail`, and both `text`/`html` bodies prefixed with a clearly-marked block naming the original intended recipient and the platform's sandbox-mode state, e.g.:
    ```
    [SANDBOX MODE — this email was NOT sent to the real recipient]
    Original recipient: Jane Doe <jane@example.com>
@@ -104,7 +117,7 @@ async function sendEmailGuarded(params: {
    ```
    For the HTML body, an equivalent styled banner block is prepended (matching the existing table-based email layout convention in `resend.ts`'s `buildLoginDetailsHtml`, not a separate ad-hoc style).
 
-Every one of the 5 existing send call sites is updated to call `sendEmailGuarded` instead of constructing its own `Resend` client / calling `.emails.send()` directly. `sendRegistrationConfirmationEmail` and `sendLoginDetailsEmail` keep their existing signatures (callers outside `resend.ts` are unaffected) — only their internal implementation changes to route through the guard. `sendBulkEmail` and both cron routes are updated at their inline call sites the same way.
+Every one of the 5 existing send call sites is updated to call `fetchEmailSettings()` once and then `sendEmailGuarded` (per email) instead of constructing its own `Resend` client / calling `.emails.send()` directly. `sendRegistrationConfirmationEmail` and `sendLoginDetailsEmail` keep their existing signatures (callers outside `resend.ts` are unaffected) — only their internal implementation changes to route through the guard. `sendBulkEmail` and both cron routes fetch settings once before their respective send loops and pass the same resolved value into every iteration's `sendEmailGuarded` call.
 
 Per explicit decision: **the same redirect behavior applies uniformly across all 5 paths**, including the two cron reminder routes — a reminder that would have gone to a real participant is redirected to the sandbox inbox exactly like every other email, rather than being silently suppressed. This keeps the mental model simple ("sandbox mode redirects everything, no path is special-cased") at the cost of the sandbox inbox potentially receiving a high volume of redirected reminders close to the conference dates — an accepted tradeoff given the goal is testing safety, not volume minimization.
 
@@ -136,7 +149,7 @@ The disable action itself is a Server Action gated by (the newly-shared) `requir
 
 - **Unit tests** for `sendEmailGuarded`'s three-way branch (disabled → passthrough unmodified; enabled + no recipient → blocked with typed error, zero Resend calls; enabled + recipient set → redirected with original-recipient text embedded in both `text` and `html` bodies) — using a mocked Resend client, matching this codebase's existing email test conventions (`tests/email/resend-send.test.ts`).
 - **RLS tests**: a `staff`-role session can `SELECT` `email_settings` but an `UPDATE` attempt is rejected by RLS; a `super_admin`-role session can do both. Live test against a disposable scratch project, per this codebase's established convention for RLS verification.
-- **Live test** confirming all 5 send call sites genuinely route through `sendEmailGuarded` and none constructs its own `Resend` client anymore — a grep-based static check is acceptable here (confirm zero remaining direct `new Resend(...)` / `.emails.send(...)` call sites outside `send-guarded.ts` itself) rather than requiring a live-email-triggering test, since actually sending real email in a test run is out of scope and unnecessary to prove the routing.
+- **Live test** confirming all 5 send call sites genuinely route through `sendEmailGuarded` and none constructs its own `Resend` client anymore — a grep-based static check is acceptable here (confirm zero remaining direct `new Resend(...)` / `.emails.send(...)` call sites outside `send-guarded.ts` itself) rather than requiring a live-email-triggering test, since actually sending real email in a test run is out of scope and unnecessary to prove the routing. This check must explicitly exclude `src/app/api/webhooks/resend/route.ts`, which legitimately constructs its own `new Resend('webhook_verify_only')` for `.webhooks.verify()` signature checking — an unrelated, non-sending use of the SDK that predates and is untouched by this feature. Without that exclusion, the "zero remaining direct construction" assertion fails on a permanent false positive.
 - No test attempts to verify actual email delivery through Resend's real API — consistent with this codebase's existing `-live.test.ts` conventions, which test against a real Supabase project but never trigger real third-party email sends in an automated run.
 
 ### Out of scope
