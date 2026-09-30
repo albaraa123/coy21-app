@@ -112,6 +112,41 @@ export async function sendLoginDetailsEmail(params: {
   });
 }
 
+export async function sendClassificationChangeNotificationEmail(params: {
+  to: string;
+  fullName: string;
+  newApplicationNumber: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تم تحديث رمز مشاركتك - ${params.newApplicationNumber}`
+      : `Your attendee code has been updated - ${params.newApplicationNumber}`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nتم تحديث تصنيف مشاركتك، ونتيجة لذلك تم إصدار رمز مشاركة جديد لك: ${params.newApplicationNumber}. الرمز السابق لم يعد صالحاً. إذا كان لديك رمز QR سابق، يرجى استخدام النسخة المحدّثة من حسابك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nYour participation classification has been updated, and as a result a new attendee code has been issued: ${params.newApplicationNumber}. Your previous code is no longer valid. If you had a QR code, please use the updated one from your account.\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
 // Escapes the handful of characters that matter for safe HTML text-node
 // interpolation. Every interpolated value here is either a participant's
 // own name/email (never expected to contain markup, but escaped
