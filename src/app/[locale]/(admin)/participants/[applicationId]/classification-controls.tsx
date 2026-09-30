@@ -33,11 +33,22 @@ export default function ClassificationControls({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Handles two different Server Action error conventions that coexist on
+  // this page: updateParticipantTypeAction throws on failure (actions.ts's
+  // established pattern), while issueQrForApplicationAction returns
+  // { error: string | null } (qr-actions.ts's pattern, matching the plan's
+  // spec). Checking for a truthy `error` field on the resolved value — in
+  // addition to catching a thrown error — means neither convention can
+  // silently succeed in the UI when the underlying action actually failed.
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
     try {
-      await action();
+      const result = await action();
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        setError(String(result.error));
+        return;
+      }
       // Same convention as invitation-controls.tsx: re-derive page state via
       // a full reload rather than hand-rolling optimistic client state, so
       // the display stays honest with what's actually in the DB (e.g. a

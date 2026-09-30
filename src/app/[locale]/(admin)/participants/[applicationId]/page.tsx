@@ -53,30 +53,32 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
     .maybeSingle();
   if (!application) notFound();
 
-  const { data: answersRaw } = await service
-    .from('application_answers')
-    .select('id, question_key, question_label, normalized_value, raw_value, value_type, source, is_sensitive')
-    .eq('application_id', applicationId)
-    .order('question_key', { ascending: true });
+  // Independent reads, all keyed only on applicationId (not on `application`
+  // itself) — fetched in parallel rather than sequentially.
+  const [{ data: answersRaw }, { data: invitation }, { data: activeCredential }] = await Promise.all([
+    service
+      .from('application_answers')
+      .select('id, question_key, question_label, normalized_value, raw_value, value_type, source, is_sensitive')
+      .eq('application_id', applicationId)
+      .order('question_key', { ascending: true }),
+    service
+      .from('participant_invitations')
+      .select('status, sent_at, accepted_at, revoked_at, last_error, resend_count')
+      .eq('application_id', applicationId)
+      .maybeSingle(),
+    service
+      .from('qr_credentials')
+      .select('id')
+      .eq('application_id', applicationId)
+      .eq('status', 'active')
+      .maybeSingle(),
+  ]);
 
   // Application-layer filter — the only enforcement point for this rule
   // given the service-role client. Never remove this without adding an
   // equivalent guard, since there is no RLS backstop on this code path.
   const answers = (answersRaw ?? []).filter((a) => canSeeSensitive || !a.is_sensitive);
   const hiddenSensitiveCount = (answersRaw ?? []).length - answers.length;
-
-  const { data: invitation } = await service
-    .from('participant_invitations')
-    .select('status, sent_at, accepted_at, revoked_at, last_error, resend_count')
-    .eq('application_id', applicationId)
-    .maybeSingle();
-
-  const { data: activeCredential } = await service
-    .from('qr_credentials')
-    .select('id')
-    .eq('application_id', applicationId)
-    .eq('status', 'active')
-    .maybeSingle();
 
   const t = await getTranslations({ locale, namespace: 'participants.detail' });
 
