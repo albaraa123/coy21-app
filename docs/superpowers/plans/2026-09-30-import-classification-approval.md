@@ -17,7 +17,7 @@
 **New files:**
 - `supabase/migrations/20260930020000_add_people_linked_application_id.sql` — `people.linked_application_id` column (Task 1)
 - `supabase/migrations/20260930030000_speaker_classification_people_trigger.sql` — `resolve_application_display_name()`, the `AFTER INSERT OR UPDATE` trigger, and the retroactive backfill (Task 2)
-- `supabase/migrations/20260930040000_accept_application_and_issue_number.sql` — `accept_application_and_issue_number(application_id uuid)` SQL function (Task 3)
+- `supabase/migrations/20260930040000_accept_application_and_issue_number.sql` — `accept_application_and_issue_number(application_id uuid)` (only issues a number when absent) and `regenerate_application_number(application_id uuid)` (unconditionally replaces the existing number) SQL functions (Task 3, both — the second is used by Task 4)
 - `src/app/[locale]/(admin)/participants/[applicationId]/classification-controls.tsx` — individual classification-edit + Issue QR UI (Task 5)
 - `src/app/[locale]/(admin)/participants/[applicationId]/qr-actions.ts` — new "Issue QR" Server Action (Task 5)
 - `src/app/[locale]/(admin)/participants/accounts/classification-dialog.tsx` — bulk classification-picker dialog content, extracted from `accounts-table.tsx` for size (Task 6)
@@ -198,7 +198,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ## Task 3: `application_number` deferred to acceptance for self-registration
 
 **Files:**
-- Create: `supabase/migrations/20260930040000_accept_application_and_issue_number.sql`
+- Create: `supabase/migrations/20260930040000_accept_application_and_issue_number.sql` (defines both `accept_application_and_issue_number` for this task and `regenerate_application_number` for Task 4 — see Step 2's note)
 - Modify: `src/app/[locale]/(participant)/(bare)/register/actions.ts`
 - Modify: `src/lib/email/resend.ts`
 - Modify: `src/app/[locale]/(participant)/(bare)/register/registration-form.tsx` (if needed — confirm in Step 1)
@@ -243,6 +243,28 @@ create function accept_application_and_issue_number(p_application_id uuid)
 returns text language sql as $$
   update applications
   set application_number = coalesce(application_number, next_application_number(participant_type))
+  where id = p_application_id
+  returning application_number;
+$$;
+
+-- Sibling function, defined here rather than in Task 4's own migration
+-- because it is thematically identical (same table, same generation
+-- function, same single-statement-atomicity reasoning) and this keeps
+-- every application_number-writing function in one place. Used by Task 4's
+-- reclassifyApplication helper when an ALREADY-accepted application is
+-- reclassified — that case must genuinely REPLACE the existing number
+-- (the old code, per spec §3.4, becomes invalid and a new one is issued),
+-- unlike accept_application_and_issue_number above, which must NOT replace
+-- an existing number (a waitlisted/rejected -> accepted re-entry keeps its
+-- original code). The coalesce() in the function above and its absence
+-- here is the entire difference between these two functions — do not
+-- collapse them into one parameterized function; the two call sites' safety
+-- properties depend on this being enforced unconditionally at the SQL
+-- level, not by trusting every future caller to pass the right flag.
+create function regenerate_application_number(p_application_id uuid)
+returns text language sql as $$
+  update applications
+  set application_number = next_application_number(participant_type)
   where id = p_application_id
   returning application_number;
 $$;
@@ -310,6 +332,93 @@ git add supabase/migrations/20260930040000_accept_application_and_issue_number.s
   "src/app/[locale]/(admin)/applications/[id]/actions.ts" \
   tests/register tests/participants
 git commit -m "feat: defer application_number generation to acceptance for self-registration
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
+## Task 3.5: Widen `requireAgendaStaffCaller`/`requireAdmissionStaffCaller` to also return a session client
+
+**Files:**
+- Modify: `src/lib/agenda/server-helpers.ts`
+- Modify: `src/lib/admission/server-helpers.ts`
+
+**Context:** Tasks 5 and 6 both need a real, authenticated session client (not just the service-role client) to call `issueStaffQrCredential`/`reissueStaffQrCredential` — those functions' reservation RPCs are `SECURITY DEFINER` and derive the caller from `auth.uid()`, which only resolves over the caller's own session (see `qr-credential-issuance.ts`'s module doc comment; `my-qr/actions.ts`'s `requireParticipantCaller` is the existing precedent for this two-client shape). Both `requireAgendaStaffCaller` (used by `participants/[applicationId]/actions.ts`, Task 5's target file) and `requireAdmissionStaffCaller` (used by `participants/accounts/actions.ts`, Task 6's target file) already construct a session client internally (as their local `supabase` variable) but currently discard it, returning only `{ userId, service }`. Widening both to also return that same client as `session` is a backward-compatible superset change — every existing caller of either helper only ever destructures `{ userId, service }` today (confirmed via grep across all ~20+ call sites of `requireAgendaStaffCaller` and the 1 call site of `requireAdmissionStaffCaller`), so adding a field breaks nothing. This mirrors the exact pattern already used for `requireSuperAdmin()` in the email-sandbox-mode sub-project (widened from `{ service }` to `{ service, userId }` for the same reason: a narrower existing helper didn't return something a new caller needed).
+
+- [ ] **Step 1: Read both files in full to confirm current state**
+
+```bash
+cat src/lib/agenda/server-helpers.ts
+cat src/lib/admission/server-helpers.ts
+```
+
+- [ ] **Step 2: Widen `requireAgendaStaffCaller`**
+
+```typescript
+// src/lib/agenda/server-helpers.ts — change the return type and final return statement only
+export async function requireAgendaStaffCaller(): Promise<{ userId: string; session: SupabaseClient<Database>; service: ServiceClient }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const service = createServiceRoleClient();
+  const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
+  if (error || !profile) throw new Error('Profile not found');
+  if (!isStaffRole(profile.role)) {
+    throw new Error('Not authorized');
+  }
+
+  return { userId: user.id, session: supabase, service };
+}
+```
+
+Add whatever `SupabaseClient`/`Database` imports this requires, matching this file's existing import style. Everything else in the file (the `writeAuditLog` export, etc.) is unchanged.
+
+- [ ] **Step 3: Widen `requireAdmissionStaffCaller`** — same transformation, same file structure, in `src/lib/admission/server-helpers.ts`:
+
+```typescript
+export async function requireAdmissionStaffCaller(): Promise<{ userId: string; session: SupabaseClient<Database>; service: ServiceClient }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const service = createServiceRoleClient();
+  const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
+  if (error || !profile) throw new Error('Profile not found');
+  if (!isStaffRole(profile.role)) {
+    throw new Error('Not authorized');
+  }
+
+  return { userId: user.id, session: supabase, service };
+}
+```
+
+- [ ] **Step 4: Run typecheck**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: no new errors. If any of the ~20+ existing callers of `requireAgendaStaffCaller` destructure its result with an exhaustive object-type annotation that would reject an extra field (unlikely in TypeScript's structural typing, but verify), fix that call site — do not narrow the helper's new return type to work around it.
+
+- [ ] **Step 5: Run the existing agenda/admission test suites**
+
+```bash
+npx vitest run tests/agenda tests/participants
+```
+
+Confirm no regressions in whatever currently exercises these two helpers.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/lib/agenda/server-helpers.ts src/lib/admission/server-helpers.ts
+git commit -m "refactor: widen requireAgendaStaffCaller/requireAdmissionStaffCaller to also return a session client
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
@@ -474,7 +583,13 @@ export async function reclassifyApplication(
     .eq('status', 'active')
     .maybeSingle();
 
-  const { data: numberResult, error: numberError } = await service.rpc('accept_application_and_issue_number', {
+  // regenerate_application_number (Task 3's migration), NOT
+  // accept_application_and_issue_number — that function's coalesce() only
+  // issues a number when one is absent, which would silently no-op here
+  // since an accepted application always already has one. This call must
+  // unconditionally replace it, per spec §3.4's "old code becomes invalid"
+  // requirement.
+  const { data: numberResult, error: numberError } = await service.rpc('regenerate_application_number', {
     p_application_id: applicationId,
   });
   if (numberError || !numberResult) {
@@ -515,8 +630,6 @@ export async function reclassifyApplication(
   return { applicationId, outcome: 'reissued', newApplicationNumber };
 }
 ```
-
-Note: `accept_application_and_issue_number` (Task 3) is reused here for its coalesce-based idempotency — since `application_number` already exists on an accepted application (it wouldn't be `accepted` otherwise per Task 3's guarantee), this call will NOT actually regenerate anything unless the function is changed. **This is a bug requiring resolution before this step is considered done**: `accept_application_and_issue_number`'s `coalesce(application_number, ...)` means it only ever generates a number when one is absent, but §3.4 requires the number to be genuinely regenerated (replaced) on every reclassification of an accepted application. Do not reuse that function as-is. Instead, write the regeneration inline here (or as a small second SQL function, e.g. `regenerate_application_number(application_id uuid)` with no coalesce guard, doing `update applications set application_number = next_application_number(participant_type) where id = ... returning application_number` unconditionally) and call that instead. Add this second function to Task 3's migration file if Task 3 has not yet been committed, or as a new migration in this task if it has — check the actual state of the repo before deciding which.
 
 - [ ] **Step 6: Run tests to verify they pass**
 
@@ -579,33 +692,11 @@ In `page.tsx`, add `application_number, participant_type` to the existing `appli
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { requireAgendaStaffCaller } from '@/lib/agenda/server-helpers'; // widened by Task 3.5 to also return `session`
 import { issueStaffQrCredential } from '@/lib/attendance/qr-credential-issuance';
 
-// Two-client shape matches qr-credential-issuance.ts's own documented
-// requirement (see that module's header comment): the reservation RPC is
-// SECURITY DEFINER and derives the caller from auth.uid(), which only
-// resolves over the caller's own session client — service-role has no
-// auth.uid() and is rejected outright. `session` (this caller's own
-// authenticated client) reserves; `service` finalizes and does every other
-// read/write. Mirrors my-qr/actions.ts's requireParticipantCaller shape,
-// adapted for a staff (not participant) caller.
-async function requireStaffCallerWithSession() {
-  const session = await createClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const service = createServiceRoleClient();
-  const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (error || !profile) throw new Error('Profile not found');
-  if (!isStaffRole(profile.role)) throw new Error('Not authorized');
-
-  return { userId: user.id, session, service };
-}
-
 export async function issueQrForApplicationAction(applicationId: string): Promise<{ error: string | null }> {
-  const { session, service } = await requireStaffCallerWithSession();
+  const { session, service } = await requireAgendaStaffCaller();
 
   const { data: application, error: fetchError } = await service
     .from('applications')
@@ -644,7 +735,7 @@ Client Component, following `invitation-controls.tsx`'s exact conventions (same 
 ```typescript
 // Add to src/app/[locale]/(admin)/participants/[applicationId]/actions.ts
 import { reclassifyApplication } from '@/lib/participants/reclassify';
-import { createClient } from '@/lib/supabase/server';
+import { requireAgendaStaffCaller } from '@/lib/agenda/server-helpers'; // widened by Task 3.5 to also return `session`
 
 export async function updateParticipantTypeActionForCaller(
   applicationId: string,
@@ -664,17 +755,12 @@ export async function updateParticipantTypeAction(
   applicationId: string,
   newParticipantType: Database['public']['Enums']['participant_type']
 ) {
-  const session = await createClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  const service = createServiceRoleClient();
-  const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !isStaffRole(profile.role)) throw new Error('Not authorized');
-  return updateParticipantTypeActionForCaller(applicationId, newParticipantType, { userId: user.id, session, service });
+  const caller = await requireAgendaStaffCaller();
+  return updateParticipantTypeActionForCaller(applicationId, newParticipantType, caller);
 }
 ```
 
-Read the current top of `actions.ts` first to match its existing import style/`ServiceClient` type alias exactly rather than introducing a second, differently-named one.
+Read the current top of `actions.ts` first to match its existing import style/`ServiceClient` type alias exactly rather than introducing a second, differently-named one. Note this file's existing pattern (`sendInvitationActionForCaller`/etc.) does its own inline auth rather than using `requireAgendaStaffCaller` — check whether this file already imports that helper for anything else; if not, this is a deliberate, small deviation from strict local-file-convention-matching in favor of reusing the one shared, already-widened (Task 3.5) helper rather than reimplementing auth a third time in this file.
 
 - [ ] **Step 6: Wire everything into `page.tsx`**
 
@@ -728,9 +814,12 @@ In `page.tsx`, add `participant_type` to the `applications` select's column list
 
 - [ ] **Step 3: Write the new bulk action**
 
+`processInChunks` in this file is typed `(items: T[], handler: (item: T) => Promise<ProvisioningItemResult>) => Promise<ProvisioningItemResult[]>` — its *output* type is hardcoded to `ProvisioningItemResult` (a closed union that doesn't include the outcome values `reclassifyApplication` returns), not generic. Do not reuse it as-is for this action; it would not typecheck. Write a small local chunking loop instead, matching its chunking SHAPE (same `CHUNK_SIZE`/`ITEM_CONCURRENCY` bounded-concurrency approach it already imports/defines) without trying to force the existing function's narrower type to fit.
+
 ```typescript
 // Add to src/app/[locale]/(admin)/participants/accounts/actions.ts
 import { reclassifyApplication } from '@/lib/participants/reclassify';
+import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers'; // widened by Task 3.5 to also return `session`
 
 export interface ClassificationChangeResult {
   applicationId: string;
@@ -738,12 +827,28 @@ export interface ClassificationChangeResult {
   errorMessage?: string;
 }
 
+async function processClassificationChangesInChunks(
+  applicationIds: string[],
+  handler: (applicationId: string) => Promise<ClassificationChangeResult>
+): Promise<ClassificationChangeResult[]> {
+  const results: ClassificationChangeResult[] = [];
+  for (let i = 0; i < applicationIds.length; i += CHUNK_SIZE) {
+    const chunk = applicationIds.slice(i, i + CHUNK_SIZE);
+    for (let j = 0; j < chunk.length; j += ITEM_CONCURRENCY) {
+      const slice = chunk.slice(j, j + ITEM_CONCURRENCY);
+      const sliceResults = await Promise.all(slice.map(handler));
+      results.push(...sliceResults);
+    }
+  }
+  return results;
+}
+
 export async function changeClassificationForSelectedForCaller(
   applicationIds: string[],
   newParticipantType: Database['public']['Enums']['participant_type'],
   caller: { userId: string; session: SupabaseClient<Database>; service: ServiceClient }
 ): Promise<ClassificationChangeResult[]> {
-  return processInChunks(applicationIds, async (applicationId) => {
+  return processClassificationChangesInChunks(applicationIds, async (applicationId) => {
     const result = await reclassifyApplication(caller.session, caller.service, {
       applicationId,
       newParticipantType,
@@ -757,17 +862,12 @@ export async function changeClassificationForSelected(
   applicationIds: string[],
   newParticipantType: Database['public']['Enums']['participant_type']
 ): Promise<ClassificationChangeResult[]> {
-  const session = await createClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  const { service } = await requireAdmissionStaffCaller();
-  return changeClassificationForSelectedForCaller(applicationIds, newParticipantType, { userId: user.id, session, service });
+  const caller = await requireAdmissionStaffCaller();
+  return changeClassificationForSelectedForCaller(applicationIds, newParticipantType, caller);
 }
 ```
 
-Check `requireAdmissionStaffCaller`'s actual return shape (`src/lib/admission/server-helpers.ts`) — if it doesn't already return a session client, adapt this to fetch one directly via `createClient()` the same way, matching whatever this file's own established pattern for obtaining both clients is (check if any of the file's existing actions already need a session client for anything, or if this is the first one to need it — reissueStaffQrCredential's requirement makes this genuinely necessary here, unlike the file's other existing actions).
-
-Note: `processInChunks` is already defined in this file (read in full during plan prep) — reuse it exactly as-is, do not redefine.
+`CHUNK_SIZE` and `ITEM_CONCURRENCY` are both already defined/imported at the top of this file (read in Step 1) — reuse those existing constants, do not redefine them under new names.
 
 - [ ] **Step 4: Extract `classification-dialog.tsx` and wire it into `accounts-table.tsx`**
 
