@@ -1106,6 +1106,38 @@ export type Database = {
         }
         Relationships: []
       }
+      email_settings: {
+        Row: {
+          id: boolean
+          sandbox_enabled: boolean
+          sandbox_recipient_email: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          sandbox_enabled?: boolean
+          sandbox_recipient_email?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          sandbox_enabled?: boolean
+          sandbox_recipient_email?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_log: {
         Row: {
           application_id: string | null

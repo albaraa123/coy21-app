@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getResendConfig } from '@/lib/email/resend-config';
-import { Resend } from 'resend';
+import { fetchEmailSettings, sendEmailGuarded } from '@/lib/email/send-guarded';
 
 function escapeHtml(v: string): string {
   return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   const { config } = configResult;
 
   const service = createServiceRoleClient();
-  const resend = new Resend(config.apiKey);
+  const settings = await fetchEmailSettings();
 
   // Sessions starting 25–35 minutes from now
   const now = new Date();
@@ -152,13 +152,16 @@ ${startLocal ? `<p style="margin:0 0 8px;font-size:13px;color:#666;">Time</p><p 
 </table>
 </body></html>`;
 
-      const { error } = await resend.emails.send({
+      const { error } = await sendEmailGuarded({
+        settings,
+        apiKey: config.apiKey,
         from: config.fromEmail,
         replyTo: config.replyToEmail,
         to: profile.email,
         subject,
         text,
         html,
+        originalRecipientDescription: `${profile.full_name} <${profile.email}>`,
       });
 
       if (error) {

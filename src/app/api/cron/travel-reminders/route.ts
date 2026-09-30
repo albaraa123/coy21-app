@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getResendConfig } from '@/lib/email/resend-config';
-import { Resend } from 'resend';
+import { fetchEmailSettings, sendEmailGuarded, type EmailSettings } from '@/lib/email/send-guarded';
 
 // COY21 event start — stop sending reminders from this date onward.
 const EVENT_START = new Date('2026-11-05T00:00:00Z');
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   const { config } = configResult;
 
   const service = createServiceRoleClient();
-  const resend = new Resend(config.apiKey);
+  const settings = await fetchEmailSettings();
 
   // Find all accepted application IDs that have at least one travel leg
   const { data: withTravel } = await service
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
   const BATCH_SIZE = 10;
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     const batch = recipients.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(batch.map((recipient) => sendTravelReminder(resend, config, appUrl, recipient)));
+    const results = await Promise.all(batch.map((recipient) => sendTravelReminder(settings, config, appUrl, recipient)));
     for (const ok of results) {
       if (ok) sent++;
       else failed++;
@@ -102,8 +102,8 @@ export async function GET(req: NextRequest) {
 }
 
 async function sendTravelReminder(
-  resend: Resend,
-  config: { fromEmail: string; replyToEmail: string; supportEmail: string },
+  settings: EmailSettings,
+  config: { fromEmail: string; replyToEmail: string; supportEmail: string; apiKey: string },
   appUrl: string,
   profile: { email: string; fullName: string }
 ): Promise<boolean> {
@@ -152,13 +152,16 @@ Questions? Contact us at <a href="mailto:${escapeHtml(config.supportEmail)}" sty
 </table>
 </body></html>`;
 
-  const { error: sendErr } = await resend.emails.send({
+  const { error: sendErr } = await sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
     from: config.fromEmail,
     replyTo: config.replyToEmail,
     to: profile.email,
     subject,
     text,
     html,
+    originalRecipientDescription: `${profile.fullName} <${profile.email}>`,
   });
 
   return !sendErr;
