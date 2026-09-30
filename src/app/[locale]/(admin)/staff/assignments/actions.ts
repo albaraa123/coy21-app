@@ -1,25 +1,7 @@
 'use server';
 
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { redirect } from '@/i18n/routing';
-import { getLocale } from 'next-intl/server';
 import { z } from 'zod';
-
-async function requireSuperAdmin() {
-  const locale = await getLocale();
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect({ href: '/log-in', locale });
-    throw new Error('Unauthenticated');
-  }
-  const service = createServiceRoleClient();
-  const { data: profile } = await service.from('profiles').select('id, role').eq('id', user.id).single();
-  if (!profile || profile.role !== 'super_admin') {
-    throw new Error('Forbidden: super_admin only');
-  }
-  return { service, userId: profile.id };
-}
+import { requireSuperAdmin } from '@/lib/auth/require-super-admin';
 
 const ASSIGNMENT_TYPES = ['scanning_gate', 'session_monitor', 'participant_care', 'data_monitoring', 'general'] as const;
 

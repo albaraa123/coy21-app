@@ -2,7 +2,7 @@
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getResendConfig } from '@/lib/email/resend-config';
-import { Resend } from 'resend';
+import { fetchEmailSettings, sendEmailGuarded } from '@/lib/email/send-guarded';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export type AudienceKey =
@@ -54,7 +54,7 @@ export async function sendBulkEmail(params: {
     return { sent: 0, failed: 0, error: 'No recipients found for selected audience' };
   }
 
-  const resend = new Resend(config.apiKey);
+  const settings = await fetchEmailSettings();
   let sent = 0;
   let failed = 0;
 
@@ -63,12 +63,15 @@ export async function sendBulkEmail(params: {
   // but for COY21 operational comms this is sufficient.
   for (const r of recipients) {
     const personalizedBody = params.body.replace(/\{\{name\}\}/g, r.name);
-    const { error } = await resend.emails.send({
+    const { error } = await sendEmailGuarded({
+      settings, // same resolved value reused every iteration — fetched once above
+      apiKey: config.apiKey,
       from: config.fromEmail,
       replyTo: config.replyToEmail,
       to: r.email,
       subject: params.subject,
       text: personalizedBody,
+      originalRecipientDescription: `${r.name} <${r.email}>`,
     });
     if (error) {
       failed++;

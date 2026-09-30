@@ -1,21 +1,5 @@
-﻿import { Resend } from 'resend';
-import { getResendConfig } from './resend-config';
-
-// Lazily constructed: the Resend SDK's constructor throws synchronously on
-// an unset/empty API key, which would otherwise crash this entire module
-// (and everything that imports it) at import time in any environment where
-// RESEND_API_KEY isn't configured. Deferring construction to first use
-// means a missing key still fails, but only the actual send call â€” as a
-// normal caught error the caller's existing failure-isolation handling
-// already accounts for â€” never an import-time crash. Preserved unchanged
-// from Phase C per this task's explicit instruction.
-let resendClient: Resend | null = null;
-function getResendClient(apiKey: string): Resend {
-  if (!resendClient) {
-    resendClient = new Resend(apiKey);
-  }
-  return resendClient;
-}
+﻿import { getResendConfig } from './resend-config';
+import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
@@ -39,15 +23,17 @@ export async function sendRegistrationConfirmationEmail(params: {
       ? `Ù…Ø±Ø­Ø¨Ø§Ù‹ ${params.fullName}ØŒ\n\nØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ ØªØ³Ø¬ÙŠÙ„Ùƒ Ø¨Ù†Ø¬Ø§Ø­ (${params.applicationNumber}). ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø¹Ù„Ù… Ø£Ù† Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨ Ù„Ø§ ÙŠØ¹Ù†ÙŠ Ø§Ù„Ù‚Ø¨ÙˆÙ„ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ ÙÙŠ Ø§Ù„Ù…Ø¤ØªÙ…Ø±ØŒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ Ø¨Ø¹Ø¯ Ø§Ù†ØªÙ‡Ø§Ø¡ ÙØ±ÙŠÙ‚ Ø§Ù„Ù…Ø¤ØªÙ…Ø± Ù…Ù† Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø·Ù„Ø¨Ø§Øª.`
       : `Hello ${params.fullName},\n\nYour registration application (${params.applicationNumber}) has been received. Please note that receipt does not constitute final admission â€” we will contact you once the review team has finished processing applications.`;
 
-  const { data, error } = await getResendClient(config.apiKey).emails.send({
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
     from: config.fromEmail,
     replyTo: config.replyToEmail,
     to: params.to,
     subject,
     text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
-
-  return { id: data?.id ?? null, error: error ? error.message : null };
 }
 
 // Login-details email for an admin-controlled account-provisioning action
@@ -113,16 +99,18 @@ export async function sendLoginDetailsEmail(params: {
     supportEmail: config.supportEmail,
   });
 
-  const { data, error } = await getResendClient(config.apiKey).emails.send({
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
     from: config.fromEmail,
     replyTo: config.replyToEmail,
     to: params.to,
     subject,
-    html,
     text,
+    html,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
-
-  return { id: data?.id ?? null, error: error ? error.message : null };
 }
 
 // Escapes the handful of characters that matter for safe HTML text-node

@@ -14,6 +14,24 @@ vi.mock('resend', () => ({
   },
 }));
 
+// resend.ts now routes its sends through fetchEmailSettings() +
+// sendEmailGuarded() (src/lib/email/send-guarded.ts), which reads the
+// email_settings table via createServiceRoleClient() — a real Supabase
+// client construction that fails in this unit-test environment (no
+// NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY configured). This
+// suite is only concerned with sendLoginDetailsEmail's own body/subject
+// construction, not sandbox routing (that's covered by
+// tests/email/send-guarded.test.ts), so fetchEmailSettings is mocked to
+// resolve as sandbox-disabled — the real sendEmailGuarded is kept so the
+// final resend.emails.send(...) call shape assertions below still hold.
+vi.mock('@/lib/email/send-guarded', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/email/send-guarded')>();
+  return {
+    ...actual,
+    fetchEmailSettings: vi.fn().mockResolvedValue({ sandboxEnabled: false, sandboxRecipientEmail: null }),
+  };
+});
+
 const ENV_KEYS = ['RESEND_API_KEY', 'RESEND_FROM_EMAIL', 'RESEND_REPLY_TO_EMAIL', 'APP_URL', 'PARTICIPANT_SUPPORT_EMAIL'] as const;
 let savedEnv: Record<string, string | undefined>;
 

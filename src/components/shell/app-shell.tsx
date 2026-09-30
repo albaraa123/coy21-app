@@ -48,6 +48,16 @@
  *    wired up below, rather than any new state. <main> gets extra bottom
  *    padding (pb-16 md:pb-0) whenever the tab bar is present so fixed-
  *    positioned tab bar never overlaps page content on mobile.
+ *  - sandboxBanner (optional): a pre-rendered ReactNode (currently only
+ *    <SandboxBanner /> from ./sandbox-banner, instantiated by
+ *    (admin)/layout.tsx from its own fetchEmailSettings() read — Task 6),
+ *    rendered full-width directly below <Topbar /> and above the
+ *    sidebar/<main> row when present. AppShell performs NO data fetching
+ *    or sandbox-state knowledge of its own; it only renders whatever node
+ *    it's handed, or nothing at all when the prop is omitted/undefined.
+ *    The participant-facing shell ((participant)/(shell)/layout.tsx)
+ *    never passes this prop, so its output is byte-for-byte unaffected by
+ *    this addition.
  *
  * Composition (rewritten to fix a real RSC boundary violation — see the
  * bug-fix commit this replaced): AppShell renders Topbar (server)
@@ -93,6 +103,8 @@ export interface AppShellProps {
   bottomTabItems?: NavItem[];
   /** Label for the "More" tab. Required when bottomTabItems is provided. */
   moreLabel?: string;
+  /** Pre-rendered banner shown full-width below Topbar and above the sidebar/<main> row. Omitted entirely when undefined. */
+  sandboxBanner?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -108,6 +120,7 @@ export function AppShell({
   navTranslations,
   bottomTabItems,
   moreLabel,
+  sandboxBanner,
   children,
 }: AppShellProps) {
   return (
@@ -120,6 +133,7 @@ export function AppShell({
           logoutLabel={logoutLabel}
           mobileDrawerTrigger={<MobileDrawerTrigger ariaLabel={triggerAriaLabel} />}
         />
+        {sandboxBanner}
         <MobileDrawer
           navGroups={navGroups}
           storageKey={storageKey}

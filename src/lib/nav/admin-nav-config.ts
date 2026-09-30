@@ -58,4 +58,10 @@ export const adminNavGroups: NavGroup[] = [
       { labelKey: 'nav.staff.assignments', href: '/staff/assignments', iconKey: 'schedule' },
     ],
   },
+  {
+    labelKey: 'nav.groups.settings',
+    items: [
+      { labelKey: 'nav.settings.email', href: '/settings', iconKey: 'settings' },
+    ],
+  },
 ];

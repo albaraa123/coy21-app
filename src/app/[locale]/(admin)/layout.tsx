@@ -26,12 +26,14 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/shell/app-shell';
+import { SandboxBanner } from '@/components/shell/sandbox-banner';
 import { UnauthorizedState } from '@/components/states/unauthorized-state';
 import { adminNavGroups } from '@/lib/nav/admin-nav-config';
 import { filterAdminNavGroups } from '@/lib/nav/admin-nav-visibility';
 import { buildNavTranslations } from '@/lib/nav/build-nav-translations';
 import { decideAdminAccess } from '@/lib/shell/admin-access';
 import { roleLabelKey } from '@/lib/shell/role-label';
+import { fetchEmailSettings } from '@/lib/email/send-guarded';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
@@ -46,7 +48,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const service = createServiceRoleClient();
-  const { data: profile } = await service.from('profiles').select('role, full_name').eq('id', user.id).maybeSingle();
+  // profiles and email_settings are independent reads (different tables,
+  // neither depends on the other's result) — fetched in parallel rather
+  // than sequentially, matching this codebase's established Promise.all
+  // convention for independent reads. email_settings is fetched here even
+  // though an unauthorized caller never uses it, trading one wasted read
+  // on the rare unauthorized path for one fewer round-trip on the common
+  // authorized path.
+  const [{ data: profile }, emailSettings] = await Promise.all([
+    service.from('profiles').select('role, full_name').eq('id', user.id).maybeSingle(),
+    fetchEmailSettings(),
+  ]);
 
   const decision = decideAdminAccess(user.id, profile?.role);
   const t = await getTranslations({ locale, namespace: 'shell' });
@@ -94,6 +106,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       drawerAriaLabel={t('drawerAriaLabel')}
       triggerAriaLabel={t('triggerAriaLabel')}
       navTranslations={navTranslations}
+      sandboxBanner={
+        emailSettings.sandboxEnabled ? (
+          <SandboxBanner locale={locale} recipientEmail={emailSettings.sandboxRecipientEmail} />
+        ) : null
+      }
     >
       {children}
     </AppShell>
