@@ -632,6 +632,10 @@
     "unauthorized": {
       "toParticipantDashboard": "Go to my dashboard",
       "toAdminDashboard": "Go to dashboard"
+    },
+    "sandboxBanner": {
+      "activeWithRecipient": "Sandbox mode is ON — all outgoing email is redirected to {email}.",
+      "activeWithoutRecipient": "Sandbox mode is ON, but no redirect email is set — all sending is currently blocked. Configure one in Settings."
     }
   },
   "schedule": {

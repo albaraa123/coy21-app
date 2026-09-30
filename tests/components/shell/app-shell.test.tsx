@@ -138,4 +138,43 @@ describe('AppShell (server, SSR markup)', () => {
     expect(html).toMatch(/<main class="[^"]*"/);
     expect(html).not.toMatch(/<main class="[^"]*\bpb-16\b[^"]*"/);
   });
+
+  it('renders the given sandboxBanner node when provided (Task 6)', () => {
+    const html = renderToStaticMarkup(
+      <AppShell
+        navGroups={navGroups}
+        storageKey="rcoy-admin-nav-v1"
+        userDisplay={{ name: 'Amina K.', roleLabel: 'Admin' }}
+        locale="ar"
+        logoutLabel="Log out"
+        drawerAriaLabel="Main menu"
+        triggerAriaLabel="Open menu"
+        navTranslations={{}}
+        sandboxBanner={<div data-testid="sandbox-banner">Sandbox mode is ON</div>}
+      >
+        <p>Page content</p>
+      </AppShell>
+    );
+    expect(html).toContain('Sandbox mode is ON');
+    expect(html).toContain('data-testid="sandbox-banner"');
+  });
+
+  it('renders nothing extra when sandboxBanner is omitted (participant shell is unaffected)', () => {
+    const html = renderToStaticMarkup(
+      <AppShell
+        navGroups={navGroups}
+        storageKey="rcoy-admin-nav-v1"
+        userDisplay={{ name: 'Amina K.', roleLabel: 'Admin' }}
+        locale="ar"
+        logoutLabel="Log out"
+        drawerAriaLabel="Main menu"
+        triggerAriaLabel="Open menu"
+        navTranslations={{}}
+      >
+        <p>Page content</p>
+      </AppShell>
+    );
+    expect(html).not.toContain('sandbox-banner');
+    expect(html).not.toContain('Sandbox');
+  });
 });

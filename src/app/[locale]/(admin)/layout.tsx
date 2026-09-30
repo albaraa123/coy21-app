@@ -26,12 +26,14 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/shell/app-shell';
+import { SandboxBanner } from '@/components/shell/sandbox-banner';
 import { UnauthorizedState } from '@/components/states/unauthorized-state';
 import { adminNavGroups } from '@/lib/nav/admin-nav-config';
 import { filterAdminNavGroups } from '@/lib/nav/admin-nav-visibility';
 import { buildNavTranslations } from '@/lib/nav/build-nav-translations';
 import { decideAdminAccess } from '@/lib/shell/admin-access';
 import { roleLabelKey } from '@/lib/shell/role-label';
+import { fetchEmailSettings } from '@/lib/email/send-guarded';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
@@ -84,6 +86,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     roleLabel: key ? t(key) : t('roles.participant'),
   };
 
+  // Separate read from Task 2's fetchEmailSettings() call at send-time —
+  // same helper/table, but this one drives the banner's display rather
+  // than gating a send. Placed after the authorization checks above so an
+  // unauthorized caller (who never reaches AppShell) doesn't pay for it.
+  const emailSettings = await fetchEmailSettings();
+
   return (
     <AppShell
       navGroups={visibleNavGroups}
@@ -94,6 +102,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       drawerAriaLabel={t('drawerAriaLabel')}
       triggerAriaLabel={t('triggerAriaLabel')}
       navTranslations={navTranslations}
+      sandboxBanner={
+        emailSettings.sandboxEnabled ? (
+          <SandboxBanner locale={locale} recipientEmail={emailSettings.sandboxRecipientEmail} />
+        ) : null
+      }
     >
       {children}
     </AppShell>
