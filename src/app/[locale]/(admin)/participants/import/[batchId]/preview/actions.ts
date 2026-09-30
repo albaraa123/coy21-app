@@ -468,6 +468,41 @@ export async function approveClaimedUpdates(batchIdInput: unknown) {
   return approveClaimedUpdatesForCaller(batchIdInput, caller);
 }
 
+// Task 8 (spec §3.3): lets staff correct a mis-mapped/mis-detected
+// participant_type directly on the import preview screen, BEFORE
+// apply_import_row_transactional ever runs — this only ever touches
+// import_rows.normalized_row (jsonb), never an applications row, so none of
+// the reclassify/reissue/QR/email machinery used elsewhere in this plan
+// (e.g. src/lib/participants/reclassify.ts) applies here at all.
+const PARTICIPANT_TYPES = ['delegate', 'volunteer', 'knowledge_partner', 'youngo', 'speaker'] as const;
+
+export async function updateRowParticipantTypeForCaller(
+  importRowId: string,
+  newParticipantType: (typeof PARTICIPANT_TYPES)[number],
+  caller: { userId: string; service: ServiceClient }
+): Promise<{ error: string | null }> {
+  const { service } = caller;
+  const { data: row, error: fetchError } = await service
+    .from('import_rows')
+    .select('normalized_row')
+    .eq('id', importRowId)
+    .single();
+  if (fetchError || !row) return { error: 'Import row not found' };
+
+  const updatedNormalized = { ...((row.normalized_row as Record<string, unknown>) ?? {}), participant_type: newParticipantType };
+  const { error: updateError } = await service
+    .from('import_rows')
+    .update({ normalized_row: updatedNormalized as Json })
+    .eq('id', importRowId);
+  if (updateError) return { error: updateError.message };
+  return { error: null };
+}
+
+export async function updateRowParticipantType(importRowId: string, newParticipantType: (typeof PARTICIPANT_TYPES)[number]) {
+  const caller = await requireImportStaffCaller();
+  return updateRowParticipantTypeForCaller(importRowId, newParticipantType, caller);
+}
+
 export async function downloadErrorReport(batchIdInput: unknown): Promise<string> {
   const batchId = idSchema.parse(batchIdInput);
   const { service } = await requireImportStaffCaller();

@@ -384,6 +384,7 @@
         "duplicate": "Duplicate",
         "name": "Name",
         "email": "Email",
+        "participantTypeLabel": "Classification",
         "sensitiveData": "Sensitive data",
         "hasTravelData": "Has travel data",
         "hasHealthData": "Has health data",
