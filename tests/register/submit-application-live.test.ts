@@ -26,7 +26,7 @@
 // avoid its own real service-role client construction against
 // email_settings (a real, but separate, live round trip this suite doesn't
 // need and doesn't want to depend on that table's current sandbox state).
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 
@@ -79,6 +79,13 @@ beforeEach(() => {
   sendMock.mockReset();
   sendMock.mockResolvedValue({ data: { id: 'email_test_id' }, error: null });
   vi.resetModules();
+});
+
+afterEach(() => {
+  for (const k of RESEND_ENV_KEYS) {
+    if (savedResendEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedResendEnv[k];
+  }
 });
 
 const admin = createClient<Database>(URL, SERVICE_KEY);
