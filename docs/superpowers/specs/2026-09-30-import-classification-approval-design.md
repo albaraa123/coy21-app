@@ -22,6 +22,24 @@ This design closes all three gaps using the codebase's existing conventions and 
 
 ---
 
+## 0. Where this design's UI lives — resolving a gating conflict found during plan prep
+
+`applications/page.tsx` and `applications/[id]/page.tsx` (the "legacy self-registration review workflow," per that code's own comments) are both gated behind `isSelfRegistrationEnabled()` (`src/lib/feature-flags.ts`, env var `ENABLE_SELF_REGISTRATION`). This flag is `false` in every real deployment config found (`.env.local.example`, no `vercel.json` override) and is documented (`docs/participant-import.md`, `docs/superpowers/plans/2026-07-26-accepted-participants-import.md`'s Task 19) as a deliberate, permanent "off by default" decision made when self-registration was deprioritized in favor of import-only participant intake — not a temporary or in-progress state. With the flag off, both pages call `notFound()` unconditionally, before any auth check even runs.
+
+This matters because an earlier draft of this spec (§2.2, §3.1, §3.2) placed the new "Issue QR" control and individual/bulk classification-edit controls on exactly those two pages — which would have made this sub-project's entire staff-facing UI unreachable in the real deployment. The nav entry `nav.participants.applications → /applications` (`src/lib/nav/admin-nav-config.ts`) is visible unconditionally (nav visibility only checks `isStaffRole`, not this flag), so a staff member clicking it hits a 404 today — a pre-existing broken link this design does not need to fix, but must not build on top of.
+
+The actual, already-real home for imported-participant management is `participants/[applicationId]/page.tsx` — its own header comment already states it exists specifically because "`applications/[id]`'s review workflow ... does not apply to already-`accepted` imported rows." It currently only has invitation controls (`InvitationControls`), is not gated by any feature flag, and correctly service-role-reads `applications` with a real `isStaffRole` check — but it is **not currently linked from anywhere** (its own "back" link points at `/participants`, which redirects to the flagged-off `/applications`) and does not yet select `application_number`/`participant_type` in its query.
+
+This design:
+
+- Adds `application_number` and `participant_type` to `participants/[applicationId]/page.tsx`'s existing `applications` select, and displays them alongside the existing fields.
+- Adds the individual classification-edit control (§3.1) and the "Issue QR" control (§2.2) to this page.
+- Fixes its "back" link to point at `/participants/accounts` (a real, reachable list — see below) instead of `/participants`, which currently only redirects into the 404.
+- Adds the bulk classification-edit control (§3.2) to `participants/accounts/page.tsx` + `accounts-table.tsx` — already the real, nav-linked, non-flagged roster of every imported application (`.not('imported_email', 'is', null)`), already built with the exact client-side multi-select + bulk-Server-Action pattern this feature needs.
+- Does **not** touch `applications/page.tsx`, `applications/[id]/page.tsx`, `isSelfRegistrationEnabled()`, or the `ENABLE_SELF_REGISTRATION` flag itself — un-gating or repairing the legacy self-registration review UI is a separate concern from this sub-project's three gaps and is left alone. §2.1's `updateApplicationStatus` change (approval → code issuance) still lives in `applications/[id]/actions.ts`, since that Server Action itself has no flag check of its own (only the *page* that calls it does) and remains the correct, real mutation path for whichever UI eventually calls it — self-registration approvals, if that flow is ever re-enabled, or a future admin surface.
+
+---
+
 ## 1. Data model changes
 
 ### 1.1. `application_number` generation moves from submission-time to approval-time — for the self-registration path only
@@ -83,7 +101,7 @@ This uses the same name-resolution logic as the trigger described in §4.1, but 
 
 ### 2.2. QR issuance remains a separate, manual staff action
 
-No automatic QR issuance on acceptance. `src/lib/attendance/qr-credential-issuance.ts` already exports both `issueStaffQrCredential` (fresh issuance) and `reissueStaffQrCredential` (line 188 — wraps `request_staff_qr_reissue_transactional` → Node token generation → `finalize_qr_reissue_for_server`, the exact pair used in §3.4 below), but **neither has a Server Action caller anywhere in the codebase today** — both are fully implemented, wired to nothing. This design adds the first caller for `issueStaffQrCredential`: a new Server Action and an "Issue QR" control on `applications/[id]`, visible only when `status = 'accepted'` and no active `qr_credentials` row exists for the application. Wires straight to the existing function — no new SQL.
+No automatic QR issuance on acceptance. `src/lib/attendance/qr-credential-issuance.ts` already exports both `issueStaffQrCredential` (fresh issuance) and `reissueStaffQrCredential` (line 188 — wraps `request_staff_qr_reissue_transactional` → Node token generation → `finalize_qr_reissue_for_server`, the exact pair used in §3.4 below), but **neither has a Server Action caller anywhere in the codebase today** — both are fully implemented, wired to nothing. This design adds the first caller for `issueStaffQrCredential`: a new Server Action and an "Issue QR" control on `participants/[applicationId]` (see §0 for why this page, not `applications/[id]`), visible only when `status = 'accepted'` and no active `qr_credentials` row exists for the application. Wires straight to the existing function — no new SQL.
 
 ### 2.3. Moving away from `accepted`
 
@@ -95,11 +113,11 @@ Unchanged existing behavior: the `applications_revoke_qr_on_ineligibility` trigg
 
 ### 3.1. Individual edit
 
-A new control on `applications/[id]` (staff-gated) to change `participant_type` for one application.
+A new control on `participants/[applicationId]` (see §0) to change `participant_type` for one application.
 
 ### 3.2. Bulk edit
 
-A new multi-select + "change classification" action on the `applications` list page (`src/app/[locale]/(admin)/applications/page.tsx`), for changing `participant_type` on multiple selected applications in one operation.
+A new multi-select + "change classification" action on `participants/accounts` (`src/app/[locale]/(admin)/participants/accounts/page.tsx` + `accounts-table.tsx` — see §0), for changing `participant_type` on multiple selected applications in one operation. This page already lists exactly the population this feature needs (every imported application, via `.not('imported_email', 'is', null)`) and already has the established multi-select + bulk-Server-Action-dispatch convention this design reuses (`AccountsTable`'s client-side `Set<applicationId>` selection plus its existing `createAccountsForSelected`/`retryFailedForSelected`-style action functions) — a new `changeClassificationForSelected` action follows that exact pattern.
 
 ### 3.3. Edit during import preview
 
@@ -109,7 +127,7 @@ The existing `preview` step (`participants/import/[batchId]/preview/`) gains a p
 
 All three edit paths funnel through one shared Server Action / helper. Its behavior depends on the application's current state:
 
-- **Not yet `accepted`** (no `application_number`, no QR): plain column update. No side effects. Per §1.1, an imported application can never actually be in this state — it starts life at `accepted` — so this branch is reachable only for a self-registered application still in `draft`/`submitted`/`under_review`/`waitlisted`/`rejected`.
+- **Not yet `accepted`** (no `application_number`, no QR): plain column update. No side effects. Per §1.1 and §0, this branch is actually unreachable through either UI this design adds: `participants/[applicationId]` and `participants/accounts` both scope to imported applications only (`.not('imported_email', 'is', null)`), and an imported application always starts life at `accepted` — there is no `draft`/`submitted`/`under_review` state for it to be edited in. The shared helper still implements this branch defensively (it costs nothing and keeps the helper correct if a future caller ever reaches a non-accepted application), but no test needs to exercise it through either new UI specifically — only through a direct call to the shared helper/Server Action itself.
 - **`accepted`, no active QR credential** (number exists, QR was never issued or was revoked by an earlier status change): the `application_number` is regenerated for the new `participant_type` via the same mechanism as §2.1. No QR action (there is none to reissue).
 - **`accepted`, with an active QR credential**: the full reissue sequence runs via the existing, already-fully-implemented `reissueStaffQrCredential` (`src/lib/attendance/qr-credential-issuance.ts:188`) — this is the staff-specific counterpart to the participant self-service `reissueMyQrCredential` used by `my-qr/actions.ts`'s `reissueMyQrCredentialAction`, and it already wraps the exact `request_staff_qr_reissue_transactional` → Node token generation → `finalize_qr_reissue_for_server` sequence needed here. No new reissue logic is required, only a new caller:
   1. Regenerate `application_number` for the new type (as above).
@@ -168,6 +186,7 @@ Covered by the one-time backfill migration in §1.3.
 - Any new `qr_credentials` reason codes (the existing `administrative_correction` value is reused).
 - Editing or removing `people`/`session_people` records when a participant's classification moves away from `speaker` (§4.2).
 - Fine-grained staff permission scoping within the `staff` role (e.g. "only admissions staff can approve") — this distinction no longer exists in the data model since the September 2026 role consolidation, and reintroducing it is out of scope here.
+- Un-gating, repairing, or removing `isSelfRegistrationEnabled()`/`ENABLE_SELF_REGISTRATION`, or fixing `applications/page.tsx`/`applications/[id]/page.tsx`'s current unreachability in production (§0) — this design routes entirely around that pre-existing legacy path instead of touching it.
 
 ## Testing
 
@@ -178,8 +197,9 @@ Per the user's explicit requirements, the implementation plan must include tests
 - `application_number` is null immediately after self-registration submission (`submitApplication`, `draft → submitted`) and only appears after `status` transitions to `accepted`. The confirmation email sent by `submitApplication` no longer references any application number.
 - Reclassifying an application changes `participant_type` correctly in each of the 3 edit paths (individual, bulk, import-preview).
 - Reclassifying an `accepted` application with an active QR: old `application_number` is replaced, old QR credential is invalidated (`status = 'replaced'`), a new active QR credential exists, and — only when `applicant_id` is set — exactly one notification email is sent via the guarded send layer (and zero emails when `applicant_id` is null).
-- Reclassifying a not-yet-accepted application: plain column update, no `application_number`/QR/email side effects.
+- Reclassifying a not-yet-accepted application via the shared helper/Server Action directly (not reachable through either new UI, since both scope to imported/always-accepted applications — see §3.4): plain column update, no `application_number`/QR/email side effects.
 - Speaker linking: classifying an application as `speaker` (via import, individual edit, or bulk edit) creates exactly one linked `people` row; reclassifying away from `speaker` leaves the `people` row and its `session_people` links untouched; the retroactive backfill migration links all pre-existing `speaker` applications exactly once (idempotent — running it twice creates no duplicates); the name-fallback chain (`applications.full_name` → `profiles.full_name` → `'Unknown'`) is exercised for a claimed application whose `applications.full_name` is null.
 - Moving an `accepted` application away from `accepted` (e.g. to `rejected`) still triggers the existing QR-revocation behavior unchanged, while `application_number` remains on the record.
-- Bulk edit (§3.2) applied to a single batch containing applications in different states (some not-yet-accepted, some accepted-without-QR, some accepted-with-active-QR): each application takes the correct branch of §3.4's logic independently — a not-yet-accepted row in the batch gets a plain column update with no side effects, while an accepted-with-QR row in the *same* batch gets a full reissue, and the batch's success/failure summary correctly attributes each outcome to its row.
+- Bulk edit (§3.2) applied to a single batch containing applications in different QR states (some accepted-without-QR, some accepted-with-active-QR — every row in `participants/accounts` is already `accepted`, per §0/§3.4, so the batch varies only in QR state, not approval state): each application takes the correct branch of §3.4's logic independently — an accepted-without-QR row in the batch gets its `application_number` regenerated with no QR action, while an accepted-with-QR row in the *same* batch gets a full reissue, and the batch's success/failure summary correctly attributes each outcome to its row.
 - Two concurrent `accept` calls targeting the **same** application (e.g. simulating a double-click or two staff sessions) never produce two different `application_number` values or two `next_application_number()` sequence increments for that one application — exactly one number is generated and both calls observe the same final value.
+- `participants/[applicationId]/page.tsx` displays `application_number` and `participant_type` correctly (added to its select), its "back" link goes to `/participants/accounts` (not the flagged-off `/participants` → `/applications` redirect), and its new "Issue QR" control is visible only when `status = 'accepted'` and no active QR exists.
