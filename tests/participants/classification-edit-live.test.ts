@@ -101,10 +101,31 @@ const runId = randomUUID().slice(0, 8);
 
 const authUserIds: string[] = [];
 const applicationIds: string[] = [];
+// qr_credentials and qr_lifecycle_operations both have a trigger enforcing
+// "rows are never deleted, only transitioned" (Phase 6,
+// 20260805235959_phase6_qr_issuance_reissue.sql — a deliberate, permanent
+// audit-trail guarantee, confirmed by deliberately attempting the delete
+// against the live scratch DB and reading the raised exception's own text).
+// qr_credentials.application_id/qr_lifecycle_operations.application_id both
+// reference applications(id) on delete restrict, so once a test below calls
+// issueStaffQrCredential for an application, that application can NEVER be
+// deleted either — not a bug to work around, a structural consequence of
+// this immutability guarantee. tests/attendance/qr-credential-issuance-live.test.ts
+// (the established precedent for QR fixtures) has no afterAll cleanup at
+// all, for the same reason. Track which application IDs actually got a real
+// credential so this suite only attempts to delete the ones that CAN be
+// deleted, and accepts that QR-touched fixture rows accumulate permanently
+// in the scratch project (acceptable for a disposable, non-production
+// database — mirroring the precedent file's own accepted tradeoff).
+const qrTouchedApplicationIds = new Set<string>();
 
 afterAll(async () => {
-  if (applicationIds.length > 0) {
-    await admin.from('applications').delete().in('id', applicationIds);
+  const deletableApplicationIds = applicationIds.filter((id) => !qrTouchedApplicationIds.has(id));
+  if (deletableApplicationIds.length > 0) {
+    const { error: applicationDeleteError } = await admin.from('applications').delete().in('id', deletableApplicationIds);
+    if (applicationDeleteError) {
+      console.error('classification-edit-live.test.ts afterAll: failed to delete applications fixtures', applicationDeleteError);
+    }
   }
   for (const id of authUserIds) {
     await admin.auth.admin.deleteUser(id).catch(() => undefined);
@@ -195,6 +216,7 @@ describe('reclassifyApplication (live)', () => {
       issuanceReasonCode: 'staff_other',
       issuanceNote: 'Fixture setup for classification-edit-live.test.ts',
     });
+    qrTouchedApplicationIds.add(applicationId);
     expect(issued.outcome).toBe('issued');
     expect(issued.credentialId).toBeTruthy();
     const oldCredentialId = issued.credentialId!;
@@ -300,6 +322,7 @@ describe('reclassifyApplication (live)', () => {
         issuanceReasonCode: 'staff_other',
         issuanceNote: 'Fixture setup for claimed-applicant email test',
       });
+      qrTouchedApplicationIds.add(applicationId);
       expect(issued.outcome).toBe('issued');
 
       const result = await reclassifyApplication(staff.client, admin, {
@@ -337,6 +360,7 @@ describe('reclassifyApplication (live)', () => {
         issuanceReasonCode: 'staff_other',
         issuanceNote: 'Fixture setup for unclaimed-applicant email test',
       });
+      qrTouchedApplicationIds.add(applicationId);
       expect(issued.outcome).toBe('issued');
 
       const result = await reclassifyApplication(staff.client, admin, {

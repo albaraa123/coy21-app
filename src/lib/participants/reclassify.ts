@@ -8,12 +8,12 @@
 // §3.4 for the full 3-branch design this implements.
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Database as DB } from '@/types/database';
+import type { Database } from '@/types/database';
 import { reissueStaffQrCredential } from '@/lib/attendance/qr-credential-issuance';
 import { sendClassificationChangeNotificationEmail } from '@/lib/email/resend';
 
 type ServiceClient = SupabaseClient<Database>;
-type ParticipantType = DB['public']['Enums']['participant_type'];
+type ParticipantType = Database['public']['Enums']['participant_type'];
 
 export interface ReclassifyResult {
   applicationId: string;
