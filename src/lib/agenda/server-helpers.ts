@@ -9,7 +9,8 @@
 // already rely on.
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
-import type { Json } from '@/types/database';
+import type { Json, Database } from '@/types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 
@@ -19,7 +20,7 @@ type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 // service-role read/write, and must not contain an early return that skips
 // it. Mirrors Phase 2's requireStaffCaller in
 // src/app/[locale]/(admin)/applications/[id]/actions.ts.
-export async function requireAgendaStaffCaller(): Promise<{ userId: string; service: ServiceClient }> {
+export async function requireAgendaStaffCaller(): Promise<{ userId: string; session: SupabaseClient<Database>; service: ServiceClient }> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -36,7 +37,7 @@ export async function requireAgendaStaffCaller(): Promise<{ userId: string; serv
     throw new Error('Not authorized');
   }
 
-  return { userId: user.id, service };
+  return { userId: user.id, session: supabase, service };
 }
 
 export async function writeAuditLog(

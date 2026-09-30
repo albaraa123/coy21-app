@@ -10,6 +10,8 @@
 // into.
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import type { Database } from '@/types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 
@@ -18,7 +20,7 @@ type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 // this helper. Every exported Phase C server action must call this before
 // any service-role read/write or Auth Admin/email operation, and must not
 // contain an early return that skips it.
-export async function requireAdmissionStaffCaller(): Promise<{ userId: string; service: ServiceClient }> {
+export async function requireAdmissionStaffCaller(): Promise<{ userId: string; session: SupabaseClient<Database>; service: ServiceClient }> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -38,5 +40,5 @@ export async function requireAdmissionStaffCaller(): Promise<{ userId: string; s
     throw new Error('Not authorized');
   }
 
-  return { userId: user.id, service };
+  return { userId: user.id, session: supabase, service };
 }
