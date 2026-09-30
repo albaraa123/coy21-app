@@ -1,9 +1,7 @@
 'use server';
 
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { redirect } from '@/i18n/routing';
-import { getLocale } from 'next-intl/server';
 import { z } from 'zod';
+import { requireSuperAdmin } from '@/lib/auth/require-super-admin';
 
 // As of the 2026-09-29 staff role consolidation (see
 // docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md),
@@ -20,22 +18,6 @@ import { z } from 'zod';
 const STAFF_ROLES = ['super_admin', 'staff'] as const;
 
 type StaffRole = (typeof STAFF_ROLES)[number];
-
-async function requireSuperAdmin() {
-  const locale = await getLocale();
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect({ href: '/log-in', locale });
-    throw new Error('Unauthenticated');
-  }
-  const service = createServiceRoleClient();
-  const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || profile.role !== 'super_admin') {
-    throw new Error('Forbidden: super_admin only');
-  }
-  return { service };
-}
 
 const createStaffSchema = z.object({
   fullName: z.string().trim().min(2),
