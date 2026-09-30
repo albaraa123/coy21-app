@@ -1,0 +1,12 @@
+-- 20260930020000_add_people_linked_application_id.sql
+--
+-- Links a `people` record (the standalone speaker/session-participant
+-- identity table) to the `applications` row it was created from or is
+-- otherwise associated with. Mirrors the existing
+-- `linked_profile_id uuid unique references profiles(id)` pattern on this
+-- same table: nullable (most `people` rows, e.g. external guest speakers,
+-- have no associated application at all), unique (one `people` row links
+-- to at most one `applications` row, and vice versa). See
+-- docs/superpowers/specs/2026-09-30-import-classification-approval-design.md
+-- §1.2 for the full design.
+alter table people add column linked_application_id uuid unique references applications(id);
