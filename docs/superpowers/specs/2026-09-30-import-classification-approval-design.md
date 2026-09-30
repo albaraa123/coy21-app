@@ -40,16 +40,24 @@ Nullable, unique (mirrors the existing `linked_profile_id uuid unique references
 
 ### 1.3. Retroactive backfill (one-time, point-in-time migration)
 
-Confirmed against the real schema: `applications.full_name` (single `text` column, nullable, added by `20260731100000_phase_b_import_field_extensions.sql`) is the source-of-truth name for an application record regardless of claim status — it is populated by import and is distinct from `profiles.full_name`, which only exists once an application is claimed into a real account. Because `applications.full_name` was added after some earlier imports, and because not every accepted/claimed application is guaranteed to have had it backfilled, the name lookup falls back to `profiles.full_name` (via `applicant_id`) when `applications.full_name` is null, before finally falling back to a literal placeholder:
+Confirmed against the real schema: `applications.full_name` (single `text` column, nullable, added by `20260731100000_phase_b_import_field_extensions.sql`) is the source-of-truth name for an application record regardless of claim status — it is populated by import and is distinct from `profiles.full_name`, which only exists once an application is claimed into a real account. Because `applications.full_name` was added after some earlier imports, and because not every accepted/claimed application is guaranteed to have had it backfilled, the name lookup falls back to `profiles.full_name` (via `applicant_id`) when `applications.full_name` is null, before finally falling back to a literal placeholder. This fallback chain is identical to the one the trigger in §4.1 needs, so both this migration and that trigger call one shared function, `resolve_application_display_name(p_applicant_id uuid, p_application_full_name text) returns text`, defined once by this same migration:
 
 ```sql
+create function resolve_application_display_name(p_applicant_id uuid, p_application_full_name text)
+returns text language sql stable as $$
+  select coalesce(
+    p_application_full_name,
+    (select full_name from profiles where id = p_applicant_id),
+    'Unknown'
+  );
+$$;
+
 insert into people (full_name_ar, full_name_en, linked_application_id, is_active, is_public)
 select
-  coalesce(a.full_name, p.full_name, 'Unknown'),
-  coalesce(a.full_name, p.full_name, 'Unknown'),
+  resolve_application_display_name(a.applicant_id, a.full_name),
+  resolve_application_display_name(a.applicant_id, a.full_name),
   a.id, true, false
 from applications a
-left join profiles p on p.id = a.applicant_id
 where a.participant_type = 'speaker'
   and not exists (select 1 from people pe where pe.linked_application_id = a.id);
 ```
@@ -116,25 +124,23 @@ Bulk edit (3.2) applies this same per-application logic to each selected applica
 A new `AFTER UPDATE FOR EACH ROW` trigger on `applications`, modeled directly on the existing `applications_revoke_qr_on_ineligibility` trigger's shape (narrow guard, `SECURITY DEFINER`, idempotent):
 
 ```sql
-declare
-  v_display_name text;
 begin
   if new.participant_type = 'speaker'
      and (old.participant_type is distinct from 'speaker')
      and not exists (select 1 from people where linked_application_id = new.id)
   then
-    select coalesce(new.full_name, p.full_name, 'Unknown') into v_display_name
-    from (values (1)) as _dummy
-    left join profiles p on p.id = new.applicant_id;
-
     insert into people (full_name_ar, full_name_en, linked_application_id, is_active, is_public)
-    values (v_display_name, v_display_name, new.id, true, false);
+    values (
+      resolve_application_display_name(new.applicant_id, new.full_name),
+      resolve_application_display_name(new.applicant_id, new.full_name),
+      new.id, true, false
+    );
   end if;
   return new;
 end;
 ```
 
-Uses the same `applications.full_name` → `profiles.full_name` (via `applicant_id`) → literal-placeholder fallback chain as the backfill migration in §1.3, for the same reason: `applications.full_name` may be unset even for a claimed application. The implementation plan should factor this fallback lookup into one shared function (e.g. `resolve_application_display_name(applicant_id uuid, application_full_name text)`) called from both the trigger and the backfill migration, rather than duplicating the `coalesce`/join logic in two places.
+Calls the same `resolve_application_display_name(...)` function defined by §1.3's migration (this trigger's own migration must run after that one, or define the function itself if ordered first — the implementation plan should sequence these two migrations accordingly), so the `applications.full_name` → `profiles.full_name` → literal-placeholder fallback logic exists in exactly one place, not duplicated between the trigger and the backfill migration.
 
 Fires regardless of *why* `participant_type` became `'speaker'` — individual edit, bulk edit, or (once §1.1 ships) any future non-import path. It does **not** fire from the import pipeline directly, since `apply_import_row_transactional` performs an `INSERT`, not an `UPDATE` — a newly imported row classified `speaker` from the start needs a separate one-time check at commit time, OR (simpler, preferred) the import flow is left to rely on this same trigger by ensuring the insert path also invokes the equivalent logic. The implementation plan should resolve this exactly: either extend `apply_import_row_transactional` to call the same `people`-creation logic directly for `INSERT`s classified `speaker`, or add a companion `AFTER INSERT` trigger sharing the same underlying function. Both are equivalent in effect; the plan should pick whichever keeps the logic in exactly one place (e.g., a shared `create_speaker_people_record_if_needed(application_id)` function called from both the `AFTER INSERT` and `AFTER UPDATE` triggers).
 
