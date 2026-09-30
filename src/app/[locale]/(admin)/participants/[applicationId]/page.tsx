@@ -11,6 +11,7 @@ import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import InvitationControls from './invitation-controls';
+import ClassificationControls from './classification-controls';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
 
 export default async function ParticipantDetailPage({ params }: { params: Promise<{ applicationId: string }> }) {
@@ -46,17 +47,32 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
   const { data: application } = await service
     .from('applications')
     .select(
-      'id, applicant_id, imported_email, status, phone, country, nationality, birth_date, age_group, city, organization, field_of_work, preferred_language, interests, climate_experience, experience_level, past_initiatives, participation_goals, topics_to_learn, content_type_pref, track_interests, priority_sessions, special_needs, submitted_at, created_at, import_batch_id'
+      'id, applicant_id, imported_email, status, application_number, participant_type, phone, country, nationality, birth_date, age_group, city, organization, field_of_work, preferred_language, interests, climate_experience, experience_level, past_initiatives, participation_goals, topics_to_learn, content_type_pref, track_interests, priority_sessions, special_needs, submitted_at, created_at, import_batch_id'
     )
     .eq('id', applicationId)
     .maybeSingle();
   if (!application) notFound();
 
-  const { data: answersRaw } = await service
-    .from('application_answers')
-    .select('id, question_key, question_label, normalized_value, raw_value, value_type, source, is_sensitive')
-    .eq('application_id', applicationId)
-    .order('question_key', { ascending: true });
+  // Independent reads, all keyed only on applicationId (not on `application`
+  // itself) — fetched in parallel rather than sequentially.
+  const [{ data: answersRaw }, { data: invitation }, { data: activeCredential }] = await Promise.all([
+    service
+      .from('application_answers')
+      .select('id, question_key, question_label, normalized_value, raw_value, value_type, source, is_sensitive')
+      .eq('application_id', applicationId)
+      .order('question_key', { ascending: true }),
+    service
+      .from('participant_invitations')
+      .select('status, sent_at, accepted_at, revoked_at, last_error, resend_count')
+      .eq('application_id', applicationId)
+      .maybeSingle(),
+    service
+      .from('qr_credentials')
+      .select('id')
+      .eq('application_id', applicationId)
+      .eq('status', 'active')
+      .maybeSingle(),
+  ]);
 
   // Application-layer filter — the only enforcement point for this rule
   // given the service-role client. Never remove this without adding an
@@ -64,17 +80,13 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
   const answers = (answersRaw ?? []).filter((a) => canSeeSensitive || !a.is_sensitive);
   const hiddenSensitiveCount = (answersRaw ?? []).length - answers.length;
 
-  const { data: invitation } = await service
-    .from('participant_invitations')
-    .select('status, sent_at, accepted_at, revoked_at, last_error, resend_count')
-    .eq('application_id', applicationId)
-    .maybeSingle();
-
   const t = await getTranslations({ locale, namespace: 'participants.detail' });
 
   const fields: Array<[label: string, value: string]> = [
     [t('status'), application.status],
     [t('claimed'), application.applicant_id ? t('claimedYes') : t('claimedNo')],
+    [t('applicationNumber'), application.application_number ?? '—'],
+    [t('participantType'), application.participant_type ?? '—'],
     [t('importedEmail'), application.imported_email ?? ''],
     [t('phone'), application.phone ?? ''],
     [t('country'), application.country ?? ''],
@@ -94,7 +106,7 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
     <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
       <div>
         <h1 className="mb-2 text-lg font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
-        <Link href="/participants" className="text-sm font-medium text-turquoise hover:underline">
+        <Link href="/participants/accounts" className="text-sm font-medium text-turquoise hover:underline">
           {t('backLabel')}
         </Link>
       </div>
@@ -164,6 +176,13 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
       </section>
 
       <InvitationControls applicationId={applicationId} invitation={invitation ?? null} applicantId={application.applicant_id} />
+
+      <ClassificationControls
+        applicationId={applicationId}
+        currentParticipantType={application.participant_type}
+        applicationStatus={application.status}
+        hasActiveQrCredential={!!activeCredential}
+      />
     </div>
   );
 }

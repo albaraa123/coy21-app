@@ -253,6 +253,8 @@
       "claimed": "Claimed",
       "claimedYes": "Yes",
       "claimedNo": "No (imported, unclaimed)",
+      "applicationNumber": "Application number",
+      "participantType": "Participant type",
       "importedEmail": "Imported email",
       "phone": "Phone",
       "country": "Country",
@@ -292,6 +294,22 @@
       "revoke": "Revoke invitation",
       "revoking": "Revoking…",
       "genericError": "Action failed"
+    },
+    "classification": {
+      "title": "Classification",
+      "participantType": "Participant type",
+      "save": "Save",
+      "saving": "Saving…",
+      "issueQr": "Issue QR",
+      "issuingQr": "Issuing…",
+      "genericError": "Action failed",
+      "types": {
+        "delegate": "Delegate",
+        "volunteer": "Volunteer",
+        "knowledge_partner": "Knowledge partner",
+        "youngo": "YOUNGO",
+        "speaker": "Speaker"
+      }
     },
     "import": {
       "upload": {
@@ -366,6 +384,7 @@
         "duplicate": "Duplicate",
         "name": "Name",
         "email": "Email",
+        "participantTypeLabel": "Classification",
         "sensitiveData": "Sensitive data",
         "hasTravelData": "Has travel data",
         "hasHealthData": "Has health data",
@@ -433,6 +452,7 @@
       "colUsername": "Username",
       "colTempPassword": "Temporary password",
       "colBatch": "Batch",
+      "colParticipantType": "Participant type",
       "colAccountStatus": "Account status",
       "colEmailStatus": "Email status",
       "colLastEmail": "Last email",
@@ -446,6 +466,13 @@
       "actionRetryFailed": "Retry failed",
       "actionRetryFailedEmails": "Retry failed emails",
       "actionResetPassword": "Reset to password@123",
+      "actionChangeClassification": "Change classification",
+      "changeClassificationConfirmTitle": "Change participant classification",
+      "changeClassificationNewType": "New classification",
+      "changeClassificationSelectPlaceholder": "Select a classification",
+      "changeClassificationUpdatedOnly": "Updated only (not yet accepted): {count}",
+      "changeClassificationNumberRegenerated": "Attendee code regenerated: {count}",
+      "changeClassificationReissued": "QR credential reissued: {count}",
       "confirmTitle": "Confirm bulk action",
       "confirmSelected": "Total selected: {count}",
       "largeSendWarning": "You are about to send login details to {count} participants.",

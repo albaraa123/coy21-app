@@ -6,8 +6,14 @@ import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingState } from '@/components/states/loading-state';
-import { runValidation, getPreviewRows, downloadErrorReport, approveClaimedUpdates } from './actions';
+import { runValidation, getPreviewRows, downloadErrorReport, approveClaimedUpdates, updateRowParticipantType } from './actions';
 import { TRAVEL_FIELD_COLUMNS, HEALTH_FIELD_COLUMNS } from '@/lib/import/known-application-columns';
+
+// Same 5-value set as actions.ts's PARTICIPANT_TYPES and
+// classification-controls.tsx's PARTICIPANT_TYPES — order mirrors the enum's
+// DB declaration (src/types/database.ts's Enums['participant_type']).
+const PARTICIPANT_TYPES = ['delegate', 'volunteer', 'knowledge_partner', 'youngo', 'speaker'] as const;
+type ParticipantType = (typeof PARTICIPANT_TYPES)[number];
 
 type BatchSummary = {
   id: string;
@@ -65,6 +71,12 @@ const VALIDATION_STATUS_BADGE_VARIANT: Record<string, 'mandatory' | 'elective' |
 
 export default function PreviewTable({ batchId, initialBatch }: { batchId: string; initialBatch: BatchSummary }) {
   const t = useTranslations('participants.import.preview');
+  // Reuses the same classification.types.* labels already established by
+  // classification-controls.tsx (src/app/[locale]/(admin)/participants/
+  // [applicationId]/classification-controls.tsx) for the 5 participant_type
+  // values, rather than duplicating those translated labels under this
+  // preview namespace.
+  const tClassification = useTranslations('participants.classification');
   const router = useRouter();
   const [batch, setBatch] = useState(initialBatch);
   const [rows, setRows] = useState<PreviewRow[]>([]);
@@ -151,6 +163,34 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
       downloadCsv(`import-${batchId}-errors.csv`, csv);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('reportError'));
+    }
+  }
+
+  // Tracks which single row currently has a save in flight, so its <select>
+  // can be disabled without disabling every other row's control — a finer
+  // grain than the existing batch-scoped `validating`/`approvingClaimed`
+  // flags above, since this is a genuinely per-row action.
+  const [savingRowId, setSavingRowId] = useState<string | null>(null);
+
+  // Follows the same convention as handleApproveClaimedUpdates below: re-
+  // fetch via loadRows(filter) rather than hand-rolling optimistic local
+  // state, so the displayed normalized_row stays honest with what's actually
+  // persisted (and so a row that no longer matches the active filter, e.g.
+  // filter === 'invalid', correctly drops out of view after the edit).
+  async function handleParticipantTypeChange(rowId: string, newParticipantType: ParticipantType) {
+    setSavingRowId(rowId);
+    setError(null);
+    try {
+      const result = await updateRowParticipantType(rowId, newParticipantType);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      await loadRows(filter);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('genericError'));
+    } finally {
+      setSavingRowId(null);
     }
   }
 
@@ -300,6 +340,21 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                     <p className="text-xs text-charcoal/60 dark:text-gray-400">
                       {row.normalized_row?.email != null ? String(row.normalized_row.email) : ''}
                     </p>
+                    <label className="mt-1 flex items-center gap-2 text-xs text-charcoal/70 dark:text-gray-400">
+                      {t('participantTypeLabel')}
+                      <select
+                        value={(row.normalized_row?.participant_type as ParticipantType | undefined) ?? ''}
+                        disabled={savingRowId === row.id}
+                        onChange={(e) => void handleParticipantTypeChange(row.id, e.target.value as ParticipantType)}
+                        className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-xs text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                      >
+                        {PARTICIPANT_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {tClassification(`types.${type}`)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     {(hasSectionData(row, TRAVEL_FIELD_COLUMNS) || hasSectionData(row, HEALTH_FIELD_COLUMNS)) && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {hasSectionData(row, TRAVEL_FIELD_COLUMNS) && (
@@ -340,6 +395,7 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                       <th scope="col" className="px-4 py-2 text-start font-medium">{t('duplicate')}</th>
                       <th scope="col" className="px-4 py-2 text-start font-medium">{t('name')}</th>
                       <th scope="col" className="px-4 py-2 text-start font-medium">{t('email')}</th>
+                      <th scope="col" className="px-4 py-2 text-start font-medium">{t('participantTypeLabel')}</th>
                       <th scope="col" className="px-4 py-2 text-start font-medium">{t('sensitiveData')}</th>
                       <th scope="col" className="px-4 py-2 text-start font-medium">{t('issues')}</th>
                     </tr>
@@ -359,6 +415,20 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                         </td>
                         <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
                           {row.normalized_row?.email != null ? String(row.normalized_row.email) : ''}
+                        </td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={(row.normalized_row?.participant_type as ParticipantType | undefined) ?? ''}
+                            disabled={savingRowId === row.id}
+                            onChange={(e) => void handleParticipantTypeChange(row.id, e.target.value as ParticipantType)}
+                            className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-sm text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                          >
+                            {PARTICIPANT_TYPES.map((type) => (
+                              <option key={type} value={type}>
+                                {tClassification(`types.${type}`)}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex flex-wrap gap-1">

@@ -37,8 +37,18 @@ async function requireStaffCaller() {
   return { userId: user.id, service };
 }
 
-export async function updateApplicationStatus(applicationId: string, newStatus: ApplicationStatus) {
-  const { userId, service } = await requireStaffCaller();
+// *ForCaller split follows this codebase's established live-test pattern
+// (see participants/accounts/actions.ts's createAccountsForSelectedForCaller):
+// requireStaffCaller() reaches next/headers' cookies() via createClient(),
+// which throws outside a real Next.js request — live tests call this
+// variant with a service-role caller substituted directly instead, while
+// every DB-touching line is still exercised.
+export async function updateApplicationStatusForCaller(
+  applicationId: string,
+  newStatus: ApplicationStatus,
+  caller: { userId: string; service: ReturnType<typeof createServiceRoleClient> }
+) {
+  const { userId, service } = caller;
 
   const { data: application, error: fetchError } = await service
     .from('applications')
@@ -71,6 +81,31 @@ export async function updateApplicationStatus(applicationId: string, newStatus: 
     throw new Error('Application status changed by someone else, please refresh');
   }
 
+  // Issues application_number on acceptance for applications that don't
+  // already have one (self-registration path — see
+  // docs/superpowers/specs/2026-09-30-import-classification-approval-design.md
+  // §2.1). Imported applications already have a number from insert time and
+  // are left untouched by the function's coalesce(); a waitlisted/rejected
+  // application re-entering accepted keeps its original number too.
+  if (newStatus === 'accepted') {
+    // accept_application_and_issue_number (supabase/migrations/20260930040000_
+    // accept_application_and_issue_number.sql) is not yet present in the
+    // generated Supabase types (src/types/database.ts is a snapshot that can
+    // only be regenerated after this migration is applied to a live project) —
+    // the `as never` cast on the function name is required until that
+    // regeneration happens, matching this repo's established pattern for a
+    // migration-defined RPC that predates the next types regeneration (see
+    // tests/participants/speaker-linking-live.test.ts's identical note for
+    // people.linked_application_id).
+    const { error: numberError } = await service.rpc('accept_application_and_issue_number' as never, {
+      p_application_id: applicationId,
+    } as never);
+    if (numberError) {
+      console.error('updateApplicationStatus: failed to issue application_number', { applicationId, userId, error: numberError });
+      throw numberError;
+    }
+  }
+
   const { error: historyError } = await service.from('application_status_history').insert({
     application_id: applicationId,
     old_status: oldStatus,
@@ -83,6 +118,11 @@ export async function updateApplicationStatus(applicationId: string, newStatus: 
   }
 
   return { status: newStatus };
+}
+
+export async function updateApplicationStatus(applicationId: string, newStatus: ApplicationStatus) {
+  const caller = await requireStaffCaller();
+  return updateApplicationStatusForCaller(applicationId, newStatus, caller);
 }
 
 export async function assignReviewer(applicationId: string, reviewerId: string | null) {

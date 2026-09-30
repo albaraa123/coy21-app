@@ -4,7 +4,6 @@ import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
   fullName: string;
-  applicationNumber: string;
   locale: 'ar' | 'en';
 }): Promise<{ id: string | null; error: string | null }> {
   const configResult = getResendConfig();
@@ -15,13 +14,13 @@ export async function sendRegistrationConfirmationEmail(params: {
 
   const subject =
     params.locale === 'ar'
-      ? `ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ Ø§Ù„ØªØ³Ø¬ÙŠÙ„ - ${params.applicationNumber}`
-      : `Registration Received - ${params.applicationNumber}`;
+      ? `ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ Ø§Ù„ØªØ³Ø¬ÙŠÙ„`
+      : `Registration Received`;
 
   const body =
     params.locale === 'ar'
-      ? `Ù…Ø±Ø­Ø¨Ø§Ù‹ ${params.fullName}ØŒ\n\nØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ ØªØ³Ø¬ÙŠÙ„Ùƒ Ø¨Ù†Ø¬Ø§Ø­ (${params.applicationNumber}). ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø¹Ù„Ù… Ø£Ù† Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨ Ù„Ø§ ÙŠØ¹Ù†ÙŠ Ø§Ù„Ù‚Ø¨ÙˆÙ„ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ ÙÙŠ Ø§Ù„Ù…Ø¤ØªÙ…Ø±ØŒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ Ø¨Ø¹Ø¯ Ø§Ù†ØªÙ‡Ø§Ø¡ ÙØ±ÙŠÙ‚ Ø§Ù„Ù…Ø¤ØªÙ…Ø± Ù…Ù† Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø·Ù„Ø¨Ø§Øª.`
-      : `Hello ${params.fullName},\n\nYour registration application (${params.applicationNumber}) has been received. Please note that receipt does not constitute final admission â€” we will contact you once the review team has finished processing applications.`;
+      ? `Ù…Ø±Ø­Ø¨Ø§Ù‹ ${params.fullName}ØŒ\n\nØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ ØªØ³Ø¬ÙŠÙ„Ùƒ Ø¨Ù†Ø¬Ø§Ø­. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø¹Ù„Ù… Ø£Ù† Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨ Ù„Ø§ ÙŠØ¹Ù†ÙŠ Ø§Ù„Ù‚Ø¨ÙˆÙ„ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ ÙÙŠ Ø§Ù„Ù…Ø¤ØªÙ…Ø±ØŒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ Ø¨Ø¹Ø¯ Ø§Ù†ØªÙ‡Ø§Ø¡ ÙØ±ÙŠÙ‚ Ø§Ù„Ù…Ø¤ØªÙ…Ø± Ù…Ù† Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø·Ù„Ø¨Ø§Øª.`
+      : `Hello ${params.fullName},\n\nYour registration application has been received. Please note that receipt does not constitute final admission â€” we will contact you once the review team has finished processing applications.`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
@@ -109,6 +108,41 @@ export async function sendLoginDetailsEmail(params: {
     subject,
     text,
     html,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendClassificationChangeNotificationEmail(params: {
+  to: string;
+  fullName: string;
+  newApplicationNumber: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تم تحديث رمز مشاركتك - ${params.newApplicationNumber}`
+      : `Your attendee code has been updated - ${params.newApplicationNumber}`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nتم تحديث تصنيف مشاركتك، ونتيجة لذلك تم إصدار رمز مشاركة جديد لك: ${params.newApplicationNumber}. الرمز السابق لم يعد صالحاً. إذا كان لديك رمز QR سابق، يرجى استخدام النسخة المحدّثة من حسابك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nYour participation classification has been updated, and as a result a new attendee code has been issued: ${params.newApplicationNumber}. Your previous code is no longer valid. If you had a QR code, please use the updated one from your account.\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }

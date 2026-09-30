@@ -10,6 +10,7 @@ import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers';
 import { writeAuditLog } from '@/lib/agenda/server-helpers';
 import { provisionParticipantAccount, resetToTemporaryPassword, APPROVED_TEMP_PASSWORD } from '@/lib/auth/provision-participant-account';
 import { sendLoginDetailsEmail } from '@/lib/email/resend';
+import { reclassifyApplication } from '@/lib/participants/reclassify';
 import { CHUNK_SIZE } from '@/lib/validation/import';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
@@ -29,11 +30,16 @@ export interface ProvisioningItemResult {
 // for the same reason the import chunk loop's concurrency is safe.
 const ITEM_CONCURRENCY = 10;
 
-async function processInChunks<T>(
-  items: T[],
-  handler: (item: T) => Promise<ProvisioningItemResult>
-): Promise<ProvisioningItemResult[]> {
-  const results: ProvisioningItemResult[] = [];
+// Generic over the per-item result type — reused by every bulk action in
+// this file, including changeClassificationForSelectedForCaller, whose
+// ClassificationChangeResult outcome union is disjoint from
+// ProvisioningItemResult's. Widened from an originally-concrete
+// `Promise<ProvisioningItemResult>` handler/return (a real, low-risk
+// generalization: every existing caller already infers T and its own
+// concrete result type from the handler it passes, so this change is
+// backward-compatible for all of them).
+async function processInChunks<T, R>(items: T[], handler: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
   for (let i = 0; i < items.length; i += CHUNK_SIZE) {
     const chunk = items.slice(i, i + CHUNK_SIZE);
     for (let j = 0; j < chunk.length; j += ITEM_CONCURRENCY) {
@@ -263,4 +269,37 @@ export async function resetSelectedToTemporaryPassword(applicationIds: string[])
     await writeAuditLog(service, { entityType: 'application', entityId: applicationId, action: 'provisioning_failed', actorId: userId, metadata: { stage: 'password_reset' } });
     return { applicationId, outcome: 'error', errorMessage: result.errorMessage };
   });
+}
+
+export interface ClassificationChangeResult {
+  applicationId: string;
+  outcome: 'updated_only' | 'number_regenerated' | 'reissued' | 'error';
+  errorMessage?: string;
+}
+
+export async function changeClassificationForSelectedForCaller(
+  applicationIds: string[],
+  newParticipantType: Database['public']['Enums']['participant_type'],
+  caller: { userId: string; session: SupabaseClient<Database>; service: ServiceClient }
+): Promise<ClassificationChangeResult[]> {
+  // processInChunks is now generic over the result type (widened above
+  // specifically to support this call site) — reuses the exact same
+  // bounded-concurrency chunking as every other bulk action in this file,
+  // rather than a second, duplicate implementation.
+  return processInChunks(applicationIds, async (applicationId) => {
+    const result = await reclassifyApplication(caller.session, caller.service, {
+      applicationId,
+      newParticipantType,
+      actorId: caller.userId,
+    });
+    return { applicationId: result.applicationId, outcome: result.outcome, errorMessage: result.errorMessage };
+  });
+}
+
+export async function changeClassificationForSelected(
+  applicationIds: string[],
+  newParticipantType: Database['public']['Enums']['participant_type']
+): Promise<ClassificationChangeResult[]> {
+  const caller = await requireAdmissionStaffCaller();
+  return changeClassificationForSelectedForCaller(applicationIds, newParticipantType, caller);
 }

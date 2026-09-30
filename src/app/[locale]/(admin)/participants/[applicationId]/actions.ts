@@ -6,6 +6,7 @@ import type { Database } from '@/types/database';
 import { sendInvitationSchema } from '@/lib/validation/import';
 import { requireAgendaStaffCaller, writeAuditLog } from '@/lib/agenda/server-helpers';
 import { sendInvitation, resendInvitation, revokeInvitation } from '@/lib/import/invitation';
+import { reclassifyApplication } from '@/lib/participants/reclassify';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -88,4 +89,35 @@ export async function revokeInvitationActionForCaller(
 export async function revokeInvitationAction(applicationIdInput: unknown) {
   const caller = await requireAgendaStaffCaller();
   return revokeInvitationActionForCaller(applicationIdInput, caller);
+}
+
+// Thin wrapper around src/lib/participants/reclassify.ts's shared
+// reclassifyApplication (Task 4), following the same *ForCaller / plain
+// split as the invitation actions above. Deliberately uses
+// requireAgendaStaffCaller (shared, already widened by Task 3.5 to return
+// `session` alongside `userId`/`service`) rather than this file's own
+// inline auth pattern used by the invitation actions — reclassifyApplication
+// needs the caller's own session client (not just service-role) for its
+// QR-reissue branch, and requireAgendaStaffCaller is the one helper that
+// already provides both.
+export async function updateParticipantTypeActionForCaller(
+  applicationId: string,
+  newParticipantType: Database['public']['Enums']['participant_type'],
+  caller: { userId: string; session: SupabaseClient<Database>; service: ServiceClient }
+) {
+  const result = await reclassifyApplication(caller.session, caller.service, {
+    applicationId,
+    newParticipantType,
+    actorId: caller.userId,
+  });
+  if (result.outcome === 'error') throw new Error(result.errorMessage ?? 'Failed to update classification');
+  return result;
+}
+
+export async function updateParticipantTypeAction(
+  applicationId: string,
+  newParticipantType: Database['public']['Enums']['participant_type']
+) {
+  const caller = await requireAgendaStaffCaller();
+  return updateParticipantTypeActionForCaller(applicationId, newParticipantType, caller);
 }

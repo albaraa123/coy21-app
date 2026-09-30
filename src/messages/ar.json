@@ -253,6 +253,8 @@
       "claimed": "ØªÙ… Ø§Ù„Ø±Ø¨Ø·",
       "claimedYes": "Ù†Ø¹Ù…",
       "claimedNo": "Ù„Ø§ (Ù…Ø³ØªÙˆØ±Ø¯ØŒ ØºÙŠØ± Ù…Ø±ØªØ¨Ø·)",
+      "applicationNumber": "رقم الطلب",
+      "participantType": "تصنيف المشارك",
       "importedEmail": "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø§Ù„Ù…Ø³ØªÙˆØ±Ø¯",
       "phone": "Ø§Ù„Ù‡Ø§ØªÙ",
       "country": "Ø§Ù„Ø¯ÙˆÙ„Ø©",
@@ -292,6 +294,22 @@
       "revoke": "Ø¥Ù„ØºØ§Ø¡ Ø§Ù„Ø¯Ø¹ÙˆØ©",
       "revoking": "Ø¬Ø§Ø±Ù Ø§Ù„Ø¥Ù„ØºØ§Ø¡â€¦",
       "genericError": "ÙØ´Ù„ Ø§Ù„Ø¥Ø¬Ø±Ø§Ø¡"
+    },
+    "classification": {
+      "title": "التصنيف",
+      "participantType": "تصنيف المشارك",
+      "save": "حفظ",
+      "saving": "جارٍ الحفظ…",
+      "issueQr": "إصدار رمز QR",
+      "issuingQr": "جارٍ الإصدار…",
+      "genericError": "فشل الإجراء",
+      "types": {
+        "delegate": "مندوب",
+        "volunteer": "متطوع",
+        "knowledge_partner": "شريك معرفي",
+        "youngo": "يونغو",
+        "speaker": "متحدث"
+      }
     },
     "import": {
       "upload": {
@@ -366,6 +384,7 @@
         "duplicate": "Ø§Ù„ØªÙƒØ±Ø§Ø±",
         "name": "Ø§Ù„Ø§Ø³Ù…",
         "email": "Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
+        "participantTypeLabel": "التصنيف",
         "sensitiveData": "Ø¨ÙŠØ§Ù†Ø§Øª Ø­Ø³Ø§Ø³Ø©",
         "hasTravelData": "ÙŠØ­ØªÙˆÙŠ Ø¨ÙŠØ§Ù†Ø§Øª Ø³ÙØ±",
         "hasHealthData": "ÙŠØ­ØªÙˆÙŠ Ø¨ÙŠØ§Ù†Ø§Øª ØµØ­ÙŠØ©",
@@ -433,6 +452,7 @@
       "colUsername": "Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…",
       "colTempPassword": "ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø§Ù„Ù…Ø¤Ù‚ØªØ©",
       "colBatch": "Ø§Ù„Ø¯ÙØ¹Ø©",
+      "colParticipantType": "تصنيف المشارك",
       "colAccountStatus": "Ø­Ø§Ù„Ø© Ø§Ù„Ø­Ø³Ø§Ø¨",
       "colEmailStatus": "Ø­Ø§Ù„Ø© Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
       "colLastEmail": "Ø¢Ø®Ø± Ø¨Ø±ÙŠØ¯ Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ",
@@ -446,6 +466,13 @@
       "actionRetryFailed": "Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù„Ù„ÙØ§Ø´Ù„",
       "actionRetryFailedEmails": "Ø¥Ø¹Ø§Ø¯Ø© Ù…Ø­Ø§ÙˆÙ„Ø© Ø§Ù„Ø±Ø³Ø§Ø¦Ù„ Ø§Ù„ÙØ§Ø´Ù„Ø©",
       "actionResetPassword": "Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„ØªØ¹ÙŠÙŠÙ† Ø¥Ù„Ù‰ password@123",
+      "actionChangeClassification": "تغيير التصنيف",
+      "changeClassificationConfirmTitle": "تغيير تصنيف المشارك",
+      "changeClassificationNewType": "التصنيف الجديد",
+      "changeClassificationSelectPlaceholder": "اختر تصنيفًا",
+      "changeClassificationUpdatedOnly": "تم التحديث فقط (لم يُقبل بعد): {count}",
+      "changeClassificationNumberRegenerated": "تم تجديد رمز المشاركة: {count}",
+      "changeClassificationReissued": "تم إعادة إصدار رمز QR: {count}",
       "confirmTitle": "ØªØ£ÙƒÙŠØ¯ Ø§Ù„Ø¥Ø¬Ø±Ø§Ø¡ Ø§Ù„Ø¬Ù…Ø§Ø¹ÙŠ",
       "confirmSelected": "Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø­Ø¯Ø¯: {count}",
       "largeSendWarning": "Ø£Ù†Øª Ø¹Ù„Ù‰ ÙˆØ´Ùƒ Ø¥Ø±Ø³Ø§Ù„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¯Ø®ÙˆÙ„ Ø¥Ù„Ù‰ {count} Ù…Ø´Ø§Ø±Ùƒ.",
