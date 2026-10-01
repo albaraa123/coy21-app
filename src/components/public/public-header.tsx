@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Public site header.
  *
  * DEVIATION FROM THE PLAN'S "(server)" NOTE: the task brief lists this
@@ -22,8 +22,8 @@
  *
  * CTA language: ONLY "Log in" (public.cta.participantLogin, key name kept
  * for backward compatibility with existing translations even though the
- * displayed copy is now generic â€” this login page is shared by
- * participants and staff/admin roles alike, not participants only) â€” the
+ * displayed copy is now generic — this login page is shared by
+ * participants and staff/admin roles alike, not participants only) — the
  * sole approved CTA that fits a persistent header across every public
  * page, per the design spec's hard constraint that no copy may imply open
  * public registration. "Claim Your Account" / "View Agenda" / "Learn
@@ -34,7 +34,7 @@
  * viewport the two-button switcher (~110px) plus the hamburger trigger
  * didn't fit the trailing flex group, pushing the hamburger button
  * partially off the left edge of the screen (confirmed via a real
- * mobile-viewport click test â€” its bounding box x was negative) so it
+ * mobile-viewport click test — its bounding box x was negative) so it
  * was effectively untappable. The mobile drawer (public-mobile-nav.tsx)
  * already renders its own LanguageSwitcher, so hiding this one below
  * `sm` loses no functionality, just the redundant header copy.
