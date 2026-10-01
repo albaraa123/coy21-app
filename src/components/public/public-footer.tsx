@@ -1,10 +1,10 @@
-﻿/**
- * Public site footer. Server component â€” no interaction state needed
+/**
+ * Public site footer. Server component — no interaction state needed
  * (SocialLinks is a small client island for its translated labels, same
  * pattern as LanguageSwitcher elsewhere in this codebase).
  * Privacy/Terms/Accessibility/Contact links, plus real social links for
  * the two organizers and the Arab Youth Summit for Climate Action,
- * supplied directly by the user â€” previously omitted deliberately
+ * supplied directly by the user — previously omitted deliberately
  * because no real URLs existed yet (see social-links.tsx).
  */
 import { useTranslations } from 'next-intl';

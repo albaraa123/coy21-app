@@ -1,8 +1,8 @@
-﻿/**
- * Topbar â€” server where possible. No 'use client' directive: this file
+/**
+ * Topbar — server where possible. No 'use client' directive: this file
  * itself has zero interaction state. The horizontal logo links to `/`
  * (via next-intl's Link, which is safe to use from a Server Component).
- * LanguageSwitcher and UserMenu are imported directly â€” both are Client
+ * LanguageSwitcher and UserMenu are imported directly — both are Client
  * Components, but importing a Client Component into a Server Component
  * and rendering it is the standard, supported composition (it does not
  * force Topbar itself client-side, only those subtrees).
@@ -11,13 +11,13 @@
  * than importing MobileDrawerTrigger directly, because the trigger needs
  * a ref + onClick wired to drawer-open state shared via Context with a
  * sibling MobileDrawer instance (see mobile-drawer-context.tsx's doc
- * comment) â€” AppShell (server) instantiates MobileDrawerTrigger itself
+ * comment) — AppShell (server) instantiates MobileDrawerTrigger itself
  * and passes the rendered element down, so Topbar never needs to know
  * about that state, or import a 'use client' module, at all.
  *
  * pageTitle is accepted as a plain string (not children/a client slot):
  * every real usage in this task passes a pre-resolved, server-rendered
- * string (the caller already knows the page title server-side â€” there is
+ * string (the caller already knows the page title server-side — there is
  * no per-page client dynamism requirement in this task), so a string prop
  * is sufficient and keeps this file simplest. A later task introducing a
  * genuinely client-dynamic breadcrumb can widen this prop to ReactNode
