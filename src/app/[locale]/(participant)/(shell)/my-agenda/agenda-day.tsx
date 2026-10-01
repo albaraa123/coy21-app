@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { CancelButton } from './booking-button';
 import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
@@ -20,7 +21,7 @@ type Session = {
 type Booking = {
   id: string;
   session_id: string;
-  status: string;
+  status: 'active' | 'session_cancelled';
   sessions: Session | null;
 };
 
@@ -81,9 +82,7 @@ export function AgendaDay({ date: _date, label, bookings, locale }: Props) {
               </div>
               <div className="shrink-0">
                 {b.status === 'session_cancelled' ? (
-                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                    Session Cancelled
-                  </span>
+                  <Badge variant="sessionCancelled">Session Cancelled</Badge>
                 ) : (
                   <CancelButton
                     bookingId={b.id}
