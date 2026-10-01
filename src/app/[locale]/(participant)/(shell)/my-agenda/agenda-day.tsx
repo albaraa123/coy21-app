@@ -20,6 +20,7 @@ type Session = {
 type Booking = {
   id: string;
   session_id: string;
+  status: string;
   sessions: Session | null;
 };
 
@@ -79,11 +80,17 @@ export function AgendaDay({ date: _date, label, bookings, locale }: Props) {
                 </p>
               </div>
               <div className="shrink-0">
-                <CancelButton
-                  bookingId={b.id}
-                  isPastDeadline={isPastDeadline}
-                  onCancelled={() => setCancelled((prev) => new Set([...prev, b.id]))}
-                />
+                {b.status === 'session_cancelled' ? (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    Session Cancelled
+                  </span>
+                ) : (
+                  <CancelButton
+                    bookingId={b.id}
+                    isPastDeadline={isPastDeadline}
+                    onCancelled={() => setCancelled((prev) => new Set([...prev, b.id]))}
+                  />
+                )}
               </div>
             </Card>
           );

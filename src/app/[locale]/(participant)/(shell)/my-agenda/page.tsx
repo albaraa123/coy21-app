@@ -33,6 +33,7 @@ export default async function MyAgendaPage() {
       id,
       session_id,
       booked_at,
+      status,
       sessions (
         id,
         title_en,
@@ -47,7 +48,7 @@ export default async function MyAgendaPage() {
       )
     `)
     .eq('application_id', application.id)
-    .eq('status', 'active')
+    .in('status', ['active', 'session_cancelled'])
     .order('booked_at');
 
   const sessionsByDay = groupByDay(bookings ?? []);
