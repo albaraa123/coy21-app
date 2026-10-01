@@ -24,7 +24,22 @@ import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendSessionCancellationNotificationEmail, sendSessionRescheduleNotificationEmail } from '@/lib/email/resend';
 
-const BATCH_SIZE = 100;
+// Rows are processed sequentially (2 reads + 1 email send + 1 write each),
+// not in parallel, so this has to stay small enough that a full batch
+// clears comfortably inside one serverless invocation's duration limit --
+// unlike session-reminders/route.ts's time-window query (bounded by how
+// many sessions start in a 10-minute slice), a single bulk session
+// cancellation can fan out into one outbox row per active booking (see
+// enforce_session_lifecycle_booking_sync() in
+// 20261004010000_session_lifecycle_notifications.sql), so this route's
+// per-run workload isn't inherently bounded the same way. If outbox
+// backlogs start regularly exceeding this batch size between 5-minute
+// ticks, that's the tripwire to revisit this value, parallelize the loop,
+// or add an explicit `export const maxDuration` -- none of that is needed
+// at today's expected volume, where falling behind by one tick just means
+// the remaining pending rows get picked up next run (stateless, no
+// duplicate-send risk either way).
+const BATCH_SIZE = 25;
 
 function isAuthorizedCronRequest(req: NextRequest, cronSecret: string): boolean {
   const authHeader = req.headers.get('authorization') ?? '';
@@ -90,16 +105,17 @@ export async function GET(req: NextRequest) {
       .single();
 
     if (!profile?.email || !profile?.full_name || !session) {
+      const missing = [!session && 'session', !profile?.email && 'profile.email', !profile?.full_name && 'profile.full_name'].filter(Boolean).join(', ');
       await service
         .from('session_notification_outbox' as never)
-        .update({ status: 'failed', error_message: 'Missing profile or session data' } as never)
+        .update({ status: 'failed', error_message: `Missing: ${missing}` } as never)
         .eq('id', row.id);
       failed++;
       continue;
     }
 
     const locale = (application?.preferred_language as 'ar' | 'en') ?? 'en';
-    const sessionTitle = (locale === 'ar' ? session.title_ar : session.title_en) ?? session.title_en ?? session.title_ar ?? 'Your session';
+    const sessionTitle = ((locale === 'ar' ? session.title_ar : session.title_en) || session.title_en || session.title_ar || 'Your session').trim() || 'Your session';
 
     const result = row.notification_type === 'session_cancelled'
       ? await sendSessionCancellationNotificationEmail({
