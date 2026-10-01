@@ -473,9 +473,9 @@ git commit -m "refactor: session create/edit/reschedule forms use shared Europe/
 **Files to modify** (process one at a time; each is independent and can be verified individually):
 - `src/app/[locale]/(public)/conference-agenda/page.tsx` (lines 59-62 — note this file uses `hour12: false`, pass `{ hour12: false }`)
 - `src/app/[locale]/(participant)/(shell)/my-application/page.tsx` (line 66)
-- `src/components/schedule/time-marker.tsx` (line 6)
+- `src/components/schedule/time-marker.tsx` (line 6 — uses `hour12: false`, pass `{ hour12: false }`)
 - `src/components/schedule/day-timeline.tsx` (lines 6, 31)
-- `src/components/scanner/format-session-time.ts` (line 8 — uses `hour12: false`, pass `{ hour12: false }`)
+- `src/components/scanner/format-session-time.ts` (line 8 — uses the default 12-hour format, no `hour12` option needed; do NOT pass `{ hour12: false }` here — only `time-marker.tsx` and `conference-agenda/page.tsx` actually use 24-hour)
 - `src/app/[locale]/(admin)/allocation/schedules/stage/[allocationRunId]/page.tsx` (line 67)
 - `src/app/[locale]/(admin)/allocation/schedules/stage/[allocationRunId]/draft-review.tsx` (line 142)
 - `src/app/[locale]/(admin)/allocation/schedules/run-list.tsx` (lines 63, 68, 104, 108)
@@ -513,7 +513,7 @@ Expected: no errors.
 - [ ] **Step 4: Final verification — zero hardcoded hits remain in application code**
 
 Run: `grep -rn "Asia/Muscat\|Asia/Istanbul" src/ --include="*.ts" --include="*.tsx"`
-Expected: no matches at all (the i18n label strings in `en.json`/`ar.json` are handled separately in Task 6 and use plain-text labels like `"Asia/Muscat"` inside JSON values, not code — if this grep is scoped to `.ts`/`.tsx` only as shown, those won't appear here anyway).
+Expected: no matches at all (the i18n label strings in `en.json` are handled separately in Task 6 and use plain-text labels like `"Asia/Muscat"` inside JSON values, not code — if this grep is scoped to `.ts`/`.tsx` only as shown, those won't appear here anyway). `ar.json` is deliberately excluded from both this grep and Task 6 — see Task 6's note on its pre-existing, unrelated encoding corruption.
 
 - [ ] **Step 5: Manual smoke check**
 
@@ -532,11 +532,12 @@ git commit -m "refactor: replace remaining hardcoded Asia/Muscat and invalid Asi
 
 ### Task 6: i18n label strings
 
-**Context:** `en.json`/`ar.json` have label strings literally containing "Asia/Muscat" or "توقيت مسقط" that are shown to users (form field labels, a timezone-label badge) but aren't themselves executable formatting calls.
+**Context:** `en.json` has label strings literally containing "Asia/Muscat" that are shown to users (form field labels, a timezone-label badge) but aren't themselves executable formatting calls.
+
+**IMPORTANT — do not edit `ar.json` in this task.** `src/messages/ar.json` has a pre-existing, repo-wide encoding corruption unrelated to this sub-project: the file starts with a UTF-8 BOM, and every Arabic string in it is double-encoded UTF-8 (mojibake) — confirmed present since the repository's very first commit, long before any timezone work. Concretely: `grep -n "مسقط" src/messages/ar.json` returns **zero matches today**, not because the Arabic Muscat labels don't exist, but because the actual bytes on disk are garbled (e.g. the `timezoneLabel` value is literally the byte sequence that renders as `ØªÙˆÙ‚ÙŠØª Ù…Ø³Ù‚Ø·`, not `توقيت مسقط`). `JSON.parse` on this file also currently fails outright because of the leading BOM, independent of anything in this plan. The user has explicitly decided (2026-10-01) to fix this as a **separate, dedicated bug-fix effort** after sub-project 4a ships, not as a side effect of the timezone work — attempting a targeted mojibake-aware replacement here risks mis-repairing unrelated strings in a file this plan has no full visibility into. **Do not attempt to "fix" ar.json's encoding as part of this task.** If asked to touch `ar.json` at all here, stop and confirm with the user first.
 
 **Files:**
 - Modify: `src/messages/en.json`
-- Modify: `src/messages/ar.json`
 
 - [ ] **Step 1: Update `en.json`**
 
@@ -550,28 +551,25 @@ Change these string values (keep the JSON keys unchanged):
 
 Line 806 (`(public).agenda.timezoneLabel`) already correctly says `"Europe/Istanbul"` — leave unchanged.
 
-- [ ] **Step 2: Update `ar.json`**
-
-Run: `grep -n "مسقط" src/messages/ar.json`
-
-For every match, replace "توقيت مسقط" with "توقيت إسطنبول", keeping the surrounding sentence/label structure identical (e.g., if a label reads `"بدء تسجيل الحضور (بتوقيت مسقط)"`, it becomes `"بدء تسجيل الحضور (بتوقيت إسطنبول)"`). This includes the line-806-equivalent public agenda label, which currently still says Muscat in Arabic even though English already says Istanbul — both languages must agree after this change.
-
-- [ ] **Step 3: Validate both JSON files**
+- [ ] **Step 2: Validate `en.json`**
 
 Run: `node -e "JSON.parse(require('fs').readFileSync('src/messages/en.json', 'utf8')); console.log('en.json OK')"`
-Run: `node -e "JSON.parse(require('fs').readFileSync('src/messages/ar.json', 'utf8')); console.log('ar.json OK')"`
-Expected: both print `OK` with no parse errors.
+Expected: prints `OK` with no parse errors.
 
-- [ ] **Step 4: Verify no stray Muscat references remain in either file**
+- [ ] **Step 3: Verify no stray Muscat references remain in `en.json`**
 
-Run: `grep -n "Muscat\|مسقط" src/messages/en.json src/messages/ar.json`
+Run: `grep -n "Muscat" src/messages/en.json`
 Expected: no matches.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/messages/en.json src/messages/ar.json
-git commit -m "fix: update timezone labels from Asia/Muscat to Europe/Istanbul in en.json and ar.json"
+git add src/messages/en.json
+git commit -m "fix: update timezone labels from Asia/Muscat to Europe/Istanbul in en.json
+
+ar.json is intentionally NOT touched here -- it has a pre-existing,
+unrelated UTF-8 BOM + double-encoding corruption affecting every
+Arabic string in the file, to be fixed as a separate dedicated effort."
 ```
 
 ---
