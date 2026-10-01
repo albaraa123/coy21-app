@@ -15,7 +15,9 @@ select
   sb.session_id as booked_session_id,
   aa.session_id as assigned_session_id,
   s1.title_en as booked_session_title,
-  s2.title_en as assigned_session_title
+  s1.is_mandatory as booked_session_is_mandatory,
+  s2.title_en as assigned_session_title,
+  s2.is_mandatory as assigned_session_is_mandatory
 from session_bookings sb
 join sessions s1 on s1.id = sb.session_id
 join allocation_assignments aa on aa.application_id = sb.application_id and aa.status = 'confirmed'
