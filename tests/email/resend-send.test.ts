@@ -77,6 +77,30 @@ describe('sendLoginDetailsEmail', () => {
     expect(call.html).toContain('Test Participant');
   });
 
+  it('contains well-formed Arabic text, not mojibake, in both HTML and plain-text bodies', async () => {
+    // Regression guard: src/lib/email/resend.ts previously had its Arabic
+    // template literals corrupted by CP1252 mis-decoding (mojibake), which
+    // was live in production and went uncaught here because no prior test
+    // asserted on the actual Arabic content -- only structural properties
+    // (length, presence of username/password). A mojibake string contains
+    // only Latin-range characters (e.g. "Ù…Ø±Ø­Ø¨Ù‹Ø§" instead of "مرحبًا"),
+    // so asserting a real Arabic-block character is present is a cheap,
+    // direct way to catch this class of bug from recurring.
+    sendMock.mockResolvedValue({ data: { id: 'email_1' }, error: null });
+    const { sendLoginDetailsEmail } = await import('@/lib/email/resend');
+
+    await sendLoginDetailsEmail({ to: 'a@example.com', fullName: 'A', temporaryPassword: 'password@123' });
+
+    const call = sendMock.mock.calls[0][0];
+    const arabicBlock = /[؀-ۿ]/;
+    expect(call.text).toMatch(arabicBlock);
+    expect(call.html).toMatch(arabicBlock);
+    expect(call.subject).toMatch(arabicBlock);
+    // The specific greeting word, to confirm it's genuinely readable Arabic
+    // and not just an isolated correctly-decoded character amid mojibake.
+    expect(call.text).toContain('مرحبًا');
+  });
+
   it('includes both HTML and a plain-text fallback', async () => {
     sendMock.mockResolvedValue({ data: { id: 'email_1' }, error: null });
     const { sendLoginDetailsEmail } = await import('@/lib/email/resend');

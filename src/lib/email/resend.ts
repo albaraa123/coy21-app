@@ -1,4 +1,4 @@
-﻿import { getResendConfig } from './resend-config';
+import { getResendConfig } from './resend-config';
 import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 
 export async function sendRegistrationConfirmationEmail(params: {
@@ -14,13 +14,13 @@ export async function sendRegistrationConfirmationEmail(params: {
 
   const subject =
     params.locale === 'ar'
-      ? `ØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ Ø§Ù„ØªØ³Ø¬ÙŠÙ„`
+      ? `تم استلام طلب التسجيل`
       : `Registration Received`;
 
   const body =
     params.locale === 'ar'
-      ? `Ù…Ø±Ø­Ø¨Ø§Ù‹ ${params.fullName}ØŒ\n\nØªÙ… Ø§Ø³ØªÙ„Ø§Ù… Ø·Ù„Ø¨ ØªØ³Ø¬ÙŠÙ„Ùƒ Ø¨Ù†Ø¬Ø§Ø­. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ø¹Ù„Ù… Ø£Ù† Ø§Ø³ØªÙ„Ø§Ù… Ø§Ù„Ø·Ù„Ø¨ Ù„Ø§ ÙŠØ¹Ù†ÙŠ Ø§Ù„Ù‚Ø¨ÙˆÙ„ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ ÙÙŠ Ø§Ù„Ù…Ø¤ØªÙ…Ø±ØŒ ÙˆØ³ÙŠØªÙ… Ø§Ù„ØªÙˆØ§ØµÙ„ Ù…Ø¹Ùƒ Ø¨Ø¹Ø¯ Ø§Ù†ØªÙ‡Ø§Ø¡ ÙØ±ÙŠÙ‚ Ø§Ù„Ù…Ø¤ØªÙ…Ø± Ù…Ù† Ù…Ø±Ø§Ø¬Ø¹Ø© Ø§Ù„Ø·Ù„Ø¨Ø§Øª.`
-      : `Hello ${params.fullName},\n\nYour registration application has been received. Please note that receipt does not constitute final admission â€” we will contact you once the review team has finished processing applications.`;
+      ? `مرحباً ${params.fullName}،\n\nتم استلام طلب تسجيلك بنجاح. يرجى العلم أن استلام الطلب لا يعني القبول النهائي في المؤتمر، وسيتم التواصل معك بعد انتهاء فريق المؤتمر من مراجعة الطلبات.`
+      : `Hello ${params.fullName},\n\nYour registration application has been received. Please note that receipt does not constitute final admission — we will contact you once the review team has finished processing applications.`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
@@ -36,16 +36,16 @@ export async function sendRegistrationConfirmationEmail(params: {
 }
 
 // Login-details email for an admin-controlled account-provisioning action
-// (design doc section 14/15). Bilingual in a single message â€” both Arabic
-// and English sections in one send â€” per the approved spec, not a
+// (design doc section 14/15). Bilingual in a single message — both Arabic
+// and English sections in one send — per the approved spec, not a
 // per-locale choice. Callers are responsible for only invoking this for a
 // participant whose account currently uses the approved temporary password
-// (account_status in ('account_created', 'password_change_required')) â€”
+// (account_status in ('account_created', 'password_change_required')) —
 // this function has no way to verify that itself; the bulk-action layer
 // excludes ineligible rows before ever calling this.
 //
 // Never includes passport, medical, allocation-answer, or any other
-// personal data â€” only name, username (email), the temporary password
+// personal data — only name, username (email), the temporary password
 // (present only in this outgoing message, never persisted), login URL, and
 // support contact.
 export async function sendLoginDetailsEmail(params: {
@@ -60,20 +60,20 @@ export async function sendLoginDetailsEmail(params: {
   const { config } = configResult;
 
   const loginUrl = `${config.appUrl}/log-in`;
-  const subject = 'ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø­Ø³Ø§Ø¨Ùƒ ÙÙŠ COY21 Türkiye 2026 / Your COY21 Türkiye 2026 account has been created';
+  const subject = 'تم إنشاء حسابك في COY21 Türkiye 2026 / Your COY21 Türkiye 2026 account has been created';
 
   const text = [
-    `Ù…Ø±Ø­Ø¨Ù‹Ø§ ${params.fullName}ØŒ`,
+    `مرحبًا ${params.fullName}،`,
     '',
-    'ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø­Ø³Ø§Ø¨Ùƒ ÙÙŠ Ù…Ù†ØµØ© COY21 Türkiye 2026.',
+    'تم إنشاء حسابك في منصة COY21 Türkiye 2026.',
     '',
-    `Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…: ${params.to}`,
-    `ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø§Ù„Ù…Ø¤Ù‚ØªØ©: ${params.temporaryPassword}`,
-    `Ø±Ø§Ø¨Ø· ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„: ${loginUrl}`,
+    `اسم المستخدم: ${params.to}`,
+    `كلمة المرور المؤقتة: ${params.temporaryPassword}`,
+    `رابط تسجيل الدخول: ${loginUrl}`,
     '',
-    'Ø³ÙŠÙØ·Ù„Ø¨ Ù…Ù†Ùƒ ØªØºÙŠÙŠØ± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø¹Ù†Ø¯ Ø£ÙˆÙ„ ØªØ³Ø¬ÙŠÙ„ Ø¯Ø®ÙˆÙ„. Ù„Ù† ØªØªÙ…ÙƒÙ† Ù…Ù† Ø§Ù„ÙˆØµÙˆÙ„ Ø¥Ù„Ù‰ Ù…Ù„ÙÙƒ ÙˆØ¬Ø¯ÙˆÙ„Ùƒ Ø§Ù„Ø´Ø®ØµÙŠ Ù‚Ø¨Ù„ Ø¥ÙƒÙ…Ø§Ù„ ØªØºÙŠÙŠØ± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±.',
+    'سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.',
     '',
-    `Ù„Ù„Ø¯Ø¹Ù…: ${config.supportEmail}`,
+    `للدعم: ${config.supportEmail}`,
     '',
     '----------------------------------------',
     '',
@@ -175,7 +175,7 @@ function buildLoginDetailsHtml(params: {
   const loginUrl = escapeHtml(params.loginUrl);
   const supportEmail = escapeHtml(params.supportEmail);
 
-  // Table-based layout (not flexbox/grid) and inline styles throughout â€”
+  // Table-based layout (not flexbox/grid) and inline styles throughout —
   // the only layout approach that renders consistently across email
   // clients (notably Outlook's Word-based rendering engine). max-width +
   // width:100% on the outer table is what makes this responsive on mobile
@@ -199,14 +199,14 @@ function buildLoginDetailsHtml(params: {
             </tr>
             <tr>
               <td style="padding:24px;" dir="rtl">
-                <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;">Ù…Ø±Ø­Ø¨Ù‹Ø§ ${name}ØŒ</p>
-                <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">ØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ø­Ø³Ø§Ø¨Ùƒ ÙÙŠ Ù…Ù†ØµØ© COY21 Türkiye 2026.</p>
+                <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;">مرحبًا ${name}،</p>
+                <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">تم إنشاء حسابك في منصة COY21 Türkiye 2026.</p>
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f3ef;border-radius:6px;margin:0 0 16px;">
                   <tr>
                     <td style="padding:16px;">
-                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">Ø§Ø³Ù… Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…</p>
+                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">اسم المستخدم</p>
                       <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;font-weight:bold;">${username}</p>
-                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø§Ù„Ù…Ø¤Ù‚ØªØ©</p>
+                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">كلمة المرور المؤقتة</p>
                       <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:bold;font-family:monospace;">${password}</p>
                     </td>
                   </tr>
@@ -214,12 +214,12 @@ function buildLoginDetailsHtml(params: {
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
                   <tr>
                     <td style="border-radius:6px;background-color:#c9a227;">
-                      <a href="${loginUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#0f2a2e;font-weight:bold;text-decoration:none;">ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„</a>
+                      <a href="${loginUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#0f2a2e;font-weight:bold;text-decoration:none;">تسجيل الدخول</a>
                     </td>
                   </tr>
                 </table>
-                <p style="margin:0 0 16px;font-size:13px;color:#666666;line-height:1.6;">Ø³ÙŠÙØ·Ù„Ø¨ Ù…Ù†Ùƒ ØªØºÙŠÙŠØ± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø¹Ù†Ø¯ Ø£ÙˆÙ„ ØªØ³Ø¬ÙŠÙ„ Ø¯Ø®ÙˆÙ„. Ù„Ù† ØªØªÙ…ÙƒÙ† Ù…Ù† Ø§Ù„ÙˆØµÙˆÙ„ Ø¥Ù„Ù‰ Ù…Ù„ÙÙƒ ÙˆØ¬Ø¯ÙˆÙ„Ùƒ Ø§Ù„Ø´Ø®ØµÙŠ Ù‚Ø¨Ù„ Ø¥ÙƒÙ…Ø§Ù„ ØªØºÙŠÙŠØ± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±.</p>
-                <p style="margin:0;font-size:13px;color:#666666;">Ù„Ù„Ø¯Ø¹Ù…: <a href="mailto:${supportEmail}" style="color:#0f2a2e;">${supportEmail}</a></p>
+                <p style="margin:0 0 16px;font-size:13px;color:#666666;line-height:1.6;">سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.</p>
+                <p style="margin:0;font-size:13px;color:#666666;">للدعم: <a href="mailto:${supportEmail}" style="color:#0f2a2e;">${supportEmail}</a></p>
               </td>
             </tr>
             <tr>
