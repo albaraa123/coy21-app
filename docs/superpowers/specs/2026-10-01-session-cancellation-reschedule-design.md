@@ -13,7 +13,7 @@ Three separate admin code paths can cancel a session (`status → 'cancelled'`) 
 
 **Scope decisions (confirmed with user):**
 - On session cancellation: every active `session_bookings` row for that session is **automatically marked cancelled** (not left dangling), and an **immediate** notification email is sent.
-- On a time change (no status change): existing bookings **stay valid automatically** at the new time (no re-confirmation required from the participant), and a notification email is sent informing them of the new time. No conflict re-check against the participant's other bookings is performed in this sub-project — the booking simply follows its session to the new time, participant is notified, no automated resolution of any resulting conflict.
+- On a time change (no status change): existing bookings **stay valid automatically** at the new time (no re-confirmation required from the participant), and a notification email is sent informing them of the new time. No conflict re-check against the participant's other bookings is performed in this sub-project — the booking simply follows its session to the new time, participant is notified, no automated resolution of any resulting conflict. **Accepted, known gap, not an oversight**: a reschedule can silently create a genuine time overlap with another of the participant's active bookings that did not exist at the original booking time (e.g. session A is rescheduled to now overlap session B, which the participant separately booked). Nothing in this design detects or surfaces that beyond the plain "time changed" notification email — the participant only learns of a resulting conflict by noticing it themselves. Building conflict detection/resolution into the reschedule path is out of scope for this sub-project.
 - "Choose a replacement" (mentioned in the original request) has **no existing infrastructure of any kind** to build on. Scope for this sub-project is narrowed to: the cancellation email links directly to the existing `/my-agenda/browse` page so the participant can self-serve a replacement there. No new picker UI, no suggested-alternatives logic.
 - The DB-level fix lives in a **trigger on `sessions`**, not in any of the three admin server actions individually — guarantees correctness regardless of which of the three paths (or any future path) performs the write, mirroring the existing `schedule_change_events` precedent (`supabase/migrations/20260723180000_schedule_change_detection_triggers.sql`) for the same reason.
 - Triggers cannot send HTTP requests (no email client inside Postgres). The trigger writes to a new outbox table; a new cron job drains it and performs the actual send via the existing `sendEmailGuarded` infrastructure. Same reliability pattern as the existing reminder cron (runs every few minutes, no single point of failure if one run is missed).
@@ -24,15 +24,15 @@ Three separate admin code paths can cancel a session (`status → 'cancelled'`) 
 
 ## 2. Schema changes
 
-Migration `supabase/migrations/20261004000000_session_lifecycle_notifications.sql`:
+Per this repo's own established convention for adding an enum value (`supabase/migrations/20260804110000_add_scanner_device_role.sql`: "Isolated in its own file with nothing else in it... a new enum value must be committed before any later migration can reference it" — the same convention `20260929000000_add_staff_role_and_migrate.sql` also follows), the new `booking_status` value is isolated in its own migration, split from everything else:
+
+Migration `supabase/migrations/20261004000000_add_session_cancelled_booking_status.sql` (sole statement):
 
 ```sql
 alter type booking_status add value 'session_cancelled';
 ```
 
-(Postgres requires `ALTER TYPE ... ADD VALUE` to run in its own transaction/migration step before the new value can be referenced in the same migration's later statements in some Postgres versions — the implementation plan must verify this against the actual Supabase Postgres version and split into two migration files if needed, rather than assuming a single file works.)
-
-New table:
+Migration `supabase/migrations/20261004010000_session_lifecycle_notifications.sql` (everything else — new table, trigger, `cancel_booking()` update — all of which may reference `'session_cancelled'` since it is now committed in a prior migration):
 
 ```sql
 create type session_notification_type as enum ('session_cancelled', 'session_rescheduled');
@@ -64,7 +64,7 @@ A new trigger function, `enforce_session_lifecycle_booking_sync()`, fires `after
 
 - If `new.status = 'cancelled' and old.status is distinct from 'cancelled'`: for every `session_bookings` row with `session_id = new.id and status = 'active'`, set `status = 'session_cancelled'`, `cancelled_at = now()`, and insert one `session_notification_outbox` row (`notification_type = 'session_cancelled'`) per affected booking.
 - Else if (`new.start_time is distinct from old.start_time or new.end_time is distinct from old.end_time`) and `new.status <> 'cancelled'`: for every `session_bookings` row with `session_id = new.id and status = 'active'`, insert one `session_notification_outbox` row (`notification_type = 'session_rescheduled'`, `old_start_time = old.start_time`, `new_start_time = new.start_time`) — no change to the booking row itself.
-- Both branches are mutually exclusive by construction (a single `UPDATE` can change status to cancelled or change times, and the cancellation branch takes priority if somehow both changed in one statement — matches the existing `sessions_record_change_event` trigger's same mutual-exclusivity pattern for its two event types).
+- The two branches use `if` / `else if`, making them mutually exclusive by construction: if a single `UPDATE` somehow changes both status-to-cancelled and the times in one statement, only the cancellation branch fires. This is a deliberately stricter choice than `sessions_record_change_event()` (`20260723180000_schedule_change_detection_triggers.sql:21-36`), whose two event-type conditions are independent `if` blocks (not `if`/`else if`) that could in principle both fire on the same UPDATE — that precedent motivates having two event types at all, but this trigger intentionally avoids its lack of mutual exclusivity, since firing both an outbox cancellation row and a reschedule row for the same booking in one UPDATE would be a confusing double-notification, not a useful signal.
 - `AFTER` trigger (not `BEFORE`) because it only needs to react to a committed state change, not validate/block it — this is purely additive side-effect logic, consistent with `sessions_record_change_event` (also `AFTER UPDATE`).
 
 This trigger runs in addition to (not instead of) the existing `sessions_enforce_status_transition`, `sessions_enforce_speaker_no_conflict_on_change`, and `sessions_change_detection` triggers — all four fire independently on the same `UPDATE`.
@@ -115,6 +115,8 @@ Invocation frequency: every few minutes (exact cadence decided in the implementa
 
 `page.tsx`'s query (`.eq('status', 'active')`) is changed to `.in('status', ['active', 'session_cancelled'])` so cancelled-by-session-cancellation bookings remain visible (not silently dropped). `agenda-day.tsx`'s `Booking`/`Session` types and rendering gain a `status` field; a booking with `status = 'session_cancelled'` renders with a distinct badge (e.g. a red "Session Cancelled" pill where the `CancelButton` currently sits) and the `CancelButton` itself is hidden for these rows (nothing to cancel — already cancelled). Participant-voluntary-cancelled (`status = 'cancelled'`) bookings continue to be filtered out entirely, unchanged from current behavior — only the new `'session_cancelled'` status gains visibility.
 
+Note for the implementer: `agenda-day.tsx` already maintains a separate, orthogonal piece of client-side state — a `cancelled` `Set<string>` (populated by `CancelButton`'s `onCancelled` callback) used to optimistically hide a row immediately after the *participant's own* voluntary cancel action, before the page re-fetches. This existing mechanism is untouched by this sub-project and should not be confused with or merged into the new `status`-driven badge logic — they handle two different cancellation sources (participant-initiated vs. session-cancelled-by-staff) and should remain separate code paths.
+
 ## 8. Testing
 
 Live tests (`tests/agenda/session-lifecycle-notifications-live.test.ts`, against the scratch project):
@@ -131,7 +133,8 @@ Live tests (`tests/agenda/session-lifecycle-notifications-live.test.ts`, against
 ## 9. Files touched (summary)
 
 **New:**
-- `supabase/migrations/20261004000000_session_lifecycle_notifications.sql` (and a second migration file if `ALTER TYPE ... ADD VALUE` requires transaction isolation — determined during implementation)
+- `supabase/migrations/20261004000000_add_session_cancelled_booking_status.sql`
+- `supabase/migrations/20261004010000_session_lifecycle_notifications.sql`
 - `src/app/api/cron/process-session-notifications/route.ts`
 - `tests/agenda/session-lifecycle-notifications-live.test.ts`
 
@@ -140,4 +143,4 @@ Live tests (`tests/agenda/session-lifecycle-notifications-live.test.ts`, against
 - `src/app/[locale]/(participant)/(shell)/my-agenda/page.tsx` (query filter)
 - `src/app/[locale]/(participant)/(shell)/my-agenda/agenda-day.tsx` (badge rendering, type updates)
 
-**Out of scope for this sub-project (explicitly):** any change to the existing session-reminder cron; any "choose a replacement" picker UI beyond a link to the existing browse page; any change to the allocation system or `schedule_publication_items`; retry logic for failed outbox sends; a `for update skip locked` concurrency-safe row-claim (flagged as an open question for the plan to resolve, not pre-decided here).
+**Out of scope for this sub-project (explicitly):** any change to the existing session-reminder cron; any "choose a replacement" picker UI beyond a link to the existing browse page; any change to the allocation system or `schedule_publication_items`; retry logic for failed outbox sends; a `for update skip locked` concurrency-safe row-claim (deliberately omitted, matching the existing reminder cron's accepted risk level — see section 6); conflict detection/resolution on reschedule (see section 1's accepted-gap callout).
