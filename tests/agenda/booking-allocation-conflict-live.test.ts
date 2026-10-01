@@ -257,14 +257,9 @@ describe('session_allocation_confirmed_counts()', () => {
     // statement ran, not that PostgREST/RLS actually honors it end-to-end).
     // Follows the exact sign-in pattern established in
     // tests/allocation/authorization.test.ts.
-    const { applicationId } = await seedAcceptedApplicant('grant-check');
+    const { applicationId, client: participantClient } = await seedAcceptedApplicant('grant-check');
     const sessionId = await seedSession('grant-check-session');
     await insertAllocationAssignment(applicationId, sessionId, 'confirmed');
-
-    const email = `booking-alloc-conflict-live-${runId}-grant-check@test.local`;
-    const participantClient = createClient<Database>(URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-    const { error: signInError } = await participantClient.auth.signInWithPassword({ email, password: 'password123' });
-    expect(signInError).toBeNull();
 
     const { data, error } = await participantClient.rpc('session_allocation_confirmed_counts' as never);
     expect(error).toBeNull();
