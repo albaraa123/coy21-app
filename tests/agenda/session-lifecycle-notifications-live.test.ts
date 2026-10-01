@@ -225,6 +225,8 @@ describe('session reschedule leaves bookings active and queues notifications', (
     const rows = (outboxRows ?? []) as { notification_type: string; old_start_time: string | null; new_start_time: string | null }[];
     expect(rows).toHaveLength(1);
     expect(rows[0].notification_type).toBe('session_rescheduled');
+    // seedSession always inserts `${DAY}T09:00:00+03:00` unless overridden -- that's the pre-update value the trigger should have captured as old_start_time.
+    expect(new Date(rows[0].old_start_time!).toISOString()).toBe(new Date(`${DAY}T09:00:00+03:00`).toISOString());
     expect(new Date(rows[0].new_start_time!).toISOString()).toBe(new Date(newStart).toISOString());
   });
 
