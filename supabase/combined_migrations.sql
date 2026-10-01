@@ -813,7 +813,7 @@ ON CONFLICT (version) DO NOTHING;
 -- ============================================================
 -- sessions_triggers.sql
 
--- 1. Day-match: a session's start_time/end_time, converted to Asia/Muscat,
+-- 1. Day-match: a session's start_time/end_time, converted to Europe/Istanbul,
 -- must fall on the same calendar date as its conference_day_id's
 -- conference_date, and must not cross midnight into a different day.
 create function enforce_session_day_match() returns trigger as $$
@@ -827,8 +827,8 @@ begin
     raise exception 'conference_day_id % does not exist', new.conference_day_id;
   end if;
 
-  v_start_date := (new.start_time at time zone 'Asia/Muscat')::date;
-  v_end_date := (new.end_time at time zone 'Asia/Muscat')::date;
+  v_start_date := (new.start_time at time zone 'Europe/Istanbul')::date;
+  v_end_date := (new.end_time at time zone 'Europe/Istanbul')::date;
 
   if v_start_date <> v_end_date then
     raise exception 'Session cannot span across midnight into a different conference day (start: %, end: %)', v_start_date, v_end_date;
@@ -1024,7 +1024,7 @@ comment on function enforce_speaker_no_conflict_on_session_change() is 'Fires on
 
 comment on function enforce_session_room_capacity() is 'Fires on sessions insert/update of capacity, room_id. Rejects a session capacity greater than its room''s capacity. Contract: the raise exception message "Session capacity (%) exceeds room capacity (%)" contains the substring ''exceeds room capacity'', which Task 12''s translateSessionWriteError() (src/app/[locale]/(admin)/agenda/sessions/[id]/actions.ts, not yet implemented as of this migration) matches via error.message.includes(''exceeds room capacity'') to produce a friendly UI error. Do not reword this message without updating that function too.';
 
-comment on function enforce_session_day_match() is 'Fires on sessions insert/update of start_time, end_time, conference_day_id. Enforces that a session''s start/end time (converted to Asia/Muscat) falls on the same calendar date as its conference_day_id''s conference_date, and does not cross midnight. Contract: the raise exception message "Session start/end time (%) does not match its conference day (%)" contains the substring ''does not match its conference day'', which Task 12''s translateSessionWriteError() (src/app/[locale]/(admin)/agenda/sessions/[id]/actions.ts, not yet implemented as of this migration) matches via error.message.includes(''does not match its conference day'') to produce a friendly UI error. Do not reword this message without updating that function too.';
+comment on function enforce_session_day_match() is 'Fires on sessions insert/update of start_time, end_time, conference_day_id. Enforces that a session''s start/end time (converted to Europe/Istanbul) falls on the same calendar date as its conference_day_id''s conference_date, and does not cross midnight. Contract: the raise exception message "Session start/end time (%) does not match its conference day (%)" contains the substring ''does not match its conference day'', which Task 12''s translateSessionWriteError() (src/app/[locale]/(admin)/agenda/sessions/[id]/actions.ts, not yet implemented as of this migration) matches via error.message.includes(''does not match its conference day'') to produce a friendly UI error. Do not reword this message without updating that function too.';
 
 
 INSERT INTO supabase_migrations.schema_migrations (version)

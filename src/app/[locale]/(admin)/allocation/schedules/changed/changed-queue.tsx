@@ -39,7 +39,7 @@ type StaleItem = {
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Muscat' });
+  return new Date(value).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' });
 }
 
 // schedule_change_events has no FK to schedule_publication_items — the only

@@ -7,42 +7,11 @@ import { updateSession } from './actions';
 import { SESSION_LANGUAGES, SESSION_DIFFICULTIES } from '@/lib/validation/agenda';
 import type { Database } from '@/types/database';
 import { Button } from '@/components/ui/button';
+import { isoToConferenceLocalInputValue, conferenceLocalInputValueToIso } from '@/lib/datetime/conference-time';
 
 type Session = Database['public']['Tables']['sessions']['Row'];
 
 type RefOption = { id: string; [key: string]: unknown };
-
-// Asia/Muscat is a fixed UTC+4 offset year-round (no DST observed), so the
-// conversion below is a plain +/- 4 hour shift rather than a full timezone
-// library lookup. Two directions are needed:
-//  - ISO instant (from the DB) -> the wall-clock time a Muscat-based staff
-//    member should see in a `datetime-local` input, formatted as the
-//    `YYYY-MM-DDTHH:mm` string that input requires.
-//  - what staff type into that `datetime-local` input (a timezone-less
-//    wall-clock string) -> the ISO instant to send back to the server,
-//    interpreting what they typed as Asia/Muscat wall-clock time (not the
-//    browser's local timezone, which may differ from Muscat).
-export const MUSCAT_OFFSET_MS = 4 * 60 * 60 * 1000;
-
-export function isoToMuscatLocalInputValue(iso: string): string {
-  const utcMs = new Date(iso).getTime();
-  const muscatMs = utcMs + MUSCAT_OFFSET_MS;
-  const d = new Date(muscatMs);
-  // Read UTC getters on the shifted timestamp so no additional (browser-local)
-  // timezone conversion is layered on top of the Muscat shift already applied.
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-}
-
-export function muscatLocalInputValueToIso(value: string): string {
-  // `value` is `YYYY-MM-DDTHH:mm`, timezone-less. Parsing it with a trailing
-  // `Z` makes Date.UTC-style parsing treat those digits as UTC wall-clock
-  // fields; subtracting the Muscat offset then yields the correct UTC instant
-  // for "this wall-clock time, in Asia/Muscat".
-  const asIfUtcMs = new Date(`${value}:00Z`).getTime();
-  const utcMs = asIfUtcMs - MUSCAT_OFFSET_MS;
-  return new Date(utcMs).toISOString();
-}
 
 type FormState = {
   sessionCode: string;
@@ -51,8 +20,8 @@ type FormState = {
   descriptionAr: string;
   descriptionEn: string;
   conferenceDayId: string;
-  startTime: string; // datetime-local value, Muscat wall-clock
-  endTime: string; // datetime-local value, Muscat wall-clock
+  startTime: string; // datetime-local value, conference (Europe/Istanbul) wall-clock
+  endTime: string; // datetime-local value, conference (Europe/Istanbul) wall-clock
   trackId: string;
   sessionTypeId: string;
   roomId: string;
@@ -65,8 +34,8 @@ type FormState = {
   includeInAllocation: boolean;
   allocationPriority: string;
   enableQrCheckin: boolean;
-  checkinOpensAt: string; // datetime-local value, Muscat wall-clock, may be ''
-  checkinClosesAt: string; // datetime-local value, Muscat wall-clock, may be ''
+  checkinOpensAt: string; // datetime-local value, conference (Europe/Istanbul) wall-clock, may be ''
+  checkinClosesAt: string; // datetime-local value, conference (Europe/Istanbul) wall-clock, may be ''
   internalNotes: string;
 };
 
@@ -78,8 +47,8 @@ function sessionToFormState(session: Session): FormState {
     descriptionAr: session.description_ar ?? '',
     descriptionEn: session.description_en ?? '',
     conferenceDayId: session.conference_day_id,
-    startTime: isoToMuscatLocalInputValue(session.start_time),
-    endTime: isoToMuscatLocalInputValue(session.end_time),
+    startTime: isoToConferenceLocalInputValue(session.start_time),
+    endTime: isoToConferenceLocalInputValue(session.end_time),
     trackId: session.track_id,
     sessionTypeId: session.session_type_id,
     roomId: session.room_id,
@@ -92,8 +61,8 @@ function sessionToFormState(session: Session): FormState {
     includeInAllocation: session.include_in_allocation,
     allocationPriority: String(session.allocation_priority),
     enableQrCheckin: session.enable_qr_checkin,
-    checkinOpensAt: session.checkin_opens_at ? isoToMuscatLocalInputValue(session.checkin_opens_at) : '',
-    checkinClosesAt: session.checkin_closes_at ? isoToMuscatLocalInputValue(session.checkin_closes_at) : '',
+    checkinOpensAt: session.checkin_opens_at ? isoToConferenceLocalInputValue(session.checkin_opens_at) : '',
+    checkinClosesAt: session.checkin_closes_at ? isoToConferenceLocalInputValue(session.checkin_closes_at) : '',
     internalNotes: session.internal_notes ?? '',
   };
 }
@@ -139,8 +108,8 @@ export default function SessionEditForm({
         descriptionAr: form.descriptionAr || null,
         descriptionEn: form.descriptionEn || null,
         conferenceDayId: form.conferenceDayId,
-        startTime: muscatLocalInputValueToIso(form.startTime),
-        endTime: muscatLocalInputValueToIso(form.endTime),
+        startTime: conferenceLocalInputValueToIso(form.startTime),
+        endTime: conferenceLocalInputValueToIso(form.endTime),
         trackId: form.trackId,
         sessionTypeId: form.sessionTypeId,
         roomId: form.roomId,
@@ -153,8 +122,8 @@ export default function SessionEditForm({
         includeInAllocation: form.includeInAllocation,
         allocationPriority: Number(form.allocationPriority),
         enableQrCheckin: form.enableQrCheckin,
-        checkinOpensAt: form.checkinOpensAt ? muscatLocalInputValueToIso(form.checkinOpensAt) : null,
-        checkinClosesAt: form.checkinClosesAt ? muscatLocalInputValueToIso(form.checkinClosesAt) : null,
+        checkinOpensAt: form.checkinOpensAt ? conferenceLocalInputValueToIso(form.checkinOpensAt) : null,
+        checkinClosesAt: form.checkinClosesAt ? conferenceLocalInputValueToIso(form.checkinClosesAt) : null,
         internalNotes: form.internalNotes || null,
       });
       router.refresh();

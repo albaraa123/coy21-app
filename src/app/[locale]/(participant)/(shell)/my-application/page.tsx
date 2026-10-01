@@ -62,12 +62,16 @@ export default async function MyApplicationPage() {
   // an imported row entered the system, so fall back to it rather than
   // rendering blank.
   const submittedDisplay = application.submitted_at ?? application.created_at;
-  const formattedDate = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en-US', {
-    timeZone: 'Asia/Muscat',
+  // No weekday here deliberately -- formatConferenceDate always includes one,
+  // which would widen this specific display beyond its original
+  // year/month/day-only format; this call only needed its timezone fixed
+  // (Asia/Muscat -> Europe/Istanbul), not a format change.
+  const formattedDate = new Date(submittedDisplay).toLocaleDateString(locale === 'ar' ? 'ar' : 'en-US', {
+    timeZone: 'Europe/Istanbul',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-  }).format(new Date(submittedDisplay));
+  });
 
   const badgeVariant = STATUS_BADGE_VARIANT[application.status] ?? 'neutral';
 

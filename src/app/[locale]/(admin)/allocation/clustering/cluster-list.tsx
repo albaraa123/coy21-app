@@ -186,7 +186,7 @@ export default function ClusterList({
                     {t('runMeta', {
                       k: run.k,
                       seed: run.random_seed,
-                      runAt: new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' }),
+                      runAt: new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }),
                     })}
                   </p>
 

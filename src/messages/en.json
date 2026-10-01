@@ -677,7 +677,7 @@
       "pending_review": "This session was cancelled — your updated schedule is being reviewed."
     },
     "timeMarker": {
-      "timezoneLabel": "Asia/Muscat"
+      "timezoneLabel": "Europe/Istanbul"
     },
     "sessionCard": {
       "noMandatorySession": "No mandatory session assigned",
@@ -1124,8 +1124,8 @@
           "descriptionAr": "Description (Arabic)",
           "descriptionEn": "Description (English)",
           "day": "Day",
-          "startTime": "Start time (Asia/Muscat)",
-          "endTime": "End time (Asia/Muscat)",
+          "startTime": "Start time (Europe/Istanbul)",
+          "endTime": "End time (Europe/Istanbul)",
           "track": "Track",
           "sessionType": "Session type",
           "room": "Room",
@@ -1138,8 +1138,8 @@
           "includeInAllocation": "Include in allocation",
           "allocationPriority": "Allocation priority",
           "enableQrCheckin": "Enable QR check-in",
-          "checkinOpensAt": "Check-in opens (Asia/Muscat)",
-          "checkinClosesAt": "Check-in closes (Asia/Muscat)",
+          "checkinOpensAt": "Check-in opens (Europe/Istanbul)",
+          "checkinClosesAt": "Check-in closes (Europe/Istanbul)",
           "internalNotes": "Internal notes",
           "save": "Save changes",
           "saveError": "Failed to update session",
@@ -1191,8 +1191,8 @@
         "reschedule": {
           "title": "Reschedule & reassign (combined, atomic)",
           "description": "Changes time/room and the full speaker/guest list together in one operation, so a conflict only visible in the combined result is caught and the whole change is rolled back — different from editing the fields separately in the forms above.",
-          "startTime": "Start time (Asia/Muscat)",
-          "endTime": "End time (Asia/Muscat)",
+          "startTime": "Start time (Europe/Istanbul)",
+          "endTime": "End time (Europe/Istanbul)",
           "room": "Room",
           "speakersLegend": "Speakers & guests",
           "primary": "Primary",

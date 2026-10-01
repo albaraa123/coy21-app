@@ -18,6 +18,7 @@ import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getResendConfig } from '@/lib/email/resend-config';
 import { fetchEmailSettings, sendEmailGuarded } from '@/lib/email/send-guarded';
+import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
 function escapeHtml(v: string): string {
   return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -100,7 +101,7 @@ export async function GET(req: NextRequest) {
       : (session.rooms as { name_en?: string; name_ar?: string } | null)?.name_en ?? '';
 
     const startLocal = session.start_time
-      ? new Date(session.start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      ? formatConferenceTime(session.start_time, 'en', { hour12: false })
       : '';
 
     for (const app of apps) {

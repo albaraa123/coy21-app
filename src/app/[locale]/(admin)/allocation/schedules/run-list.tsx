@@ -60,12 +60,12 @@ export default function RunList({ runs }: { runs: AllocationRun[] }) {
                     <span className="text-sm text-charcoal/70 dark:text-gray-400">{run.status}</span>
                   </div>
                   <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">
-                    {t('runAt')}: {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })}
+                    {t('runAt')}: {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })}
                   </p>
                   <p className="text-sm text-charcoal/70 dark:text-gray-400">
                     {t('confirmedAt')}:{' '}
                     {run.confirmed_at
-                      ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })
+                      ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })
                       : '—'}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -101,11 +101,11 @@ export default function RunList({ runs }: { runs: AllocationRun[] }) {
                       <td className="px-4 py-2 text-charcoal dark:text-gray-100">{run.id}</td>
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{run.status}</td>
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
-                        {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })}
+                        {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })}
                       </td>
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
                         {run.confirmed_at
-                          ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })
+                          ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })
                           : '—'}
                       </td>
                       <td className="px-4 py-2">

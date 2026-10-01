@@ -139,7 +139,7 @@ export default function DraftReview({
             <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">{t('draftTitle', { id: draft.id })}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-charcoal/70 dark:text-gray-400">
               <Badge variant={STATUS_BADGE_VARIANT[draft.status] ?? 'neutral'}>{draft.status}</Badge>
-              <span>{t('stagedAt', { stagedAt: new Date(draft.staged_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' }) })}</span>
+              <span>{t('stagedAt', { stagedAt: new Date(draft.staged_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }) })}</span>
             </div>
             {draft.status !== 'staged' && (
               <p className="mt-2 text-sm text-charcoal/70 dark:text-gray-400">{t('notActionable', { status: draft.status })}</p>

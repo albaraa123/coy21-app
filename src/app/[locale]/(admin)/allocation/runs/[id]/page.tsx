@@ -90,10 +90,10 @@ export default async function AllocationRunDetailPage({ params }: { params: Prom
             <Badge variant={STATUS_BADGE_VARIANT[run.status] ?? 'neutral'}>
               {run.status in STATUS_LABEL_KEY ? t(`statusValues.${STATUS_LABEL_KEY[run.status]}`) : run.status}
             </Badge>
-            <span>{t('runAt', { runAt: new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' }) })}</span>
+            <span>{t('runAt', { runAt: new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }) })}</span>
             {run.confirmed_at && (
               <span>
-                {t('confirmedAt', { confirmedAt: new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' }) })}
+                {t('confirmedAt', { confirmedAt: new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }) })}
               </span>
             )}
           </div>

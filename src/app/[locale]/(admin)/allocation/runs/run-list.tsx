@@ -121,12 +121,12 @@ export default function RunList({
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">
-                      {t('runAt')}: {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })}
+                      {t('runAt')}: {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })}
                     </p>
                     <p className="text-sm text-charcoal/70 dark:text-gray-400">
                       {t('confirmedAt')}:{' '}
                       {run.confirmed_at
-                        ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })
+                        ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })
                         : '—'}
                     </p>
                   </Card>
@@ -157,11 +157,11 @@ export default function RunList({
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
-                        {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })}
+                        {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })}
                       </td>
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
                         {run.confirmed_at
-                          ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })
+                          ? new Date(run.confirmed_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })
                           : '—'}
                       </td>
                     </tr>

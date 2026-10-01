@@ -306,7 +306,7 @@ export default function RuleManager({ rules, runs, tags }: { rules: Rule[]; runs
                     {t('applicationCount')}: {run.application_count}
                   </p>
                   <p className="text-sm text-charcoal/70 dark:text-gray-400">
-                    {t('runAt')}: {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })}
+                    {t('runAt')}: {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })}
                   </p>
                 </Card>
               ))}
@@ -328,7 +328,7 @@ export default function RuleManager({ rules, runs, tags }: { rules: Rule[]; runs
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{run.rules_version}</td>
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{run.application_count}</td>
                       <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
-                        {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' })}
+                        {new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })}
                       </td>
                     </tr>
                   ))}

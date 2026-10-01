@@ -17,6 +17,8 @@ const admin = createClient<Database>(URL, SERVICE_KEY);
 // collides with a leftover row from any earlier interrupted run. DAY1/DAY2
 // preserve the file's own relative-day-offset assumption (DAY2 = DAY1 + 1
 // day) used throughout every scenario below.
+// Fixture times use +03:00 because the conference timezone is Europe/Istanbul
+// (fixed UTC+3), not Asia/Muscat.
 const runId = randomUUID().slice(0, 8);
 const dayOffset = Math.floor(Math.random() * 3000) + 1;
 const DAY1 = new Date(Date.UTC(2099, 0, 1) + dayOffset * 86400000).toISOString().slice(0, 10);
@@ -88,8 +90,8 @@ function baseSession(overrides: Partial<Database['public']['Tables']['sessions']
     session_code: `TEST-${Math.random().toString(36).slice(2, 10)}`,
     title_ar: 'جلسة اختبار', title_en: 'Test Session',
     conference_day_id: dayId,
-    start_time: `${DAY1}T${String(hour).padStart(2, '0')}:00:00+04:00`,
-    end_time: `${DAY1}T${String(hour + 1).padStart(2, '0')}:00:00+04:00`,
+    start_time: `${DAY1}T${String(hour).padStart(2, '0')}:00:00+03:00`,
+    end_time: `${DAY1}T${String(hour + 1).padStart(2, '0')}:00:00+03:00`,
     track_id: trackId, session_type_id: sessionTypeId, room_id: roomId,
     language: 'en' as const, difficulty_level: 'beginner' as const,
     capacity: 20, min_capacity: 0,
@@ -104,11 +106,11 @@ afterEach(async () => {
 describe('Scenario 1: adjacent non-overlapping sessions in the same room', () => {
   it('both succeed', async () => {
     const { error: e1 } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T09:00:00+04:00`, end_time: `${DAY1}T10:00:00+04:00`,
+      start_time: `${DAY1}T09:00:00+03:00`, end_time: `${DAY1}T10:00:00+03:00`,
     }));
     expect(e1).toBeNull();
     const { error: e2 } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T10:00:00+04:00`, end_time: `${DAY1}T11:00:00+04:00`,
+      start_time: `${DAY1}T10:00:00+03:00`, end_time: `${DAY1}T11:00:00+03:00`,
     }));
     expect(e2).toBeNull();
   });
@@ -117,11 +119,11 @@ describe('Scenario 1: adjacent non-overlapping sessions in the same room', () =>
 describe('Scenario 2: overlapping room bookings', () => {
   it('second insert fails with an exclusion violation', async () => {
     const { error: e1 } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T11:00:00+04:00`, end_time: `${DAY1}T12:00:00+04:00`,
+      start_time: `${DAY1}T11:00:00+03:00`, end_time: `${DAY1}T12:00:00+03:00`,
     }));
     expect(e1).toBeNull();
     const { error: e2 } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T11:30:00+04:00`, end_time: `${DAY1}T12:30:00+04:00`,
+      start_time: `${DAY1}T11:30:00+03:00`, end_time: `${DAY1}T12:30:00+03:00`,
     }));
     expect(e2).not.toBeNull();
     expect(e2?.code).toBe('23P01');
@@ -131,10 +133,10 @@ describe('Scenario 2: overlapping room bookings', () => {
 describe('Scenario 3: speaker conflict created by changing an existing session\'s time', () => {
   it('rejects a reschedule that creates a new overlap for an assigned speaker', async () => {
     const { data: s1 } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T09:00:00+04:00`, end_time: `${DAY1}T10:00:00+04:00`,
+      start_time: `${DAY1}T09:00:00+03:00`, end_time: `${DAY1}T10:00:00+03:00`,
     })).select('id').single();
     const { data: s2 } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T13:00:00+04:00`, end_time: `${DAY1}T14:00:00+04:00`,
+      start_time: `${DAY1}T13:00:00+03:00`, end_time: `${DAY1}T14:00:00+03:00`,
     })).select('id').single();
 
     await admin.from('session_people').insert({ session_id: s1!.id, person_id: personAId, role: 'speaker' });
@@ -147,7 +149,7 @@ describe('Scenario 3: speaker conflict created by changing an existing session\'
     // "conflict", so the substring assertion below is safe here (unlike
     // Scenario 8's distinct trigger/message — see that test's comment).
     const { error } = await admin.from('sessions').update({
-      start_time: `${DAY1}T09:30:00+04:00`, end_time: `${DAY1}T10:30:00+04:00`,
+      start_time: `${DAY1}T09:30:00+03:00`, end_time: `${DAY1}T10:30:00+03:00`,
     }).eq('id', s2!.id);
     expect(error).not.toBeNull();
     expect(error?.message).toContain('conflict');
@@ -158,8 +160,8 @@ describe('Scenario 4: mismatched conference day and timestamp', () => {
   it('rejects a session whose time does not match its conference_day_id', async () => {
     const { error } = await admin.from('sessions').insert(baseSession({
       conference_day_id: dayId, // 2026-11-10
-      start_time: `${DAY2}T09:00:00+04:00`, // wrong day
-      end_time: `${DAY2}T10:00:00+04:00`,
+      start_time: `${DAY2}T09:00:00+03:00`, // wrong day
+      end_time: `${DAY2}T10:00:00+03:00`,
     }));
     expect(error).not.toBeNull();
     expect(error?.message).toContain('does not match');
@@ -167,8 +169,8 @@ describe('Scenario 4: mismatched conference day and timestamp', () => {
 
   it('rejects a session that spans across midnight into another day', async () => {
     const { error } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T23:30:00+04:00`,
-      end_time: `${DAY2}T00:30:00+04:00`,
+      start_time: `${DAY1}T23:30:00+03:00`,
+      end_time: `${DAY2}T00:30:00+03:00`,
     }));
     expect(error).not.toBeNull();
   });
@@ -242,7 +244,7 @@ describe('Scenario 8 (mandatory, per explicit user requirement): combined schedu
     // rooms isolates the speaker-only conflict this scenario targets.
     const { data: s1 } = await admin.from('sessions').insert(baseSession({
       room_id: otherRoomId,
-      start_time: `${DAY1}T21:00:00+04:00`, end_time: `${DAY1}T22:00:00+04:00`,
+      start_time: `${DAY1}T21:00:00+03:00`, end_time: `${DAY1}T22:00:00+03:00`,
     })).select('id').single();
     await admin.from('session_people').insert({ session_id: s1!.id, person_id: personBId, role: 'speaker' });
 
@@ -254,15 +256,15 @@ describe('Scenario 8 (mandatory, per explicit user requirement): combined schedu
     // assigning personB to s2 alone doesn't conflict, since s2's current
     // time doesn't overlap s1). Only the COMBINATION creates the conflict.
     const { data: s2 } = await admin.from('sessions').insert(baseSession({
-      start_time: `${DAY1}T22:00:00+04:00`, end_time: `${DAY1}T23:00:00+04:00`,
+      start_time: `${DAY1}T22:00:00+03:00`, end_time: `${DAY1}T23:00:00+03:00`,
     })).select('id').single();
 
     const { data: beforeCall } = await admin.from('sessions').select('start_time, end_time').eq('id', s2!.id).single();
 
     const { error } = await admin.rpc('update_session_and_assignments_transactional', {
       p_id: s2!.id,
-      p_start_time: `${DAY1}T21:30:00+04:00`, // now overlaps s1
-      p_end_time: `${DAY1}T22:30:00+04:00`,
+      p_start_time: `${DAY1}T21:30:00+03:00`, // now overlaps s1
+      p_end_time: `${DAY1}T22:30:00+03:00`,
       p_room_id: roomId, // s2 stays in its own room — no room overlap with s1
       p_updated_by: staffUserId,
       p_new_assignments: [{ person_id: personBId, role: 'speaker', display_order: 0, is_primary: false }],

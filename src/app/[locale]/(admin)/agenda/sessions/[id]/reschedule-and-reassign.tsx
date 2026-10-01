@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { updateSessionScheduleAndAssignments } from './actions';
 import { SESSION_PERSON_ROLES, type SessionPersonRole } from '@/lib/validation/agenda';
-import { isoToMuscatLocalInputValue, muscatLocalInputValueToIso } from './session-edit-form';
+import { isoToConferenceLocalInputValue, conferenceLocalInputValueToIso } from '@/lib/datetime/conference-time';
 import type { Database } from '@/types/database';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,8 +40,8 @@ export default function RescheduleAndReassign({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [startTime, setStartTime] = useState(() => isoToMuscatLocalInputValue(session.start_time));
-  const [endTime, setEndTime] = useState(() => isoToMuscatLocalInputValue(session.end_time));
+  const [startTime, setStartTime] = useState(() => isoToConferenceLocalInputValue(session.start_time));
+  const [endTime, setEndTime] = useState(() => isoToConferenceLocalInputValue(session.end_time));
   const [roomId, setRoomId] = useState(session.room_id);
 
   const [selectedPersonIds, setSelectedPersonIds] = useState<Set<string>>(
@@ -84,8 +84,8 @@ export default function RescheduleAndReassign({
     try {
       const selectedIds = [...selectedPersonIds];
       await updateSessionScheduleAndAssignments(session.id, {
-        startTime: muscatLocalInputValueToIso(startTime),
-        endTime: muscatLocalInputValueToIso(endTime),
+        startTime: conferenceLocalInputValueToIso(startTime),
+        endTime: conferenceLocalInputValueToIso(endTime),
         roomId,
         // Best-effort ordering, same approach as SpeakerAssignment: index-based
         // displayOrder over this submission's selected people. isPrimary is

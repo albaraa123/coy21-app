@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { createSession } from '../[id]/actions';
-import { muscatLocalInputValueToIso } from '../[id]/session-edit-form';
+import { conferenceLocalInputValueToIso } from '@/lib/datetime/conference-time';
 import { SESSION_LANGUAGES, SESSION_DIFFICULTIES } from '@/lib/validation/agenda';
 import { Button } from '@/components/ui/button';
 
@@ -17,8 +17,8 @@ type FormState = {
   descriptionAr: string;
   descriptionEn: string;
   conferenceDayId: string;
-  startTime: string; // datetime-local value, Muscat wall-clock
-  endTime: string; // datetime-local value, Muscat wall-clock
+  startTime: string; // datetime-local value, conference (Europe/Istanbul) wall-clock
+  endTime: string; // datetime-local value, conference (Europe/Istanbul) wall-clock
   trackId: string;
   sessionTypeId: string;
   roomId: string;
@@ -102,8 +102,8 @@ export default function SessionCreateForm({
         descriptionAr: form.descriptionAr || null,
         descriptionEn: form.descriptionEn || null,
         conferenceDayId: form.conferenceDayId,
-        startTime: muscatLocalInputValueToIso(form.startTime),
-        endTime: muscatLocalInputValueToIso(form.endTime),
+        startTime: conferenceLocalInputValueToIso(form.startTime),
+        endTime: conferenceLocalInputValueToIso(form.endTime),
         trackId: form.trackId,
         sessionTypeId: form.sessionTypeId,
         roomId: form.roomId,
@@ -116,8 +116,8 @@ export default function SessionCreateForm({
         includeInAllocation: form.includeInAllocation,
         allocationPriority: Number(form.allocationPriority),
         enableQrCheckin: form.enableQrCheckin,
-        checkinOpensAt: form.checkinOpensAt ? muscatLocalInputValueToIso(form.checkinOpensAt) : null,
-        checkinClosesAt: form.checkinClosesAt ? muscatLocalInputValueToIso(form.checkinClosesAt) : null,
+        checkinOpensAt: form.checkinOpensAt ? conferenceLocalInputValueToIso(form.checkinOpensAt) : null,
+        checkinClosesAt: form.checkinClosesAt ? conferenceLocalInputValueToIso(form.checkinClosesAt) : null,
         internalNotes: form.internalNotes || null,
       });
       router.push(`/agenda/sessions/${id}`);

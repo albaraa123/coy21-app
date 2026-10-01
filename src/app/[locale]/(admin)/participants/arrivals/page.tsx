@@ -49,7 +49,7 @@ export default async function ArrivalsPage() {
       ? new Intl.DateTimeFormat('en-US', {
           dateStyle: 'medium',
           timeStyle: 'short',
-          timeZone: 'Asia/Istanbul',
+          timeZone: 'Europe/Istanbul',
         }).format(new Date(dt))
       : '—';
 
