@@ -65,6 +65,16 @@ export default async function BrowseSessionsPage() {
     countMap.set(row.session_id, (countMap.get(row.session_id) ?? 0) + 1);
   }
 
+  // Confirmed allocation-assignment counts per session — via a SECURITY
+  // DEFINER RPC, since participants have no direct RLS access to
+  // allocation_assignments. Added to (not replacing) the session_bookings
+  // counts above, so the displayed "spots left" matches exactly what
+  // book_session() will enforce.
+  const { data: allocationCountRows } = await supabase.rpc('session_allocation_confirmed_counts' as never);
+  for (const row of (allocationCountRows ?? []) as { session_id: string; confirmed_count: number }[]) {
+    countMap.set(row.session_id, (countMap.get(row.session_id) ?? 0) + row.confirmed_count);
+  }
+
   // Group by day
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byDay = groupByDay(sessions ?? [] as any[]);
