@@ -104,7 +104,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await admin.from('session_notification_outbox').delete().in('session_id', sessionIds);
+  // `as never`: session_notification_outbox (added in
+  // 20261004010000_session_lifecycle_notifications.sql) is not yet
+  // reflected in the generated src/types/database.ts snapshot -- same
+  // established workaround used throughout
+  // src/app/api/cron/process-session-notifications/route.ts.
+  await admin.from('session_notification_outbox' as never).delete().in('session_id' as never, sessionIds);
   await admin.from('session_bookings').delete().in('application_id', applicationIds);
   // This suite's updates to sessions.status/start_time/end_time also fire
   // the pre-existing sessions_change_detection trigger
@@ -144,12 +149,13 @@ describe('session cancellation syncs bookings and queues notifications', () => {
     expect(booking?.cancelled_at).not.toBeNull();
 
     const { data: outboxRows } = await admin
-      .from('session_notification_outbox')
+      .from('session_notification_outbox' as never)
       .select('notification_type, booking_id')
-      .eq('session_id', sessionId);
-    expect(outboxRows).toHaveLength(1);
-    expect(outboxRows?.[0].notification_type).toBe('session_cancelled');
-    expect(outboxRows?.[0].booking_id).toBe(bookingId);
+      .eq('session_id' as never, sessionId);
+    const rows = (outboxRows ?? []) as { notification_type: string; booking_id: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].notification_type).toBe('session_cancelled');
+    expect(rows[0].booking_id).toBe(bookingId);
   });
 
   it('queues one outbox row per booking when multiple participants booked the same session', async () => {
@@ -162,11 +168,12 @@ describe('session cancellation syncs bookings and queues notifications', () => {
     await admin.from('sessions').update({ status: 'cancelled', cancellation_reason: 'test' }).eq('id', sessionId);
 
     const { data: outboxRows } = await admin
-      .from('session_notification_outbox')
+      .from('session_notification_outbox' as never)
       .select('booking_id')
-      .eq('session_id', sessionId);
-    expect(outboxRows).toHaveLength(2);
-    const bookingIds = (outboxRows ?? []).map((r) => r.booking_id).sort();
+      .eq('session_id' as never, sessionId);
+    const rows = (outboxRows ?? []) as { booking_id: string }[];
+    expect(rows).toHaveLength(2);
+    const bookingIds = rows.map((r) => r.booking_id).sort();
     expect(bookingIds).toEqual([bookingA, bookingB].sort());
   });
 
@@ -175,7 +182,10 @@ describe('session cancellation syncs bookings and queues notifications', () => {
 
     await admin.from('sessions').update({ status: 'cancelled', cancellation_reason: 'test' }).eq('id', sessionId);
 
-    const { data: outboxRows } = await admin.from('session_notification_outbox').select('id').eq('session_id', sessionId);
+    const { data: outboxRows } = await admin
+      .from('session_notification_outbox' as never)
+      .select('id')
+      .eq('session_id' as never, sessionId);
     expect(outboxRows).toHaveLength(0);
   });
 
@@ -209,12 +219,13 @@ describe('session reschedule leaves bookings active and queues notifications', (
     expect(booking?.status).toBe('active');
 
     const { data: outboxRows } = await admin
-      .from('session_notification_outbox')
+      .from('session_notification_outbox' as never)
       .select('notification_type, old_start_time, new_start_time')
-      .eq('session_id', sessionId);
-    expect(outboxRows).toHaveLength(1);
-    expect(outboxRows?.[0].notification_type).toBe('session_rescheduled');
-    expect(new Date(outboxRows![0].new_start_time!).toISOString()).toBe(new Date(newStart).toISOString());
+      .eq('session_id' as never, sessionId);
+    const rows = (outboxRows ?? []) as { notification_type: string; old_start_time: string | null; new_start_time: string | null }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].notification_type).toBe('session_rescheduled');
+    expect(new Date(rows[0].new_start_time!).toISOString()).toBe(new Date(newStart).toISOString());
   });
 
   it('queues zero outbox rows when only room_id changes (no time change)', async () => {
@@ -227,7 +238,10 @@ describe('session reschedule leaves bookings active and queues notifications', (
 
     await admin.from('sessions').update({ room_id: newRoom!.id }).eq('id', sessionId);
 
-    const { data: outboxRows } = await admin.from('session_notification_outbox').select('id').eq('session_id', sessionId);
+    const { data: outboxRows } = await admin
+      .from('session_notification_outbox' as never)
+      .select('id')
+      .eq('session_id' as never, sessionId);
     expect(outboxRows).toHaveLength(0);
   });
 });
