@@ -208,8 +208,9 @@ import type { Database } from '@/types/database';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-if (!URL || !SERVICE_KEY) {
-  throw new Error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set to run this live test');
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+if (!URL || !SERVICE_KEY || !ANON_KEY) {
+  throw new Error('NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set to run this live test');
 }
 const admin = createClient<Database>(URL, SERVICE_KEY);
 
@@ -396,36 +397,33 @@ describe('session_allocation_confirmed_counts()', () => {
     const sessionId = await seedSession('agg-count-session');
     await insertAllocationAssignment(applicationId, sessionId, 'confirmed');
 
-    // Called with the anon/authenticated-level client semantics via admin here
-    // (service role bypasses RLS, but the function's own grant is to
-    // `authenticated`, not `service_role` -- this call proves the function
-    // executes correctly; the grant itself is checked by Step 2 below via a
-    // direct SQL introspection query, since simulating a real participant
-    // JWT session in this test file's existing fixture style is out of
-    // scope for this plan).
     const { data, error } = await admin.rpc('session_allocation_confirmed_counts');
     expect(error).toBeNull();
     const row = (data ?? []).find((r: { session_id: string; confirmed_count: number }) => r.session_id === sessionId);
     expect(row?.confirmed_count).toBe(1);
   });
 
-  it('is granted to the authenticated role (not just service_role)', async () => {
-    const { data, error } = await admin.rpc('pg_catalog.has_function_privilege' as never, {
-      role: 'authenticated',
-      function_signature: 'session_allocation_confirmed_counts()',
-      privilege_type: 'EXECUTE',
-    } as never).single();
-    // has_function_privilege may not be directly callable as an RPC depending on
-    // PostgREST exposure; if this call itself errors (function not exposed),
-    // fall back to asserting indirectly: the function must at least be
-    // callable by the service-role client above (already proven in the
-    // previous test), and the grant statement in the migration is the
-    // authoritative source -- this test is a best-effort direct check.
-    if (error) {
-      expect(error.message).toBeDefined(); // documents that direct introspection wasn't possible in this environment
-    } else {
-      expect(data).toBe(true);
-    }
+  it('is callable by a real participant session (authenticated grant works end-to-end, not just via service_role)', async () => {
+    // A real sign-in, not the service-role client -- proves the function's
+    // `grant execute ... to authenticated` actually works for a genuine
+    // participant JWT, which is the only thing that matters (an
+    // introspection query against pg_catalog would only prove the grant
+    // statement ran, not that PostgREST/RLS actually honors it end-to-end).
+    // Follows the exact sign-in pattern established in
+    // tests/allocation/authorization.test.ts.
+    const applicationId = await seedAcceptedApplicant('grant-check');
+    const sessionId = await seedSession('grant-check-session');
+    await insertAllocationAssignment(applicationId, sessionId, 'confirmed');
+
+    const email = `booking-alloc-conflict-live-${runId}-grant-check@test.local`;
+    const participantClient = createClient<Database>(URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    const { error: signInError } = await participantClient.auth.signInWithPassword({ email, password: 'password123' });
+    expect(signInError).toBeNull();
+
+    const { data, error } = await participantClient.rpc('session_allocation_confirmed_counts');
+    expect(error).toBeNull();
+    const row = (data ?? []).find((r: { session_id: string; confirmed_count: number }) => r.session_id === sessionId);
+    expect(row?.confirmed_count).toBe(1);
   });
 });
 ```
@@ -433,7 +431,7 @@ describe('session_allocation_confirmed_counts()', () => {
 - [ ] **Step 2: Run the tests**
 
 Run: `npx vitest run tests/agenda/booking-allocation-conflict-live.test.ts`
-Expected: all tests pass. If the last test (grant introspection) can't call `has_function_privilege` via PostgREST RPC (likely, since it's not a function defined in this schema), that's fine per the test's own documented fallback — it shouldn't hard-fail the suite. If it does hard-fail in a way the fallback doesn't catch, simplify that one test to just assert the migration file's `grant execute ... to authenticated;` line exists via a `grep`-based assertion instead of a live introspection query (open-ended: use judgment here, the substantive behavior is already covered by the first test in this describe block).
+Expected: all 7 tests pass (4 in the first `describe`, 3 in the second — the second `describe`'s last test signs in as a real participant via `NEXT_PUBLIC_SUPABASE_ANON_KEY` + `signInWithPassword`, confirm this env var is present in this worktree's `.env.local`; it's the same anon key used throughout the existing test suite, e.g. `tests/allocation/authorization.test.ts`, so it should already be set).
 
 - [ ] **Step 3: Self-review**
 
