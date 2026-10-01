@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
 const PAGE_SIZE = 50;
 
@@ -211,9 +212,9 @@ export default async function SessionsListPage({
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-charcoal/60 dark:text-gray-400">
                   <span>{session.conference_day?.label_en}</span>
                   <span>
-                    {new Date(session.start_time).toLocaleTimeString('en-US', { timeZone: 'Asia/Muscat', hour: '2-digit', minute: '2-digit' })}
+                    {formatConferenceTime(session.start_time, 'en')}
                     –
-                    {new Date(session.end_time).toLocaleTimeString('en-US', { timeZone: 'Asia/Muscat', hour: '2-digit', minute: '2-digit' })}
+                    {formatConferenceTime(session.end_time, 'en')}
                   </span>
                   <span>{session.track?.name_en}</span>
                   <span>{session.room?.name_en}</span>
@@ -247,9 +248,9 @@ export default async function SessionsListPage({
                     <td className="px-4 py-2 text-charcoal dark:text-gray-100">{session.title_en}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.conference_day?.label_en}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
-                      {new Date(session.start_time).toLocaleTimeString('en-US', { timeZone: 'Asia/Muscat', hour: '2-digit', minute: '2-digit' })}
+                      {formatConferenceTime(session.start_time, 'en')}
                       –
-                      {new Date(session.end_time).toLocaleTimeString('en-US', { timeZone: 'Asia/Muscat', hour: '2-digit', minute: '2-digit' })}
+                      {formatConferenceTime(session.end_time, 'en')}
                     </td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.track?.name_en}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.room?.name_en}</td>

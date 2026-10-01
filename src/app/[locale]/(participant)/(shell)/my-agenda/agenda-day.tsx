@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { CancelButton } from './booking-button';
+import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
 type Session = {
   id: string;
@@ -53,19 +54,9 @@ export function AgendaDay({ date: _date, label, bookings, locale }: Props) {
             : new Date(new Date(s.start_time).getTime() - 3 * 60 * 60 * 1000);
           const isPastDeadline = now > deadline;
 
-          const start = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-            timeZone: 'Asia/Istanbul',
-          }).format(new Date(s.start_time));
+          const start = formatConferenceTime(s.start_time, locale === 'ar' ? 'ar' : 'en');
 
-          const end = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-            timeZone: 'Asia/Istanbul',
-          }).format(new Date(s.end_time));
+          const end = formatConferenceTime(s.end_time, locale === 'ar' ? 'ar' : 'en');
 
           const title = locale === 'ar' ? s.title_ar : s.title_en;
           const room = s.rooms

@@ -30,6 +30,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Reveal } from '@/components/motion/reveal';
 import { Blob } from '@/components/motion/blob';
 import { Parallax } from '@/components/motion/parallax';
+import { formatConferenceTime, formatConferenceDate } from '@/lib/datetime/conference-time';
 
 type PublicSession = {
   id: string;
@@ -56,10 +57,9 @@ export default async function AgendaPage() {
 
   const sessions: PublicSession[] = error ? [] : ((data ?? []) as unknown as PublicSession[]);
 
-  const formatDay = (iso: string) =>
-    new Date(iso).toLocaleDateString(locale === 'ar' ? 'ar' : 'en-US', { timeZone: 'Asia/Muscat', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString('en-US', { timeZone: 'Asia/Muscat', hour: '2-digit', minute: '2-digit', hour12: false });
+  const resolvedLocale = locale === 'ar' ? 'ar' : 'en';
+  const formatDay = (iso: string) => formatConferenceDate(iso, resolvedLocale);
+  const formatTime = (iso: string) => formatConferenceTime(iso, resolvedLocale, { hour12: false });
 
   const sessionsByDay = new Map<string, PublicSession[]>();
   for (const session of sessions) {

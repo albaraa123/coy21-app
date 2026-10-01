@@ -36,7 +36,7 @@ type PublicationItem = {
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Muscat' });
+  return new Date(value).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' });
 }
 
 // This view is read-only: it only ever reads `publications` and `items`

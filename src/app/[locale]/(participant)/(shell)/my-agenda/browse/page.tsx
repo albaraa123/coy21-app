@@ -4,6 +4,7 @@ import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { BookButton } from '../booking-button';
+import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
 export default async function BrowseSessionsPage() {
   const locale = await getLocale();
@@ -108,12 +109,8 @@ export default async function BrowseSessionsPage() {
             const track = s.tracks ? (locale === 'ar' ? s.tracks.name_ar : s.tracks.name_en) : '';
             const trackColor = s.tracks?.color ?? '#6b7280';
 
-            const start = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en-US', {
-              hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Istanbul',
-            }).format(new Date(s.start_time));
-            const end = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en-US', {
-              hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Istanbul',
-            }).format(new Date(s.end_time));
+            const start = formatConferenceTime(s.start_time, locale === 'ar' ? 'ar' : 'en');
+            const end = formatConferenceTime(s.end_time, locale === 'ar' ? 'ar' : 'en');
 
             return (
               <Card key={s.id} className="flex flex-row items-start gap-3 py-3">

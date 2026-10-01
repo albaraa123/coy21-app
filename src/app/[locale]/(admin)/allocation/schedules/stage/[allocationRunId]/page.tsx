@@ -64,7 +64,7 @@ export default async function StagePublicationPage({
         <h1 className="text-lg font-semibold text-charcoal dark:text-gray-100">{t('title', { id: run.id })}</h1>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-charcoal/70 dark:text-gray-400">
           <span>{t('runStatus', { status: run.status })}</span>
-          <span>{t('runAt', { runAt: new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Asia/Muscat' }) })}</span>
+          <span>{t('runAt', { runAt: new Date(run.run_at).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }) })}</span>
         </div>
         <Link href="/allocation/schedules" className="mt-2 inline-block text-sm text-turquoise hover:underline">
           {t('backToOverview')}

@@ -121,7 +121,7 @@ export function TravelForm({ initialLegs }: Props) {
               )}
               {leg.arrival_datetime && (
                 <p className="text-xs text-charcoal/50 dark:text-gray-500">
-                  Arrives: {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Istanbul' }).format(new Date(leg.arrival_datetime))}
+                  Arrives: {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' }).format(new Date(leg.arrival_datetime))}
                 </p>
               )}
             </div>
