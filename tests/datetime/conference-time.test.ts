@@ -24,10 +24,20 @@ describe('conference-time', () => {
     expect(result).toBe('12:30');
   });
 
+  it('formatConferenceTime renders the Istanbul-local wall-clock time (ar)', () => {
+    const result = formatConferenceTime('2026-11-05T09:30:00Z', 'ar');
+    expect(result).toBe('12:30 م');
+  });
+
   it('formatConferenceDate renders the Istanbul-local calendar date (en)', () => {
     // 2026-11-05T22:00:00Z -> Istanbul = 2026-11-06T01:00 -> next calendar day
     const result = formatConferenceDate('2026-11-05T22:00:00Z', 'en');
     expect(result).toContain('November 6, 2026');
+  });
+
+  it('formatConferenceDate renders the Istanbul-local calendar date (ar)', () => {
+    const result = formatConferenceDate('2026-11-05T22:00:00Z', 'ar');
+    expect(result).toBe('الجمعة، 6 نوفمبر 2026');
   });
 
   it('isoToConferenceLocalInputValue converts a UTC instant to the Istanbul wall-clock datetime-local string', () => {
