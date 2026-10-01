@@ -139,20 +139,36 @@ begin
   if new.status = 'cancelled' and old.status is distinct from 'cancelled' then
     -- Session was just cancelled: mark every active booking as
     -- session_cancelled (distinct from participant-voluntary 'cancelled')
-    -- and queue one notification per affected booking.
-    update session_bookings
-    set status = 'session_cancelled', cancelled_at = now()
-    where session_id = new.id and status = 'active';
-
+    -- and queue one notification per affected booking. Uses a writable CTE
+    -- (UPDATE ... RETURNING feeding INSERT ... SELECT) to capture exactly
+    -- the rows this statement updated, rather than a second lookup query
+    -- that would need some other way to identify "the rows I just
+    -- touched" (e.g. re-matching on cancelled_at = now() -- correct since
+    -- now() is stable within one statement/transaction, but an indirect,
+    -- easier-to-get-wrong way to express the same thing; the CTE form
+    -- below is the one to actually implement, not an alternative to
+    -- consider).
+    with just_cancelled as (
+      update session_bookings
+      set status = 'session_cancelled', cancelled_at = now()
+      where session_id = new.id and status = 'active'
+      returning id, application_id, session_id
+    )
     insert into session_notification_outbox (booking_id, application_id, session_id, notification_type)
-    select id, application_id, session_id, 'session_cancelled'
-    from session_bookings
-    where session_id = new.id and status = 'session_cancelled' and cancelled_at = now();
+    select id, application_id, session_id, 'session_cancelled' from just_cancelled;
 
   elsif (new.start_time is distinct from old.start_time or new.end_time is distinct from old.end_time)
         and new.status <> 'cancelled' then
     -- Session's time changed (not a cancellation): bookings stay valid,
-    -- queue one reschedule notification per active booking.
+    -- queue one reschedule notification per active booking. This SELECT
+    -- reads session_bookings without locking it (only the sessions row is
+    -- locked for this UPDATE's duration) -- a concurrent book_session()
+    -- landing a new active booking right now is correctly swept up (it's
+    -- genuinely active at commit), and a concurrent cancel_booking() takes
+    -- its own row-level FOR UPDATE lock on that specific booking, so the
+    -- worst case is a benign notification-timing race (an extra reschedule
+    -- email for a booking cancelled a moment later), never incorrect
+    -- session_bookings state.
     insert into session_notification_outbox (booking_id, application_id, session_id, notification_type, old_start_time, new_start_time)
     select id, application_id, session_id, 'session_rescheduled', old.start_time, new.start_time
     from session_bookings
@@ -217,22 +233,6 @@ $$;
 
 grant execute on function cancel_booking(uuid, uuid) to authenticated;
 ```
-
-**Important implementation note on the cancellation branch's outbox insert:** the `where ... and cancelled_at = now()` filter in the `insert into session_notification_outbox` select is fragile — two separate `now()` calls within the same statement/transaction return the same value in Postgres (it's stable per-transaction), so this works, but it's an indirect way to "select the rows I just updated." A cleaner, more robust alternative the implementer should consider and likely switch to: use a CTE that captures the updated rows directly —
-
-```sql
-  if new.status = 'cancelled' and old.status is distinct from 'cancelled' then
-    with just_cancelled as (
-      update session_bookings
-      set status = 'session_cancelled', cancelled_at = now()
-      where session_id = new.id and status = 'active'
-      returning id, application_id, session_id
-    )
-    insert into session_notification_outbox (booking_id, application_id, session_id, notification_type)
-    select id, application_id, session_id, 'session_cancelled' from just_cancelled;
-```
-
-This `UPDATE ... RETURNING` CTE pattern is strictly more correct (no reliance on timestamp equality across two statements) and should be preferred. Use this version in the actual migration file, not the `cancelled_at = now()` filter version shown in the main code block above (which is included only to explain the problem being solved).
 
 - [ ] **Step 2: Apply the migration**
 
@@ -714,7 +714,7 @@ Leave the existing `cancelled` `Set`/`visible` filter mechanism (lines 35-37) un
 - [ ] **Step 3: Typecheck**
 
 Run: `npx tsc --noEmit`
-Expected: no new errors.
+Expected: no new errors. Note: `page.tsx`'s query result flows through as an implicitly-`any`-typed value before reaching `agenda-day.tsx` (confirmed existing pattern — see its `groupByDay(bookings: any[])` and the `@typescript-eslint/no-explicit-any` suppressions already in that file), so a clean typecheck here is weak evidence that `status` was actually added to the Step 1 select list — it would stay silent even if that column were missing from the query. Manually re-read Step 1's diff to confirm `status` is genuinely present in the `.select(...)` string, rather than relying on this typecheck alone to catch that mistake.
 
 - [ ] **Step 4: Manual verification**
 
