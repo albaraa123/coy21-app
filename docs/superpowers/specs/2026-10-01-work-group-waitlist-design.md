@@ -6,7 +6,7 @@
 
 The original project request calls for "سعة مجموعات العمل (work-group capacity) وإغلاق الحجز عند الامتلاء" — work-group capacity and automatic booking closure when full. Investigation found that "work-group" is not a concept that exists anywhere in the codebase today: it is only the name of this sub-project in the roadmap. `session_types` is a generic, admin-managed lookup table (`code`, `name_ar`, `name_en`, `is_active`) with no reserved codes and no type-specific behavior anywhere in the code.
 
-The generic capacity-closure behavior already exists and applies uniformly to every session type: `book_session()` rejects booking past capacity with `'Session is full'`, and `/my-agenda/browse` already shows a "Full" badge and hides the booking button once a session's effective occupied count (`session_bookings` + confirmed `allocation_assignments`, via `session_effective_occupied_count()`) reaches its `capacity`. No changes are needed to reproduce that baseline behavior for work-group sessions — a work-group is simply a session with a small `capacity` value.
+The generic capacity-closure behavior already exists and applies uniformly to every session type: `book_session()` rejects booking past capacity with `'Session is full'`, using the server-side `session_effective_occupied_count()` function (`session_bookings` + confirmed `allocation_assignments`). Separately, `/my-agenda/browse` (`src/app/[locale]/(participant)/(shell)/my-agenda/browse/page.tsx`) already shows a "Full" badge and hides the booking button once the session's booked count reaches `capacity` — but it computes this client-side by re-deriving the same count itself (one query counting active `session_bookings` rows, plus the `session_allocation_confirmed_counts()` RPC for confirmed allocations, merged into a page-local `countMap`; `isFull = bookedCount >= s.capacity`), **not** by calling `session_effective_occupied_count()` directly — that SQL function has no RLS/grant path reachable from the page today; it's only invoked from inside `book_session()`'s own SECURITY DEFINER context. The two code paths compute the same number via parallel logic, which is how 4b guaranteed the displayed count never drifts from what the RPC enforces. No changes are needed to reproduce that baseline behavior for work-group sessions — a work-group is simply a session with a small `capacity` value.
 
 What's actually missing, confirmed through brainstorming with the user, is a **waitlist**: when a work-group session is full, participants should be able to join a waitlist instead of being turned away, and be promoted automatically and immediately when a seat opens up.
 
@@ -23,6 +23,8 @@ All decisions below were confirmed with the user during brainstorming (each is t
 7. **Cross-waitlist cleanup on promotion**: if the promoted participant was also waitlisted for any other session whose time range overlaps the one they were just promoted into, those other waitlist entries are automatically withdrawn — they can no longer be promoted into something that would now conflict with their new booking.
 8. **Email notification on promotion**, via the same outbox + cron pattern introduced in 4c (`session_notification_outbox` + `process-session-notifications` cron), not a new delivery mechanism.
 9. **Manual withdrawal** is supported — a participant can leave a waitlist voluntarily before being promoted, mirroring the existing cancel-booking UX pattern.
+10. **No visible queue position.** The UI shows only "On waitlist" / "In the waitlist" text, never a rank or ETA (e.g., not "you are #3"). Simpler to build and avoids a number that becomes misleading the moment someone else withdraws or is skipped for a conflict.
+11. **No special handling if staff disable `enable_waitlist` on a session type after people have already joined.** Those entries simply stay `'waiting'` with no promotion path (since `cancel_booking()`'s promotion step re-checks the live flag), but manual withdrawal (decision #9) remains available to them at any time. Accepted as a rare edge case not worth a dedicated auto-withdrawal mechanism.
 
 ## Data Model
 
@@ -62,7 +64,11 @@ create index session_waitlist_session_fifo_idx
 
 `waitlist_status` is a dedicated enum, not a reuse of `booking_status` — "waiting / promoted / withdrawn" has no semantic overlap with booking's `active / cancelled / session_cancelled`, and conflating them would make both harder to reason about.
 
-RLS: participants can `SELECT` their own rows only (via `applications.applicant_id = auth.uid()` join, matching the `session_bookings` pattern); staff (`registration_admission_manager`, `super_admin`) get full access. **No direct INSERT/UPDATE/DELETE policy for anyone** — all writes go through the two SECURITY DEFINER RPCs below, matching the `session_bookings` convention exactly.
+`updated_at` follows this repo's universal per-table convention (every table has one) and gets the same `moddatetime`-style auto-touch trigger `session_bookings` and other tables already use; no RPC needs to set it explicitly.
+
+RLS: participants can `SELECT` their own rows only (via `applications.applicant_id = auth.uid()` join, matching the `session_bookings` pattern); staff (`registration_admission_manager`, `super_admin`) get full access. **No direct INSERT/UPDATE/DELETE policy for anyone** — all writes go through the two SECURITY DEFINER RPCs below, matching the `session_bookings` convention exactly. This is a *different* RLS philosophy from 4c's `session_notification_outbox`, which has zero policies and relies entirely on this repo's GRANT-discipline convention (no table is ever granted to `authenticated`/`anon` unless a traced code path needs it) — `session_waitlist` needs real participant-facing SELECT policies because, unlike the outbox, participants legitimately read their own rows directly from the client (to render "On waitlist" state), so RLS does real access-control work here, not just a redundant second layer.
+
+**FIFO-under-concurrency guarantee:** `join_waitlist`'s session-row `for update` lock (step 2 below) serializes all concurrent joins for the same session through that lock, so `joined_at` ordering is guaranteed to reflect true commit order with no sub-second tie-break ambiguity — two participants racing to join the same session's waitlist cannot get out-of-order `joined_at` values relative to each other.
 
 ### `session_notification_type` extension
 
@@ -128,7 +134,8 @@ if v_session_enable_waitlist then
 
     -- Promote this candidate.
     insert into session_bookings (application_id, session_id)
-    values (v_candidate.application_id, v_booking.session_id);
+    values (v_candidate.application_id, v_booking.session_id)
+    returning id into v_new_booking_id;
 
     update session_waitlist
     set status = 'promoted', promoted_at = now()
@@ -145,14 +152,14 @@ if v_session_enable_waitlist then
       and tstzrange(s2.start_time, s2.end_time, '[)') && tstzrange(v_session.start_time, v_session.end_time, '[)');
 
     insert into session_notification_outbox (booking_id, application_id, session_id, notification_type)
-    values (<new booking id>, v_candidate.application_id, v_booking.session_id, 'waitlist_promoted');
+    values (v_new_booking_id, v_candidate.application_id, v_booking.session_id, 'waitlist_promoted');
 
     exit promotion; -- only one promotion per vacated seat
   end loop;
 end if;
 ```
 
-(Pseudocode above; exact PL/pgSQL — including capturing the new booking's id via `returning ... into` — will be finalized in the implementation plan.) Only one seat was vacated, so at most one promotion happens per `cancel_booking()` call — no loop-until-full behavior, which keeps this a straightforward extension of a single cancellation rather than a general backfill job.
+(Pseudocode above; `v_new_booking_id uuid` is an additional local variable the final PL/pgSQL declares alongside the function's existing `v_booking`/etc.) Only one seat was vacated, so at most one promotion happens per `cancel_booking()` call — no loop-until-full behavior, which keeps this a straightforward extension of a single cancellation rather than a general backfill job. If every candidate in the loop is skipped for a time conflict, the loop ends naturally without ever reaching `exit promotion`: zero rows are promoted, the vacated seat simply stays empty, and every skipped waitlist entry is left untouched in `'waiting'` (eligible for the next vacancy).
 
 ## Email Notification
 
@@ -164,7 +171,7 @@ The existing `process-session-notifications` cron (`src/app/api/cron/process-ses
 
 ### `/my-agenda/browse`
 
-- The query backing this page must start selecting `session_types.enable_waitlist` (currently the page doesn't join `session_types` at all — confirmed by investigation) and must also fetch the signed-in participant's own `session_waitlist` rows for the visible sessions.
+- The query backing this page must start selecting `session_types.enable_waitlist` (currently the page doesn't join `session_types` at all — confirmed by investigation) and must also fetch the signed-in participant's own `session_waitlist` rows for the visible sessions. `isFull` stays computed exactly as it is today (the page-local `countMap`, built from the active-`session_bookings` count query plus the `session_allocation_confirmed_counts()` RPC) — the waitlist feature reads this existing boolean, it does not introduce a new count source or call `session_effective_occupied_count()` from the page.
 - When a session `isFull` **and** its type has `enable_waitlist = true`:
   - If the participant has no `'waiting'` row for it: show a "Join waitlist" button (calls `join_waitlist`) in place of the current hidden/disabled state.
   - If the participant already has a `'waiting'` row for it: show "On waitlist" text with a "Leave waitlist" action (calls `leave_waitlist`), mirroring the existing "Booked ✓" pattern.
@@ -184,6 +191,7 @@ Live integration tests (matching 4c's bar — real seeded sessions/rooms/applica
 2. `join_waitlist` rejects when the session is not full (participant should book normally).
 3. `join_waitlist` rejects when the session's type does not have `enable_waitlist = true`.
 4. `join_waitlist` rejects a duplicate join (already has a `'waiting'` row for this session).
+4b. `join_waitlist` rejects when the caller already holds an active booking for the same session (distinct from the duplicate-waitlist-join case above).
 5. `leave_waitlist` succeeds and marks the row `'withdrawn'`.
 6. `leave_waitlist` rejects when the caller has no `'waiting'` row for that session.
 7. Promotion happens in FIFO order (earliest `joined_at` wins) when a seat frees up via `cancel_booking`.
@@ -192,6 +200,8 @@ Live integration tests (matching 4c's bar — real seeded sessions/rooms/applica
 10. Promotion inserts exactly one `session_notification_outbox` row with `notification_type = 'waitlist_promoted'`.
 11. Staff-initiated session cancellation (the 4c path, producing `session_cancelled` bookings) does **not** trigger any promotion — confirms scope decision #5 holds and the two cancellation paths stay properly isolated.
 12. A participant can hold waitlist entries on two time-overlapping sessions simultaneously without error (confirms scope decision #4 — no conflict check at join time).
+13. When every candidate in the waitlist has a time conflict, the vacated seat stays unfilled (zero promotions) and every skipped entry remains `'waiting'`, untouched, for the next vacancy.
+14. RLS: a participant cannot `SELECT` another participant's `session_waitlist` row, and cannot write to `session_waitlist` directly (bypassing `join_waitlist`/`leave_waitlist`) — mirrors the existing RLS test coverage pattern for `session_bookings`.
 
 ## Out of Scope
 
