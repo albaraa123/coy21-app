@@ -290,6 +290,9 @@ begin
   if v_session.id is null then
     raise exception 'Session not found';
   end if;
+  if v_session.status not in ('published', 'confirmed') then
+    raise exception 'Session is not open for booking';
+  end if;
 
   select st.enable_waitlist into v_enable_waitlist
   from session_types st where st.id = v_session.session_type_id;
@@ -384,6 +387,12 @@ describe('join_waitlist', () => {
     // one applicant who books the single seat, a second applicant who
     // joins the waitlist -- assert the RPC returns a waitlist row id and
     // the row exists with status = 'waiting'
+  });
+
+  it('rejects when the session is not published/confirmed (e.g. draft)', async () => {
+    // seed a waitlist-enabled, full, but still-draft session -- join_waitlist
+    // should raise 'Session is not open for booking', same message/condition
+    // as book_session's own status check
   });
 
   it('rejects when the session is not full', async () => {
@@ -719,9 +728,9 @@ if (row.notification_type === 'session_cancelled') {
 
 Replace the existing ternary assignment (`const result = row.notification_type === 'session_cancelled' ? ... : ...;`) with this `let`-based block in the same position in the loop.
 
-- [ ] **Step 6: Extend Task 4's live test with a cron-processing assertion**
+- [ ] **Step 6: Skip — already covered**
 
-Add one test to `tests/agenda/work-group-waitlist-live.test.ts` (or a new focused test) that: triggers a promotion via `cancel_booking`, confirms a `pending` outbox row with `notification_type = 'waitlist_promoted'` exists (this is really just re-confirming Task 4's existing "inserts exactly one outbox row" test from the cron's read-side perspective — skip this step if Task 4's test already covers it adequately; use judgment here rather than adding a redundant test).
+No new test needed here. Task 4's "inserts exactly one `waitlist_promoted` outbox row" test already fully covers the cron's read-side precondition (a `pending` row with the right `notification_type` existing after a promotion). Adding another one in this task would be a redundant duplicate, not new coverage.
 
 - [ ] **Step 7: Typecheck and lint**
 
@@ -953,7 +962,7 @@ Expected: all tests PASS.
 
 - [ ] **Step 3: Full relevant-suite run**
 
-Run: `npx vitest run tests/agenda tests/email tests/booking` (mirrors 4c's Task 7 scope) and confirm no regressions in adjacent suites, especially `tests/agenda/booking-allocation-conflict-live.test.ts` and `tests/agenda/session-lifecycle-notifications-live.test.ts` (confirm `cancel_booking`'s promotion addition didn't change its existing already-cancelled/deadline-passed rejection behavior).
+Run: `npx vitest run tests/agenda tests/email tests/booking` (mirrors 4c's Task 7 scope) as a general "nothing else in the shared schema broke" sweep. Pay particular attention to `tests/agenda/session-lifecycle-notifications-live.test.ts` specifically — it directly exercises `cancel_booking()` (including its already-cancelled rejection check, in the "rejects an attempt to cancel an already-session_cancelled booking" test), so it's the one existing suite that can actually catch a regression in the non-promotion path Task 4 preserved. (`booking-allocation-conflict-live.test.ts` only exercises `book_session()`, which Task 4 never touches — running it is still worthwhile as part of the general sweep, but it proves nothing about `cancel_booking`'s promotion addition specifically.)
 
 - [ ] **Step 4: Full typecheck and lint**
 

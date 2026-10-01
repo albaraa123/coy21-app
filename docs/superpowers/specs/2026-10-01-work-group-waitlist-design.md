@@ -25,6 +25,7 @@ All decisions below were confirmed with the user during brainstorming (each is t
 9. **Manual withdrawal** is supported — a participant can leave a waitlist voluntarily before being promoted, mirroring the existing cancel-booking UX pattern.
 10. **No visible queue position.** The UI shows only "On waitlist" / "In the waitlist" text, never a rank or ETA (e.g., not "you are #3"). Simpler to build and avoids a number that becomes misleading the moment someone else withdraws or is skipped for a conflict.
 11. **No special handling if staff disable `enable_waitlist` on a session type after people have already joined.** Those entries simply stay `'waiting'` with no promotion path (since `cancel_booking()`'s promotion step re-checks the live flag), but manual withdrawal (decision #9) remains available to them at any time. Accepted as a rare edge case not worth a dedicated auto-withdrawal mechanism.
+12. **`join_waitlist` rejects a session that is not `published`/`confirmed`**, mirroring `book_session()`'s own status check exactly (`raise exception 'Session is not open for booking'` when `status not in ('published', 'confirmed')`). Found as a gap during plan review — the original RPC design below omitted this despite being "modeled directly on `book_session()`'s structure" — and confirmed with the user: a `draft`/`cancelled` session should never accumulate waitlist entries that can never be promoted.
 
 ## Data Model
 
@@ -86,11 +87,12 @@ New SECURITY DEFINER RPC, modeled directly on `book_session()`'s structure:
 
 1. Authorization: caller must own `p_application_id` (same `auth.uid()` check as `book_session`).
 2. Lock the session row (`for update`), same as `book_session`, to avoid racing a concurrent capacity change.
-3. Reject if the session's type does not have `enable_waitlist = true` — the error message should make clear this session doesn't support waitlisting (distinct from "full").
-4. Reject if the session is **not** actually full (`session_effective_occupied_count(p_session_id) < capacity`) — a participant should book normally, not waitlist, while seats remain. This keeps `join_waitlist` from becoming a backdoor around capacity.
-5. Reject if the booking deadline has passed (same `booking_deadline` / `start_time - interval '3 hours'` fallback logic as `book_session`).
-6. Reject if the participant already holds an active booking for this exact session (no reason to waitlist for something you're already in).
-7. Insert into `session_waitlist` with `status = 'waiting'`. The partial unique index makes a duplicate join for the same session a clean constraint violation, which the RPC should catch and turn into a clear "already on the waitlist" exception (mirroring how `cancel_booking` turns an already-cancelled booking into a clear exception rather than a raw constraint error).
+3. Reject if the session is not `published`/`confirmed` (same `status not in ('published', 'confirmed')` check as `book_session`, same `'Session is not open for booking'` message) — a `draft`/`cancelled` session should never accumulate waitlist entries that can never be promoted (scope decision #12).
+4. Reject if the session's type does not have `enable_waitlist = true` — the error message should make clear this session doesn't support waitlisting (distinct from "full").
+5. Reject if the session is **not** actually full (`session_effective_occupied_count(p_session_id) < capacity`) — a participant should book normally, not waitlist, while seats remain. This keeps `join_waitlist` from becoming a backdoor around capacity.
+6. Reject if the booking deadline has passed (same `booking_deadline` / `start_time - interval '3 hours'` fallback logic as `book_session`).
+7. Reject if the participant already holds an active booking for this exact session (no reason to waitlist for something you're already in).
+8. Insert into `session_waitlist` with `status = 'waiting'`. The partial unique index makes a duplicate join for the same session a clean constraint violation, which the RPC should catch and turn into a clear "already on the waitlist" exception (mirroring how `cancel_booking` turns an already-cancelled booking into a clear exception rather than a raw constraint error).
 
 Deliberately **not** checked at join time: time conflicts with other bookings/waitlist entries. Per scope decision #4, conflict checking is deferred to promotion time.
 
