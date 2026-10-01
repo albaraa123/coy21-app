@@ -6,7 +6,7 @@
 
 The conference is in Antalya, Türkiye (5–7 Nov 2026). All conference-time display in the app should show Turkey local time. Instead, the codebase has two inconsistent, both-wrong hardcoded timezones in active use:
 
-- **`'Asia/Muscat'`** — used in 21 application files plus one DB trigger. Muscat is a fixed UTC+4 offset, no DST.
+- **`'Asia/Muscat'`** — used in 17 application files plus one DB trigger. Muscat is a fixed UTC+4 offset, no DST.
 - **`'Asia/Istanbul'`** — used in 4 newer, participant-facing files (`my-agenda/browse`, `my-agenda/agenda-day`, `arrivals/page.tsx`, `travel-form.tsx`). **This is not a valid IANA timezone identifier.** `Intl.DateTimeFormat`/`toLocaleString` throw `RangeError: Invalid time zone specified: Asia/Istanbul` when given it — meaning these screens are likely crashing for real users today, not just showing a wrong time.
 - The session-reminder cron email (`src/app/api/cron/session-reminders/route.ts`) formats the session start time with **no `timeZone` option at all**, so it renders in whatever zone the server process happens to run in (UTC on Vercel) — a different bug class (missing, not wrong).
 - The correct identifier, `'Europe/Istanbul'`, appears exactly once in the entire `src/` tree, as a label string in `en.json` — never actually passed to any formatting call.
@@ -24,7 +24,7 @@ All relevant timestamp columns (`sessions.start_time/end_time`, `session_booking
 New file: `src/lib/datetime/conference-time.ts`. Exports:
 
 - `CONFERENCE_TIMEZONE_OFFSET_MS` = `3 * 60 * 60 * 1000` (UTC+3, fixed, no DST) — with a one-line comment explaining why a constant offset is correct for Turkey and referencing this spec if the offset ever needs revisiting (e.g., if Turkey were to reintroduce DST).
-- `formatConferenceTime(iso: string, locale: 'ar' | 'en'): string` — replaces every inline `Intl.DateTimeFormat(..., { timeZone: 'Asia/Muscat' | 'Asia/Istanbul' })` display call site. Same formatting options as the current call sites (`hour: 'numeric', minute: '2-digit', hour12: true`), just centralized and using the correct zone.
+- `formatConferenceTime(iso: string, locale: 'ar' | 'en', options?: { hour12?: boolean }): string` — replaces every inline `Intl.DateTimeFormat(..., { timeZone: 'Asia/Muscat' | 'Asia/Istanbul' })` display call site. Formatting options are not fully uniform across today's call sites — most use `hour: 'numeric', minute: '2-digit', hour12: true`, but `format-session-time.ts` uses `hour12: false` (24-hour, for scanner/gate staff) — so the function accepts an optional `hour12` override (default `true`) rather than assuming one fixed format fits every caller. Each updated call site passes whatever option preserves its current displayed format.
 - `formatConferenceDate(iso: string, locale: 'ar' | 'en'): string` — replaces the day-heading formatting call sites (`conference-agenda/page.tsx`, `day-timeline.tsx`).
 - `isoToConferenceLocalInputValue(iso: string): string` and `conferenceLocalInputValueToIso(value: string): string` — direct renames/ports of `session-edit-form.tsx`'s `isoToMuscatLocalInputValue`/`muscatLocalInputValueToIso`, with the offset swapped to the new constant. These become the single source of truth for the `datetime-local` round-trip used by session create/edit/reschedule forms.
 
