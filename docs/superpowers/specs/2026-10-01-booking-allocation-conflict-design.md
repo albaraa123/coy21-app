@@ -41,9 +41,9 @@ language sql stable as $$
 $$;
 ```
 
-`book_session()`'s capacity check becomes `v_count := session_effective_occupied_count(p_session_id); if v_count >= v_session.capacity then raise exception 'Session is full'; end if;` — same exception text as today (no consumer currently pattern-matches this specific message, confirmed by grep, so no contract to preserve here unlike the day-match trigger in sub-project 4a).
+`book_session()`'s capacity check becomes `v_count := session_effective_occupied_count(p_session_id); if v_count >= v_session.capacity then raise exception 'Session is full'; end if;` — same exception text as today (no consumer currently pattern-matches this specific message, confirmed by grep, so no contract to preserve here unlike the day-match trigger in sub-project 4a). This is a one-line change in place at the existing capacity-check location (`session_bookings.sql:118-122`) — the existing `declare v_count int;` is reused as-is, no new variable needs to be declared.
 
-**Conflict check (new, added after the existing `session_bookings`-vs-`session_bookings` conflict check):**
+**Conflict check (new block, inserted immediately after the existing `session_bookings`-vs-`session_bookings` conflict check — i.e. after the existing `raise exception 'Time conflict with an existing booking';`/`end if;` at `session_bookings.sql:124-135`, and before the final `insert into session_bookings ...`):**
 
 ```sql
 if exists (
@@ -81,6 +81,8 @@ $$;
 revoke execute on function session_allocation_confirmed_counts() from public;
 grant execute on function session_allocation_confirmed_counts() to authenticated;
 ```
+
+Granted to `authenticated`, not `service_role` — this differs from `count_distinct_travellers()` (`supabase/migrations/20260823040000_count_distinct_travellers.sql`), the staff-reporting aggregate-count precedent this function otherwise follows (`security definer`, aggregate-only, `revoke ... from public`). That function grants to `service_role` because it's only ever called from staff/admin server actions. This function must be callable directly by a participant's own session from `browse/page.tsx` (a Server Component using the participant-scoped client, not a service-role client), so it follows the `authenticated`-grant convention used by every other participant-callable `SECURITY DEFINER` RPC in this codebase instead (`book_session`, `cancel_booking`, `claim_imported_application_transactional`, the QR issuance functions) — not a deviation from convention, just a different convention than the staff-only one, selected because the caller differs.
 
 Returns only aggregate counts per session (no participant identity, no individual assignment data) — safe to expose to any authenticated participant without loosening `allocation_assignments`' own RLS. `browse/page.tsx` calls this via `supabase.rpc('session_allocation_confirmed_counts')` and merges the result into `countMap` (added to, not replacing, the existing `session_bookings`-derived counts), so `bookedCount`/`isFull` in the rendered UI matches exactly what `book_session()` will actually enforce — eliminating the "looks available, booking gets rejected" confusion this gap would otherwise cause once the RPC fix ships.
 
