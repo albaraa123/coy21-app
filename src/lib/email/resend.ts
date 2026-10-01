@@ -1,5 +1,6 @@
 import { getResendConfig } from './resend-config';
 import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
+import { formatConferenceTime, formatConferenceDate } from '@/lib/datetime/conference-time';
 
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
@@ -133,6 +134,83 @@ export async function sendClassificationChangeNotificationEmail(params: {
     params.locale === 'ar'
       ? `مرحباً ${params.fullName}،\n\nتم تحديث تصنيف مشاركتك، ونتيجة لذلك تم إصدار رمز مشاركة جديد لك: ${params.newApplicationNumber}. الرمز السابق لم يعد صالحاً. إذا كان لديك رمز QR سابق، يرجى استخدام النسخة المحدّثة من حسابك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nYour participation classification has been updated, and as a result a new attendee code has been issued: ${params.newApplicationNumber}. Your previous code is no longer valid. If you had a QR code, please use the updated one from your account.\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendSessionCancellationNotificationEmail(params: {
+  to: string;
+  fullName: string;
+  sessionTitle: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const browseUrl = `${config.appUrl}/my-agenda/browse`;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تم إلغاء الجلسة: ${params.sessionTitle}`
+      : `Session cancelled: ${params.sessionTitle}`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nنأسف لإبلاغك بأن الجلسة التي حجزتها "${params.sessionTitle}" تم إلغاؤها. حجزك لهذه الجلسة أُلغي تلقائياً.\n\nيمكنك تصفح الجلسات المتاحة الأخرى وحجز بديل من هنا: ${browseUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nWe're sorry to let you know that the session you booked, "${params.sessionTitle}", has been cancelled. Your booking for this session has been automatically cancelled.\n\nYou can browse other available sessions and book a replacement here: ${browseUrl}\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendSessionRescheduleNotificationEmail(params: {
+  to: string;
+  fullName: string;
+  sessionTitle: string;
+  oldStartTime: string;
+  newStartTime: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const oldTimeFormatted = `${formatConferenceDate(params.oldStartTime, params.locale)} ${formatConferenceTime(params.oldStartTime, params.locale)}`;
+  const newTimeFormatted = `${formatConferenceDate(params.newStartTime, params.locale)} ${formatConferenceTime(params.newStartTime, params.locale)}`;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تغيّر موعد الجلسة: ${params.sessionTitle}`
+      : `Session time changed: ${params.sessionTitle}`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nتغيّر موعد الجلسة التي حجزتها "${params.sessionTitle}".\n\nالموعد السابق: ${oldTimeFormatted}\nالموعد الجديد: ${newTimeFormatted}\n\nحجزك لا يزال سارياً على الموعد الجديد تلقائياً، ولا حاجة لإعادة الحجز. إذا تعارض الموعد الجديد مع حجز آخر لديك، يرجى مراجعة برنامجك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nThe session you booked, "${params.sessionTitle}", has had its time changed.\n\nPrevious time: ${oldTimeFormatted}\nNew time: ${newTimeFormatted}\n\nYour booking remains valid for the new time automatically -- no need to re-book. If the new time conflicts with another of your bookings, please review your agenda.\n\nIf you have any questions, please contact us.`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { CancelButton } from './booking-button';
 import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
@@ -20,6 +21,7 @@ type Session = {
 type Booking = {
   id: string;
   session_id: string;
+  status: 'active' | 'session_cancelled';
   sessions: Session | null;
 };
 
@@ -79,11 +81,15 @@ export function AgendaDay({ date: _date, label, bookings, locale }: Props) {
                 </p>
               </div>
               <div className="shrink-0">
-                <CancelButton
-                  bookingId={b.id}
-                  isPastDeadline={isPastDeadline}
-                  onCancelled={() => setCancelled((prev) => new Set([...prev, b.id]))}
-                />
+                {b.status === 'session_cancelled' ? (
+                  <Badge variant="sessionCancelled">Session Cancelled</Badge>
+                ) : (
+                  <CancelButton
+                    bookingId={b.id}
+                    isPastDeadline={isPastDeadline}
+                    onCancelled={() => setCancelled((prev) => new Set([...prev, b.id]))}
+                  />
+                )}
               </div>
             </Card>
           );

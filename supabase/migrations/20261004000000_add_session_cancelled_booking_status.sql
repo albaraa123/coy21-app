@@ -1,0 +1,17 @@
+-- 20261004000000_add_session_cancelled_booking_status.sql
+--
+-- Isolated in its own file with nothing else in it, per this repo's
+-- established convention (see 20260804110000_add_scanner_device_role.sql
+-- and 20260929000000_add_staff_role_and_migrate.sql) -- a new enum value
+-- must be committed before any later migration can reference it.
+--
+-- Distinct from the existing 'cancelled' value (written by cancel_booking()
+-- for a participant's own voluntary cancellation): this new value marks a
+-- booking whose SESSION was cancelled by staff, so /my-agenda can show a
+-- distinct "session cancelled" badge instead of silently dropping the row
+-- (which reusing plain 'cancelled' would do, since that value is already
+-- filtered out of every booking list query). See
+-- docs/superpowers/specs/2026-10-01-session-cancellation-reschedule-design.md
+-- section 1's "conflict discovered during design" note for the full
+-- reasoning.
+alter type booking_status add value 'session_cancelled';

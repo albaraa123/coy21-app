@@ -3945,7 +3945,7 @@ export type Database = {
         | "withdrawn"
       attendance_confirmation_status: "confirmed" | "not_confirmed" | "declined"
       audit_actor_type: "admin" | "system"
-      booking_status: "active" | "cancelled"
+      booking_status: "active" | "cancelled" | "session_cancelled"
       travel_leg_type: "outbound" | "return" | "connecting"
       funding_type: "self_funded" | "partially_funded" | "fully_funded"
       participant_type: "delegate" | "volunteer" | "knowledge_partner" | "youngo" | "speaker"

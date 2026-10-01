@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'changed' | 'pending' | 'neutral';
+type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'sessionCancelled' | 'changed' | 'pending' | 'neutral';
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   // Solid gold fill: required/urgent.
@@ -9,6 +9,13 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   elective: 'bg-charcoal/10 text-charcoal dark:bg-gray-800 dark:text-gray-300',
   // Muted charcoal, low opacity text + strikethrough: no longer relevant.
   cancelled: 'bg-charcoal/10 text-charcoal/60 line-through dark:bg-red-900/40 dark:text-red-200',
+  // Solid red fill, no strikethrough: distinct from `cancelled` above --
+  // this marks a participant's own booking as cancelled BY STAFF (the
+  // session itself was cancelled), which needs to read as an active
+  // warning the participant should notice, not a muted/no-longer-relevant
+  // list item. Occupies the same slot a "Cancel" action button would, so
+  // it needs equivalent visual weight, not a de-emphasized treatment.
+  sessionCancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   // Solid turquoise fill: content has changed, draws the eye.
   changed: 'bg-turquoise text-white font-semibold dark:bg-blue-900/40 dark:text-blue-200',
   // Gold outline only (no fill): awaiting action, same hue family as
