@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmationCard } from './confirmation-card';
 import { DocumentUpload } from './document-upload';
-import { formatConferenceDate } from '@/lib/datetime/conference-time';
 
 // Same mapping as the admin (admin)/applications/page.tsx's
 // STATUS_BADGE_VARIANT — a given application status must read the same
@@ -63,7 +62,16 @@ export default async function MyApplicationPage() {
   // an imported row entered the system, so fall back to it rather than
   // rendering blank.
   const submittedDisplay = application.submitted_at ?? application.created_at;
-  const formattedDate = formatConferenceDate(submittedDisplay, locale === 'ar' ? 'ar' : 'en');
+  // No weekday here deliberately -- formatConferenceDate always includes one,
+  // which would widen this specific display beyond its original
+  // year/month/day-only format; this call only needed its timezone fixed
+  // (Asia/Muscat -> Europe/Istanbul), not a format change.
+  const formattedDate = new Date(submittedDisplay).toLocaleDateString(locale === 'ar' ? 'ar' : 'en-US', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
   const badgeVariant = STATUS_BADGE_VARIANT[application.status] ?? 'neutral';
 
