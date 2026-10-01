@@ -54,6 +54,11 @@ function baseSession(overrides: Partial<Database['public']['Tables']['sessions']
     track_id: trackId, session_type_id: sessionTypeId, room_id: roomId,
     language: 'en' as const, difficulty_level: 'beginner' as const,
     capacity: 20, min_capacity: 0,
+    // Both call sites always override these, but a default pair here keeps
+    // the merged return type provably string (not string | undefined),
+    // matching conflict-and-validation.test.ts's baseSession() pattern.
+    start_time: `${DAY}T09:00:00+03:00`,
+    end_time: `${DAY}T10:00:00+03:00`,
     ...overrides,
   };
 }
