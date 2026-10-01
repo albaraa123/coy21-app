@@ -8,9 +8,21 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
-import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
 const PAGE_SIZE = 50;
+
+// Not routed through the shared formatConferenceTime() helper: this list
+// needs zero-padded 12-hour times (e.g. "09:05 AM"), but that helper
+// hardcodes `hour: 'numeric'` (no leading zero). Only the timezone changes
+// here (Asia/Muscat -> Europe/Istanbul); the original hour:'2-digit' format
+// is preserved exactly.
+function formatSessionListTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', {
+    timeZone: 'Europe/Istanbul',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 const STATUS_BADGE_VARIANT: Record<string, 'mandatory' | 'elective' | 'cancelled' | 'changed' | 'pending' | 'neutral'> = {
   draft: 'neutral',
@@ -212,9 +224,9 @@ export default async function SessionsListPage({
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-charcoal/60 dark:text-gray-400">
                   <span>{session.conference_day?.label_en}</span>
                   <span>
-                    {formatConferenceTime(session.start_time, 'en')}
+                    {formatSessionListTime(session.start_time)}
                     –
-                    {formatConferenceTime(session.end_time, 'en')}
+                    {formatSessionListTime(session.end_time)}
                   </span>
                   <span>{session.track?.name_en}</span>
                   <span>{session.room?.name_en}</span>
@@ -248,9 +260,9 @@ export default async function SessionsListPage({
                     <td className="px-4 py-2 text-charcoal dark:text-gray-100">{session.title_en}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.conference_day?.label_en}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
-                      {formatConferenceTime(session.start_time, 'en')}
+                      {formatSessionListTime(session.start_time)}
                       –
-                      {formatConferenceTime(session.end_time, 'en')}
+                      {formatSessionListTime(session.end_time)}
                     </td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.track?.name_en}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.room?.name_en}</td>
