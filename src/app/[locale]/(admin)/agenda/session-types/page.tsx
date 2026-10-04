@@ -27,7 +27,7 @@ export default async function SessionTypesPage() {
   // session client is sufficient — verified directly against the live database.
   const { data: sessionTypes } = await supabase
     .from('session_types')
-    .select('id, code, name_ar, name_en, is_active')
+    .select('id, code, name_ar, name_en, is_active, enable_waitlist')
     .order('code', { ascending: true });
 
   const t = await getTranslations({ locale, namespace: 'agenda.sessionTypes' });

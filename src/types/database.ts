@@ -304,6 +304,44 @@ export type Database = {
           },
         ]
       }
+      application_accommodation: {
+        Row: {
+          application_id: string
+          created_at: string
+          hotel_name: string | null
+          id: string
+          location_note: string | null
+          room_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          hotel_name?: string | null
+          id?: string
+          location_note?: string | null
+          room_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          hotel_name?: string | null
+          id?: string
+          location_note?: string | null
+          room_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_accommodation_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_answers: {
         Row: {
           application_id: string
@@ -603,6 +641,9 @@ export type Database = {
           linkedin_url: string | null
           nationality: string | null
           organization: string | null
+          participant_type:
+            | Database["public"]["Enums"]["participant_type"]
+            | null
           participation_goals: string | null
           past_initiatives: string | null
           phone: string | null
@@ -612,7 +653,6 @@ export type Database = {
           secondary_track: string | null
           session_languages: string[] | null
           special_needs: string | null
-          participant_type: Database["public"]["Enums"]["participant_type"] | null
           status: Database["public"]["Enums"]["application_status"]
           submitted_at: string | null
           topics_to_learn: string | null
@@ -650,6 +690,9 @@ export type Database = {
           linkedin_url?: string | null
           nationality?: string | null
           organization?: string | null
+          participant_type?:
+            | Database["public"]["Enums"]["participant_type"]
+            | null
           participation_goals?: string | null
           past_initiatives?: string | null
           phone?: string | null
@@ -659,7 +702,6 @@ export type Database = {
           secondary_track?: string | null
           session_languages?: string[] | null
           special_needs?: string | null
-          participant_type?: Database["public"]["Enums"]["participant_type"] | null
           status?: Database["public"]["Enums"]["application_status"]
           submitted_at?: string | null
           topics_to_learn?: string | null
@@ -697,6 +739,9 @@ export type Database = {
           linkedin_url?: string | null
           nationality?: string | null
           organization?: string | null
+          participant_type?:
+            | Database["public"]["Enums"]["participant_type"]
+            | null
           participation_goals?: string | null
           past_initiatives?: string | null
           phone?: string | null
@@ -706,7 +751,6 @@ export type Database = {
           secondary_track?: string | null
           session_languages?: string[] | null
           special_needs?: string | null
-          participant_type?: Database["public"]["Enums"]["participant_type"] | null
           status?: Database["public"]["Enums"]["application_status"]
           submitted_at?: string | null
           topics_to_learn?: string | null
@@ -1106,6 +1150,38 @@ export type Database = {
         }
         Relationships: []
       }
+      email_log: {
+        Row: {
+          application_id: string | null
+          id: string
+          sent_at: string
+          status: string
+          template: string
+        }
+        Insert: {
+          application_id?: string | null
+          id?: string
+          sent_at?: string
+          status: string
+          template: string
+        }
+        Update: {
+          application_id?: string | null
+          id?: string
+          sent_at?: string
+          status?: string
+          template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_log_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_settings: {
         Row: {
           id: boolean
@@ -1138,31 +1214,40 @@ export type Database = {
           },
         ]
       }
-      email_log: {
+      emergency_contacts: {
         Row: {
-          application_id: string | null
+          application_id: string
+          created_at: string
+          email: string | null
           id: string
-          sent_at: string
-          status: string
-          template: string
+          name: string
+          phone: string
+          relationship: string
+          updated_at: string
         }
         Insert: {
-          application_id?: string | null
+          application_id: string
+          created_at?: string
+          email?: string | null
           id?: string
-          sent_at?: string
-          status: string
-          template: string
+          name: string
+          phone: string
+          relationship: string
+          updated_at?: string
         }
         Update: {
-          application_id?: string | null
+          application_id?: string
+          created_at?: string
+          email?: string | null
           id?: string
-          sent_at?: string
-          status?: string
-          template?: string
+          name?: string
+          phone?: string
+          relationship?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "email_log_application_id_fkey"
+            foreignKeyName: "emergency_contacts_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "applications"
@@ -1461,10 +1546,12 @@ export type Database = {
           id: string
           import_batch_id: string
           normalized_row: Json | null
+          participant_type:
+            | Database["public"]["Enums"]["participant_type"]
+            | null
           previous_answers_snapshot: Json | null
           previous_application_snapshot: Json | null
           previous_health_snapshot: Json | null
-          participant_type: Database["public"]["Enums"]["participant_type"] | null
           previous_travel_snapshot: Json | null
           raw_row: Json
           row_fingerprint: string
@@ -1482,7 +1569,9 @@ export type Database = {
           id?: string
           import_batch_id: string
           normalized_row?: Json | null
-          participant_type?: Database["public"]["Enums"]["participant_type"] | null
+          participant_type?:
+            | Database["public"]["Enums"]["participant_type"]
+            | null
           previous_answers_snapshot?: Json | null
           previous_application_snapshot?: Json | null
           previous_health_snapshot?: Json | null
@@ -1503,7 +1592,9 @@ export type Database = {
           id?: string
           import_batch_id?: string
           normalized_row?: Json | null
-          participant_type?: Database["public"]["Enums"]["participant_type"] | null
+          participant_type?:
+            | Database["public"]["Enums"]["participant_type"]
+            | null
           previous_answers_snapshot?: Json | null
           previous_application_snapshot?: Json | null
           previous_health_snapshot?: Json | null
@@ -1536,6 +1627,103 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      local_info_images: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          section_id: string | null
+          sort_order: number
+          storage_url: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          section_id?: string | null
+          sort_order?: number
+          storage_url: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          section_id?: string | null
+          sort_order?: number
+          storage_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_info_images_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "local_info_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_info_items: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          section_id: string
+          sort_order: number
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          section_id: string
+          sort_order?: number
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          section_id?: string
+          sort_order?: number
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_info_items_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "local_info_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_info_sections: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       participant_account_provisioning: {
         Row: {
@@ -1755,6 +1943,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_public: boolean
+          linked_application_id: string | null
           linked_profile_id: string | null
           organization_ar: string | null
           organization_en: string | null
@@ -1775,6 +1964,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_public?: boolean
+          linked_application_id?: string | null
           linked_profile_id?: string | null
           organization_ar?: string | null
           organization_en?: string | null
@@ -1795,6 +1985,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_public?: boolean
+          linked_application_id?: string | null
           linked_profile_id?: string | null
           organization_ar?: string | null
           organization_en?: string | null
@@ -1806,6 +1997,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "people_linked_application_id_fkey"
+            columns: ["linked_application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "people_linked_profile_id_fkey"
             columns: ["linked_profile_id"]
@@ -2610,6 +2808,118 @@ export type Database = {
           },
         ]
       }
+      session_bookings: {
+        Row: {
+          application_id: string
+          booked_at: string
+          cancelled_at: string | null
+          created_at: string
+          id: string
+          session_id: string
+          status: Database["public"]["Enums"]["booking_status"]
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          booked_at?: string
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          session_id: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          booked_at?: string
+          cancelled_at?: string | null
+          created_at?: string
+          id?: string
+          session_id?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_bookings_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_bookings_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_notification_outbox: {
+        Row: {
+          application_id: string
+          booking_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          new_start_time: string | null
+          notification_type: Database["public"]["Enums"]["session_notification_type"]
+          old_start_time: string | null
+          sent_at: string | null
+          session_id: string
+          status: Database["public"]["Enums"]["session_notification_status"]
+        }
+        Insert: {
+          application_id: string
+          booking_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          new_start_time?: string | null
+          notification_type: Database["public"]["Enums"]["session_notification_type"]
+          old_start_time?: string | null
+          sent_at?: string | null
+          session_id: string
+          status?: Database["public"]["Enums"]["session_notification_status"]
+        }
+        Update: {
+          application_id?: string
+          booking_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          new_start_time?: string | null
+          notification_type?: Database["public"]["Enums"]["session_notification_type"]
+          old_start_time?: string | null
+          sent_at?: string | null
+          session_id?: string
+          status?: Database["public"]["Enums"]["session_notification_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_notification_outbox_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_notification_outbox_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "session_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_notification_outbox_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_people: {
         Row: {
           created_at: string
@@ -2724,6 +3034,7 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          enable_waitlist: boolean
           id: string
           is_active: boolean
           name_ar: string
@@ -2734,6 +3045,7 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
+          enable_waitlist?: boolean
           id?: string
           is_active?: boolean
           name_ar: string
@@ -2744,6 +3056,7 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
+          enable_waitlist?: boolean
           id?: string
           is_active?: boolean
           name_ar?: string
@@ -2806,6 +3119,7 @@ export type Database = {
         Insert: {
           admission_policy?: string
           allocation_priority?: number
+          booking_deadline?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           capacity: number
@@ -2846,6 +3160,7 @@ export type Database = {
         Update: {
           admission_policy?: string
           allocation_priority?: number
+          booking_deadline?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           capacity?: number
@@ -2921,50 +3236,73 @@ export type Database = {
           },
         ]
       }
-      session_bookings: {
+      staff_assignments: {
         Row: {
-          id: string
-          application_id: string
-          session_id: string
-          status: Database["public"]["Enums"]["booking_status"]
-          booked_at: string
-          cancelled_at: string | null
+          assignment_type: Database["public"]["Enums"]["staff_assignment_type"]
           created_at: string
-          updated_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          label: string
+          notes: string | null
+          room_id: string | null
+          session_id: string | null
+          staff_id: string
+          starts_at: string | null
         }
         Insert: {
-          id?: string
-          application_id: string
-          session_id: string
-          status?: Database["public"]["Enums"]["booking_status"]
-          booked_at?: string
-          cancelled_at?: string | null
+          assignment_type?: Database["public"]["Enums"]["staff_assignment_type"]
           created_at?: string
-          updated_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          label: string
+          notes?: string | null
+          room_id?: string | null
+          session_id?: string | null
+          staff_id: string
+          starts_at?: string | null
         }
         Update: {
-          id?: string
-          application_id?: string
-          session_id?: string
-          status?: Database["public"]["Enums"]["booking_status"]
-          booked_at?: string
-          cancelled_at?: string | null
+          assignment_type?: Database["public"]["Enums"]["staff_assignment_type"]
           created_at?: string
-          updated_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          label?: string
+          notes?: string | null
+          room_id?: string | null
+          session_id?: string | null
+          staff_id?: string
+          starts_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "session_bookings_application_id_fkey"
-            columns: ["application_id"]
+            foreignKeyName: "staff_assignments_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "applications"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "session_bookings_session_id_fkey"
+            foreignKeyName: "staff_assignments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_assignments_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3054,173 +3392,47 @@ export type Database = {
           },
         ]
       }
-      emergency_contacts: {
-        Row: {
-          id: string
-          application_id: string
-          name: string
-          relationship: string
-          phone: string
-          email: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          application_id: string
-          name: string
-          relationship: string
-          phone: string
-          email?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          name?: string
-          relationship?: string
-          phone?: string
-          email?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          { foreignKeyName: 'emergency_contacts_application_id_fkey'; columns: ['application_id']; referencedRelation: 'applications'; referencedColumns: ['id'] }
-        ]
-      }
-      application_accommodation: {
-        Row: {
-          id: string
-          application_id: string
-          hotel_name: string | null
-          location_note: string | null
-          room_number: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          application_id: string
-          hotel_name?: string | null
-          location_note?: string | null
-          room_number?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          hotel_name?: string | null
-          location_note?: string | null
-          room_number?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          { foreignKeyName: 'application_accommodation_application_id_fkey'; columns: ['application_id']; referencedRelation: 'applications'; referencedColumns: ['id'] }
-        ]
-      }
-      local_info_sections: {
-        Row: { id: string; title: string; sort_order: number; is_active: boolean; created_at: string; updated_at: string }
-        Insert: { id?: string; title: string; sort_order?: number; is_active?: boolean; created_at?: string; updated_at?: string }
-        Update: { id?: string; title?: string; sort_order?: number; is_active?: boolean; updated_at?: string }
-        Relationships: []
-      }
-      local_info_items: {
-        Row: { id: string; section_id: string; label: string; value: string; sort_order: number; created_at: string }
-        Insert: { id?: string; section_id: string; label: string; value: string; sort_order?: number; created_at?: string }
-        Update: { id?: string; section_id?: string; label?: string; value?: string; sort_order?: number }
-        Relationships: [{ foreignKeyName: "local_info_items_section_id_fkey"; columns: ["section_id"]; isOneToOne: false; referencedRelation: "local_info_sections"; referencedColumns: ["id"] }]
-      }
-      local_info_images: {
-        Row: { id: string; section_id: string | null; caption: string | null; storage_url: string; sort_order: number; created_at: string }
-        Insert: { id?: string; section_id?: string | null; caption?: string | null; storage_url: string; sort_order?: number; created_at?: string }
-        Update: { id?: string; section_id?: string | null; caption?: string | null; storage_url?: string; sort_order?: number }
-        Relationships: [{ foreignKeyName: "local_info_images_section_id_fkey"; columns: ["section_id"]; isOneToOne: false; referencedRelation: "local_info_sections"; referencedColumns: ["id"] }]
-      }
-      staff_assignments: {
-        Row: {
-          id: string
-          staff_id: string
-          assignment_type: Database["public"]["Enums"]["staff_assignment_type"]
-          room_id: string | null
-          session_id: string | null
-          label: string
-          notes: string | null
-          starts_at: string | null
-          ends_at: string | null
-          created_by: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          staff_id: string
-          assignment_type?: Database["public"]["Enums"]["staff_assignment_type"]
-          room_id?: string | null
-          session_id?: string | null
-          label: string
-          notes?: string | null
-          starts_at?: string | null
-          ends_at?: string | null
-          created_by?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          staff_id?: string
-          assignment_type?: Database["public"]["Enums"]["staff_assignment_type"]
-          room_id?: string | null
-          session_id?: string | null
-          label?: string
-          notes?: string | null
-          starts_at?: string | null
-          ends_at?: string | null
-          created_by?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          { foreignKeyName: "staff_assignments_staff_id_fkey"; columns: ["staff_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
-          { foreignKeyName: "staff_assignments_room_id_fkey"; columns: ["room_id"]; isOneToOne: false; referencedRelation: "rooms"; referencedColumns: ["id"] },
-          { foreignKeyName: "staff_assignments_session_id_fkey"; columns: ["session_id"]; isOneToOne: false; referencedRelation: "sessions"; referencedColumns: ["id"] },
-          { foreignKeyName: "staff_assignments_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
-        ]
-      }
       travel_legs: {
         Row: {
-          id: string
           application_id: string
-          leg_type: Database["public"]["Enums"]["travel_leg_type"]
-          flight_number: string | null
-          departure_airport: string | null
           arrival_airport: string | null
-          departure_datetime: string | null
           arrival_datetime: string | null
-          ticket_file_url: string | null
-          notes: string | null
           created_at: string
+          departure_airport: string | null
+          departure_datetime: string | null
+          flight_number: string | null
+          id: string
+          leg_type: Database["public"]["Enums"]["travel_leg_type"]
+          notes: string | null
+          ticket_file_url: string | null
           updated_at: string
         }
         Insert: {
-          id?: string
           application_id: string
-          leg_type: Database["public"]["Enums"]["travel_leg_type"]
-          flight_number?: string | null
-          departure_airport?: string | null
           arrival_airport?: string | null
-          departure_datetime?: string | null
           arrival_datetime?: string | null
-          ticket_file_url?: string | null
-          notes?: string | null
           created_at?: string
+          departure_airport?: string | null
+          departure_datetime?: string | null
+          flight_number?: string | null
+          id?: string
+          leg_type: Database["public"]["Enums"]["travel_leg_type"]
+          notes?: string | null
+          ticket_file_url?: string | null
           updated_at?: string
         }
         Update: {
-          id?: string
           application_id?: string
-          leg_type?: Database["public"]["Enums"]["travel_leg_type"]
-          flight_number?: string | null
-          departure_airport?: string | null
           arrival_airport?: string | null
-          departure_datetime?: string | null
           arrival_datetime?: string | null
-          ticket_file_url?: string | null
-          notes?: string | null
           created_at?: string
+          departure_airport?: string | null
+          departure_datetime?: string | null
+          flight_number?: string | null
+          id?: string
+          leg_type?: Database["public"]["Enums"]["travel_leg_type"]
+          notes?: string | null
+          ticket_file_url?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3241,6 +3453,10 @@ export type Database = {
       __tsgk_find_root: {
         Args: { p_idx: number; p_parent: number[] }
         Returns: number
+      }
+      accept_application_and_issue_number: {
+        Args: { p_application_id: string }
+        Returns: string
       }
       apply_import_row_transactional: {
         Args: {
@@ -3282,12 +3498,8 @@ export type Database = {
         Returns: string
       }
       cancel_booking: {
-        Args: { p_booking_id: string; p_application_id: string }
+        Args: { p_application_id: string; p_booking_id: string }
         Returns: undefined
-      }
-      count_distinct_travellers: {
-        Args: Record<PropertyKey, never>
-        Returns: number
       }
       claim_imported_application_transactional: {
         Args: { p_application_id: string; p_claiming_user_id: string }
@@ -3379,6 +3591,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      count_distinct_travellers: { Args: never; Returns: number }
       create_qr_bulk_operation_batch_for_server: {
         Args: {
           p_intended_operation_type: string
@@ -3452,7 +3665,11 @@ export type Database = {
         Args: { p_key_version: number }
         Returns: boolean
       }
-      next_application_number: { Args: never; Returns: string }
+      is_staff: { Args: never; Returns: boolean }
+      next_application_number: {
+        Args: { p_type?: Database["public"]["Enums"]["participant_type"] }
+        Returns: string
+      }
       override_allocation_assignment_transactional: {
         Args: {
           p_assignment_id: string
@@ -3510,6 +3727,10 @@ export type Database = {
       record_schedule_change_event: {
         Args: { p_change_type: string; p_session_id: string }
         Returns: undefined
+      }
+      regenerate_application_number: {
+        Args: { p_application_id: string }
+        Returns: string
       }
       remove_session_person: {
         Args: { p_session_people_id: string }
@@ -3648,6 +3869,10 @@ export type Database = {
         }
         Returns: Record<string, unknown>
       }
+      resolve_application_display_name: {
+        Args: { p_applicant_id: string; p_application_full_name: string }
+        Returns: string
+      }
       resolve_blocking_qr_lifecycle_operation: {
         Args: {
           p_app: Database["public"]["Tables"]["applications"]["Row"]
@@ -3751,6 +3976,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      session_active_booking_count: {
+        Args: { p_session_id: string }
+        Returns: number
+      }
+      session_allocation_confirmed_counts: {
+        Args: never
+        Returns: {
+          confirmed_count: number
+          session_id: string
+        }[]
+      }
+      session_effective_deadline: {
+        Args: { p_session: Database["public"]["Tables"]["sessions"]["Row"] }
+        Returns: string
+      }
+      session_effective_occupied_count: {
+        Args: { p_session_id: string }
+        Returns: number
+      }
       stage_publication_transactional: {
         Args: {
           p_allocation_run_id: string
@@ -3814,6 +4058,7 @@ export type Database = {
         Returns: {
           admission_policy: string
           allocation_priority: number
+          booking_deadline: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
           capacity: number
@@ -3889,6 +4134,7 @@ export type Database = {
         Returns: {
           admission_policy: string
           allocation_priority: number
+          booking_deadline: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
           capacity: number
@@ -3946,9 +4192,13 @@ export type Database = {
       attendance_confirmation_status: "confirmed" | "not_confirmed" | "declined"
       audit_actor_type: "admin" | "system"
       booking_status: "active" | "cancelled" | "session_cancelled"
-      travel_leg_type: "outbound" | "return" | "connecting"
       funding_type: "self_funded" | "partially_funded" | "fully_funded"
-      participant_type: "delegate" | "volunteer" | "knowledge_partner" | "youngo" | "speaker"
+      participant_type:
+        | "delegate"
+        | "volunteer"
+        | "knowledge_partner"
+        | "youngo"
+        | "speaker"
       provisioning_account_status:
         | "no_account"
         | "account_created"
@@ -3970,6 +4220,8 @@ export type Database = {
         | "advanced"
         | "all_levels"
       session_language: "ar" | "en" | "bilingual"
+      session_notification_status: "pending" | "sent" | "failed"
+      session_notification_type: "session_cancelled" | "session_rescheduled"
       session_person_role:
         | "speaker"
         | "guest"
@@ -3989,6 +4241,7 @@ export type Database = {
         | "participant_care"
         | "data_monitoring"
         | "general"
+      travel_leg_type: "outbound" | "return" | "connecting"
       user_role:
         | "participant"
         | "super_admin"
@@ -4025,12 +4278,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4054,11 +4307,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4079,11 +4332,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4104,11 +4357,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4121,11 +4374,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4155,8 +4408,15 @@ export const Constants = {
         "declined",
       ],
       audit_actor_type: ["admin", "system"],
+      booking_status: ["active", "cancelled", "session_cancelled"],
       funding_type: ["self_funded", "partially_funded", "fully_funded"],
-      participant_type: ["delegate", "volunteer", "knowledge_partner", "youngo", "speaker"],
+      participant_type: [
+        "delegate",
+        "volunteer",
+        "knowledge_partner",
+        "youngo",
+        "speaker",
+      ],
       provisioning_account_status: [
         "no_account",
         "account_created",
@@ -4181,6 +4441,8 @@ export const Constants = {
         "all_levels",
       ],
       session_language: ["ar", "en", "bilingual"],
+      session_notification_status: ["pending", "sent", "failed"],
+      session_notification_type: ["session_cancelled", "session_rescheduled"],
       session_person_role: [
         "speaker",
         "guest",
@@ -4196,6 +4458,14 @@ export const Constants = {
         "cancelled",
         "completed",
       ],
+      staff_assignment_type: [
+        "scanning_gate",
+        "session_monitor",
+        "participant_care",
+        "data_monitoring",
+        "general",
+      ],
+      travel_leg_type: ["outbound", "return", "connecting"],
       user_role: [
         "participant",
         "super_admin",

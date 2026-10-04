@@ -15,21 +15,24 @@ type SessionType = {
   name_ar: string;
   name_en: string;
   is_active: boolean;
+  enable_waitlist: boolean;
 };
 
 type FormState = {
   code: string;
   nameAr: string;
   nameEn: string;
+  enableWaitlist: boolean;
 };
 
-const EMPTY_FORM: FormState = { code: '', nameAr: '', nameEn: '' };
+const EMPTY_FORM: FormState = { code: '', nameAr: '', nameEn: '', enableWaitlist: false };
 
 function sessionTypeToForm(sessionType: SessionType): FormState {
   return {
     code: sessionType.code,
     nameAr: sessionType.name_ar,
     nameEn: sessionType.name_en,
+    enableWaitlist: sessionType.enable_waitlist,
   };
 }
 
@@ -68,7 +71,7 @@ export default function SessionTypeManager({ sessionTypes }: { sessionTypes: Ses
     setError(null);
     setSubmitting(true);
     try {
-      const input = { code: form.code, nameAr: form.nameAr, nameEn: form.nameEn };
+      const input = { code: form.code, nameAr: form.nameAr, nameEn: form.nameEn, enableWaitlist: form.enableWaitlist };
       if (editingId) {
         await updateSessionType(editingId, input);
       } else {
@@ -125,9 +128,12 @@ export default function SessionTypeManager({ sessionTypes }: { sessionTypes: Ses
               <Card key={sessionType.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-charcoal dark:text-gray-100">{sessionType.code}</p>
-                  <Badge variant={sessionType.is_active ? 'changed' : 'neutral'}>
-                    {sessionType.is_active ? t('active') : t('inactive')}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={sessionType.is_active ? 'changed' : 'neutral'}>
+                      {sessionType.is_active ? t('active') : t('inactive')}
+                    </Badge>
+                    {sessionType.enable_waitlist && <Badge variant="elective">{t('waitlistEnabled')}</Badge>}
+                  </div>
                 </div>
                 <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">{sessionType.name_en}</p>
                 <p className="text-sm text-charcoal/70 dark:text-gray-400">{sessionType.name_ar}</p>
@@ -160,9 +166,12 @@ export default function SessionTypeManager({ sessionTypes }: { sessionTypes: Ses
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{sessionType.name_ar}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{sessionType.name_en}</td>
                     <td className="px-4 py-2">
-                      <Badge variant={sessionType.is_active ? 'changed' : 'neutral'}>
-                        {sessionType.is_active ? t('active') : t('inactive')}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={sessionType.is_active ? 'changed' : 'neutral'}>
+                          {sessionType.is_active ? t('active') : t('inactive')}
+                        </Badge>
+                        {sessionType.enable_waitlist && <Badge variant="elective">{t('waitlistEnabled')}</Badge>}
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-2">
@@ -219,6 +228,15 @@ export default function SessionTypeManager({ sessionTypes }: { sessionTypes: Ses
               required
               className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-charcoal dark:text-gray-100">
+            <input
+              type="checkbox"
+              checked={form.enableWaitlist}
+              onChange={(e) => setForm({ ...form, enableWaitlist: e.target.checked })}
+              className="h-4 w-4 rounded border-charcoal/20 text-turquoise focus:ring-turquoise dark:border-gray-700"
+            />
+            {t('enableWaitlist')}
           </label>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button type="submit" disabled={submitting}>{editingId ? t('save') : t('create')}</Button>
