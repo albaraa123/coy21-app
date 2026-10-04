@@ -6,6 +6,14 @@
 -- (20260723020000_sessions_triggers.sql, trigger #4). See
 -- docs/superpowers/specs/2026-10-04-booking-rules-completion-design.md
 -- scope decision 6.
+--
+-- Concurrency: an ordinary UPDATE sessions SET capacity = ... takes the
+-- same row-level lock on that session as book_session/join_waitlist/
+-- admit_walk_in's own `select ... for update` -- a capacity-reducing
+-- update and a concurrent new booking/allocation for the same session
+-- can never interleave; whichever transaction commits first is fully
+-- visible to the other's occupancy read. No explicit locking needed
+-- here beyond what UPDATE already does intrinsically.
 
 create function enforce_session_capacity_vs_bookings() returns trigger as $$
 declare
