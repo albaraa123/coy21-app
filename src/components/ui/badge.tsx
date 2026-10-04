@@ -34,8 +34,12 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   // scheduled and attended-but-missed, not voided. Amber (not red, which is
   // reserved for `sessionCancelled`'s staff-initiated warning) and a
   // distinct fill from `cancelled` so "I cancelled this" reads differently
-  // from "I didn't show up to this" at a glance.
-  noShow: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  // from "I didn't show up to this" at a glance. Dark-mode values are
+  // deliberately lower-contrast/desaturated relative to `mandatory`'s dark
+  // treatment (bg-amber-900/40, text-amber-200) -- same amber hue family,
+  // but `mandatory` needs to read as urgent/required while `noShow` needs
+  // to read as muted/past-tense, so this stays visually quieter.
+  noShow: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400/80',
 };
 
 export function Badge({ variant, children }: { variant: BadgeVariant; children: ReactNode }) {
