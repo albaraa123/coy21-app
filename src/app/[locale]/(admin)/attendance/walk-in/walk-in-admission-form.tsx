@@ -47,7 +47,7 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
     setSubmitting(true);
     try {
       const result = await admitWalkIn(identifier, sessionId);
-      if ('error' in result) {
+      if (result.error) {
         setError(result.error);
       } else {
         setSuccess(t('admitSuccess'));

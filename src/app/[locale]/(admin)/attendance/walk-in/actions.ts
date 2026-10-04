@@ -16,7 +16,7 @@ import { buildIlikeOrFilter } from '@/lib/validation/postgrest-search';
 export async function admitWalkIn(
   identifier: string,
   sessionId: string
-): Promise<{ error: string } | { bookingId: string | null }> {
+): Promise<{ error: string | null; bookingId?: string }> {
   const { session, service } = await requireAdmissionStaffCaller();
 
   const trimmed = identifier.trim();
@@ -38,6 +38,9 @@ export async function admitWalkIn(
   const orFilter = buildIlikeOrFilter(trimmed, ['application_number', 'full_name', 'imported_email']);
   if (!orFilter) return { error: 'Enter an application number or applicant name' };
 
+  // limit(10) is just a sane UI cap on the candidate list -- any count >=2
+  // already routes to the ambiguous-match branch below, so truncation
+  // here never changes which branch fires.
   const { data: candidates, error: lookupError } = await service.from('applications').select('id, status').or(orFilter).limit(10);
   if (lookupError) return { error: lookupError.message };
 
@@ -55,5 +58,5 @@ export async function admitWalkIn(
     p_session_id: sessionId,
   });
   if (error) return { error: error.message };
-  return { bookingId: data };
+  return { error: null, bookingId: data ?? undefined };
 }
