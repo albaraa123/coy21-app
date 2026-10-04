@@ -1920,7 +1920,18 @@
     "recipientSaveButton": "حفظ المستلم",
     "recipientSaved": "تم حفظ بريد المستلم.",
     "recipientSaveError": "تعذر حفظ بريد المستلم",
-    "recipientNotSet": "لم يتم تحديد مستلم"
+    "recipientNotSet": "لم يتم تحديد مستلم",
+    "globalDeadlineTitle": "الموعد النهائي العام للحجز",
+    "globalDeadlineDescription": "موعد نهائي اختياري يشمل المنصة بأكملها. عند تفعيله، يُغلق الحجز الذاتي في هذا الوقت لجميع الجلسات، حتى لو كان الموعد النهائي الخاص بالجلسة لاحقًا له.",
+    "globalDeadlineSet": "تم تحديد موعد نهائي",
+    "globalDeadlineNotSet": "لم يتم تحديد موعد نهائي",
+    "globalDeadlineLabel": "الموعد النهائي",
+    "globalDeadlineSaveButton": "حفظ الموعد النهائي",
+    "globalDeadlineClearButton": "إلغاء الموعد النهائي",
+    "globalDeadlineSaved": "تم حفظ الموعد النهائي العام للحجز.",
+    "globalDeadlineCleared": "تم إلغاء الموعد النهائي العام للحجز.",
+    "globalDeadlineSaveError": "تعذر حفظ الموعد النهائي العام للحجز",
+    "globalDeadlineClearError": "تعذر إلغاء الموعد النهائي العام للحجز"
   }
 }
 

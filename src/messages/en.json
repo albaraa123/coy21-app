@@ -1920,6 +1920,17 @@
     "recipientSaveButton": "Save recipient",
     "recipientSaved": "Recipient email saved.",
     "recipientSaveError": "Failed to save recipient email",
-    "recipientNotSet": "No recipient set"
+    "recipientNotSet": "No recipient set",
+    "globalDeadlineTitle": "Global Booking Deadline",
+    "globalDeadlineDescription": "An optional platform-wide cutoff. When set, self-service booking closes at this time for every session, even if a session's own deadline is later.",
+    "globalDeadlineSet": "Deadline set",
+    "globalDeadlineNotSet": "No deadline set",
+    "globalDeadlineLabel": "Deadline",
+    "globalDeadlineSaveButton": "Save deadline",
+    "globalDeadlineClearButton": "Clear deadline",
+    "globalDeadlineSaved": "Global booking deadline saved.",
+    "globalDeadlineCleared": "Global booking deadline cleared.",
+    "globalDeadlineSaveError": "Failed to save global booking deadline",
+    "globalDeadlineClearError": "Failed to clear global booking deadline"
   }
 }

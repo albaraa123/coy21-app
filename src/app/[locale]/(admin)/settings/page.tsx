@@ -17,6 +17,7 @@ import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
 import SettingsForm from './settings-form';
+import ConferenceSettingsForm from './conference-settings-form';
 
 export default async function SettingsPage() {
   const locale = await getLocale();
@@ -39,17 +40,29 @@ export default async function SettingsPage() {
     .eq('id', true)
     .single();
 
+  const { data: conferenceSettings } = await service
+    .from('conference_settings')
+    .select('global_booking_deadline')
+    .eq('id', true)
+    .single();
+
   const t = await getTranslations({ locale, namespace: 'settings' });
 
   return (
     <div className="p-4 md:p-6">
       <h1 className="mb-1 text-lg font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
       <p className="mb-6 text-sm text-charcoal/60 dark:text-gray-400">{t('description')}</p>
-      <SettingsForm
-        sandboxEnabled={emailSettings?.sandbox_enabled ?? true}
-        sandboxRecipientEmail={emailSettings?.sandbox_recipient_email ?? null}
-        isSuperAdmin={profile.role === 'super_admin'}
-      />
+      <div className="flex flex-col gap-6">
+        <SettingsForm
+          sandboxEnabled={emailSettings?.sandbox_enabled ?? true}
+          sandboxRecipientEmail={emailSettings?.sandbox_recipient_email ?? null}
+          isSuperAdmin={profile.role === 'super_admin'}
+        />
+        <ConferenceSettingsForm
+          globalBookingDeadline={conferenceSettings?.global_booking_deadline ?? null}
+          isSuperAdmin={profile.role === 'super_admin'}
+        />
+      </div>
     </div>
   );
 }

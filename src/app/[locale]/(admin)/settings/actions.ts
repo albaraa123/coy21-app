@@ -65,3 +65,28 @@ export async function disableSandboxMode(confirmationText: string): Promise<{ er
 
   return applyEmailSettingsUpdate(service, userId, { sandbox_enabled: false });
 }
+
+async function applyConferenceSettingsUpdate(
+  service: ReturnType<typeof createServiceRoleClient>,
+  userId: string,
+  patch: { global_booking_deadline: string | null }
+): Promise<{ error: string | null }> {
+  const { error } = await service
+    .from('conference_settings')
+    .update({ ...patch, updated_at: new Date().toISOString(), updated_by: userId })
+    .eq('id', true);
+
+  if (error) return { error: error.message };
+  revalidatePath(SETTINGS_PATH);
+  return { error: null };
+}
+
+export async function setGlobalBookingDeadline(deadlineIso: string): Promise<{ error: string | null }> {
+  const { service, userId } = await requireSuperAdmin();
+  return applyConferenceSettingsUpdate(service, userId, { global_booking_deadline: deadlineIso });
+}
+
+export async function clearGlobalBookingDeadline(): Promise<{ error: string | null }> {
+  const { service, userId } = await requireSuperAdmin();
+  return applyConferenceSettingsUpdate(service, userId, { global_booking_deadline: null });
+}
