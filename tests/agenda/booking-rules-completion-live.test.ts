@@ -596,3 +596,250 @@ describe('no-show detection and seat release', () => {
     expect((outboxRows as unknown as Array<{ booking_id: string; notification_type: string }>)[0].booking_id).toBe(newBooking!.id);
   });
 });
+
+describe('walk-in admission', () => {
+  // admit_walk_in's sole authorization gate is is_staff() (current_user_role()
+  // in ('staff', 'super_admin') -- 20260929000001_migrate_staff_profiles_
+  // and_add_helper.sql), checked inside the function itself rather than via a
+  // TypeScript-side pre-check. To call it as a caller is_staff() accepts, we
+  // need a real signed-in Auth user whose profiles row has role = 'staff' --
+  // same pattern tests/attendance/admission-management-live.test.ts uses for
+  // its manager/scanner/staff fixtures (createUser, then update profiles.role,
+  // then sign in via a fresh client).
+  let staffUserId: string;
+  let staffClient: ReturnType<typeof createClient<Database>>;
+
+  beforeAll(async () => {
+    const email = `booking-rules-completion-live-${runId}-walkin-staff@test.local`;
+    const { data: user } = await admin.auth.admin.createUser({ email, password: 'password123', email_confirm: true });
+    staffUserId = user!.user!.id;
+    applicantUserIds.push(staffUserId); // reuse the shared afterAll cleanup loop
+    await admin.from('profiles').update({ role: 'staff' }).eq('id', staffUserId);
+
+    staffClient = createClient<Database>(URL, ANON_KEY);
+    await staffClient.auth.signInWithPassword({ email, password: 'password123' });
+  });
+
+  it('succeeds when a staff caller admits a not-yet-booked, accepted applicant below capacity', async () => {
+    const sessionId = await seedSession('walkin-success', { capacity: 2 });
+    const { applicationId } = await seedAcceptedApplicant('walkin-success');
+
+    const { data: bookingId, error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+    });
+    expect(error, `RPC error: ${error?.message}`).toBeNull();
+    expect(bookingId).toBeTruthy();
+
+    const { data: booking } = await admin
+      .from('session_bookings')
+      .select('id, source, status')
+      .eq('id', bookingId as string)
+      .single();
+    expect(booking?.source).toBe('walk_in');
+    expect(booking?.status).toBe('active');
+
+    const { data: attendance } = await admin
+      .from('attendance_records')
+      .select('entry_type, status, booking_id')
+      .eq('application_id', applicationId)
+      .eq('session_id', sessionId)
+      .single();
+    expect(attendance?.entry_type).toBe('walk_in');
+    expect(attendance?.status).toBe('admitted');
+    expect(attendance?.booking_id).toBe(bookingId);
+  });
+
+  it('rejects a non-staff caller with Not authorized', async () => {
+    const sessionId = await seedSession('walkin-nonstaff', { capacity: 2 });
+    const { applicationId, client: participantClient } = await seedAcceptedApplicant('walkin-nonstaff');
+
+    const { error } = await participantClient.rpc('admit_walk_in', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain('Not authorized');
+  });
+
+  it('rejects when the session is at capacity', async () => {
+    const sessionId = await seedSession('walkin-capacity', { capacity: 1 });
+    const { applicationId: admittedAppId, applicantId: admittedApplicantId } = await seedAcceptedApplicant('walkin-capacity-admitted');
+    await admin.from('attendance_records').insert({
+      application_id: admittedAppId,
+      session_id: sessionId,
+      time_slot_group_key: 'walkin-capacity-tsg',
+      status: 'admitted',
+      entry_type: 'flexible',
+      scanned_by: admittedApplicantId,
+    });
+
+    const { applicationId } = await seedAcceptedApplicant('walkin-capacity-new');
+    const { error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain('Session is at capacity');
+  });
+
+  it('rejects when the participant already has an active booking for this session', async () => {
+    const sessionId = await seedSession('walkin-already-booked', { capacity: 2 });
+    const { applicationId } = await seedAcceptedApplicant('walkin-already-booked');
+    await directBooking(applicationId, sessionId);
+
+    const { error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain('This participant already has a booking for this session');
+  });
+
+  it('rejects when the participant has already been admitted to this session', async () => {
+    const sessionId = await seedSession('walkin-already-admitted', { capacity: 2 });
+    const { applicationId, applicantId } = await seedAcceptedApplicant('walkin-already-admitted');
+    // Simulate a normal QR admission with no prior self-service booking --
+    // booking_id left null, same as scan_attempt_transactional would leave
+    // it when no matching active session_bookings row exists.
+    await admin.from('attendance_records').insert({
+      application_id: applicationId,
+      session_id: sessionId,
+      time_slot_group_key: 'walkin-already-admitted-tsg',
+      status: 'admitted',
+      entry_type: 'flexible',
+      scanned_by: applicantId,
+    });
+
+    const { error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain('This participant has already been admitted to this session');
+  });
+
+  it('rejects when the application is not accepted', async () => {
+    const sessionId = await seedSession('walkin-not-accepted', { capacity: 2 });
+    const email = `booking-rules-completion-live-${runId}-walkin-not-accepted@test.local`;
+    const { data: user } = await admin.auth.admin.createUser({ email, password: 'password123', email_confirm: true });
+    const applicantId = user!.user!.id;
+    applicantUserIds.push(applicantId);
+    const { data: app } = await admin
+      .from('applications')
+      .insert({ applicant_id: applicantId, status: 'submitted', preferred_language: 'en', experience_level: 'beginner', interests: [] })
+      .select('id')
+      .single();
+    applicationIds.push(app!.id);
+
+    const { error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: app!.id,
+      p_session_id: sessionId,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain('Application not found or not accepted');
+  });
+
+  it('rejects when the session is not confirmed', async () => {
+    const sessionId = await seedSession('walkin-not-confirmed', { capacity: 2, status: 'draft' });
+    const { applicationId } = await seedAcceptedApplicant('walkin-not-confirmed');
+
+    const { error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain('Session is not open for admission');
+  });
+
+  it('regression: book_session still defaults session_bookings.source to self_service', async () => {
+    const sessionId = await seedSession('walkin-regression-self-service');
+    const { applicationId, client } = await seedAcceptedApplicant('walkin-regression-self-service');
+
+    const { error } = await client.rpc('book_session', { p_application_id: applicationId, p_session_id: sessionId });
+    expect(error).toBeNull();
+
+    const { data: booking } = await admin
+      .from('session_bookings')
+      .select('source')
+      .eq('application_id', applicationId)
+      .eq('session_id', sessionId)
+      .single();
+    expect(booking?.source).toBe('self_service');
+  });
+
+  it('cross-system visibility: a walk-in booking counts toward session_effective_occupied_count and is visible via the same query path as a self-service booking', async () => {
+    const sessionId = await seedSession('walkin-visibility', { capacity: 3 });
+    const { applicationId } = await seedAcceptedApplicant('walkin-visibility');
+
+    const { data: countBefore } = await admin.rpc('session_effective_occupied_count', { p_session_id: sessionId });
+
+    const { data: bookingId, error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+    });
+    expect(error, `RPC error: ${error?.message}`).toBeNull();
+
+    const { data: countAfter } = await admin.rpc('session_effective_occupied_count', { p_session_id: sessionId });
+    expect(countAfter).toBe((countBefore ?? 0) + 1);
+
+    // Same query shape /my-agenda's page.tsx uses to list a participant's
+    // bookings.
+    const { data: visibleBookings } = await admin
+      .from('session_bookings')
+      .select('id')
+      .eq('application_id', applicationId)
+      .in('status', ['active']);
+    expect(visibleBookings?.map((b) => b.id)).toContain(bookingId);
+  });
+});
+
+describe('scan_attempt_transactional booking_id linkage', () => {
+  it('populates booking_id when a matching active booking exists', async () => {
+    const openTypeId = await seedSessionType('scan-linkage-matched', false);
+    const sessionId = await seedSession('scan-linkage-matched', { session_type_id: openTypeId, admission_policy: 'open', capacity: 2 });
+    const { applicationId, applicantId } = await seedAcceptedApplicant('scan-linkage-matched');
+    const bookingId = await directBooking(applicationId, sessionId);
+
+    const { data, error } = await admin.rpc('scan_attempt_transactional', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+      p_scanned_by: applicantId,
+      p_device_identifier: 'scan-linkage-device',
+      p_time_slot_group_key: `scan-linkage-matched-${sessionId}`,
+    });
+    expect(error, `RPC error: ${error?.message}`).toBeNull();
+    expect(data!.result).toBe('flexible_admitted');
+
+    const { data: attendance } = await admin
+      .from('attendance_records')
+      .select('booking_id')
+      .eq('id', data!.resulting_attendance_id as string)
+      .single();
+    expect(attendance?.booking_id).toBe(bookingId);
+  });
+
+  it('leaves booking_id NULL when no matching active booking exists', async () => {
+    const openTypeId = await seedSessionType('scan-linkage-unmatched', false);
+    const sessionId = await seedSession('scan-linkage-unmatched', { session_type_id: openTypeId, admission_policy: 'open', capacity: 2 });
+    const { applicationId, applicantId } = await seedAcceptedApplicant('scan-linkage-unmatched');
+    // No prior booking for this applicant/session.
+
+    const { data, error } = await admin.rpc('scan_attempt_transactional', {
+      p_application_id: applicationId,
+      p_session_id: sessionId,
+      p_scanned_by: applicantId,
+      p_device_identifier: 'scan-linkage-device',
+      p_time_slot_group_key: `scan-linkage-unmatched-${sessionId}`,
+    });
+    expect(error, `RPC error: ${error?.message}`).toBeNull();
+    expect(data!.result).toBe('flexible_admitted');
+
+    const { data: attendance } = await admin
+      .from('attendance_records')
+      .select('booking_id')
+      .eq('id', data!.resulting_attendance_id as string)
+      .single();
+    expect(attendance?.booking_id).toBeNull();
+  });
+});

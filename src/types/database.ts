@@ -2855,6 +2855,7 @@ export type Database = {
           created_at: string
           id: string
           session_id: string
+          source: string
           status: Database["public"]["Enums"]["booking_status"]
           updated_at: string
         }
@@ -2865,6 +2866,7 @@ export type Database = {
           created_at?: string
           id?: string
           session_id: string
+          source?: string
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
         }
@@ -2875,6 +2877,7 @@ export type Database = {
           created_at?: string
           id?: string
           session_id?: string
+          source?: string
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
         }
@@ -3546,6 +3549,10 @@ export type Database = {
       }
       accept_application_and_issue_number: {
         Args: { p_application_id: string }
+        Returns: string
+      }
+      admit_walk_in: {
+        Args: { p_application_id: string; p_session_id: string }
         Returns: string
       }
       apply_import_row_transactional: {
