@@ -789,6 +789,7 @@ export type Database = {
         Row: {
           admitted_at: string
           application_id: string
+          booking_id: string | null
           correction_reason: string | null
           created_at: string
           device_identifier: string | null
@@ -803,6 +804,7 @@ export type Database = {
         Insert: {
           admitted_at?: string
           application_id: string
+          booking_id?: string | null
           correction_reason?: string | null
           created_at?: string
           device_identifier?: string | null
@@ -817,6 +819,7 @@ export type Database = {
         Update: {
           admitted_at?: string
           application_id?: string
+          booking_id?: string | null
           correction_reason?: string | null
           created_at?: string
           device_identifier?: string | null
@@ -834,6 +837,13 @@ export type Database = {
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "session_bookings"
             referencedColumns: ["id"]
           },
           {
@@ -3653,6 +3663,7 @@ export type Database = {
         Returns: {
           admitted_at: string
           application_id: string
+          booking_id: string | null
           correction_reason: string | null
           created_at: string
           device_identifier: string | null
@@ -3788,6 +3799,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      process_session_no_shows: {
+        Args: { p_session_id: string }
+        Returns: undefined
+      }
+      promote_next_waitlist_candidate: {
+        Args: { p_session_id: string }
+        Returns: undefined
       }
       reassign_blocked_participant_transactional: {
         Args: {
@@ -4116,6 +4135,7 @@ export type Database = {
         Returns: {
           admitted_at: string
           application_id: string
+          booking_id: string | null
           correction_reason: string | null
           created_at: string
           device_identifier: string | null
@@ -4279,7 +4299,7 @@ export type Database = {
         | "withdrawn"
       attendance_confirmation_status: "confirmed" | "not_confirmed" | "declined"
       audit_actor_type: "admin" | "system"
-      booking_status: "active" | "cancelled" | "session_cancelled"
+      booking_status: "active" | "cancelled" | "session_cancelled" | "no_show"
       funding_type: "self_funded" | "partially_funded" | "fully_funded"
       participant_type:
         | "delegate"
@@ -4500,7 +4520,7 @@ export const Constants = {
         "declined",
       ],
       audit_actor_type: ["admin", "system"],
-      booking_status: ["active", "cancelled", "session_cancelled"],
+      booking_status: ["active", "cancelled", "session_cancelled", "no_show"],
       funding_type: ["self_funded", "partially_funded", "fully_funded"],
       participant_type: [
         "delegate",

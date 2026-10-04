@@ -49,12 +49,7 @@ export default async function MyAgendaPage() {
       )
     `)
     .eq('application_id', application.id)
-    // `as never`: 'no_show' was added to the booking_status enum in
-    // 20261006040000_no_show_detection_and_promotion_helper.sql and is not
-    // yet reflected in the generated src/types/database.ts snapshot --
-    // same established workaround as the process-session-no-shows cron's
-    // use of process_session_no_shows.
-    .in('status', ['active', 'session_cancelled', 'no_show'] as never[])
+    .in('status', ['active', 'session_cancelled', 'no_show'])
     .order('booked_at');
 
   // Fetch active waitlist entries with session + room info — a flat list,

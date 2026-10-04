@@ -66,12 +66,7 @@ export async function GET(req: NextRequest) {
   let errored = 0;
 
   for (const session of sessions) {
-    // `as never`: process_session_no_shows was added in
-    // 20261006040000_no_show_detection_and_promotion_helper.sql and is
-    // not yet reflected in the generated src/types/database.ts snapshot
-    // -- same established workaround as process-session-notifications'
-    // use of session_notification_outbox.
-    const { error: rpcErr } = await service.rpc('process_session_no_shows' as never, { p_session_id: session.id } as never);
+    const { error: rpcErr } = await service.rpc('process_session_no_shows', { p_session_id: session.id });
     if (rpcErr) {
       console.error(`process-session-no-shows: failed for session ${session.id}`, rpcErr);
       errored++;
