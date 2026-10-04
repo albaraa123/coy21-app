@@ -31,6 +31,7 @@ declare
   v_count         int;
   v_deadline      timestamptz;
 begin
+  -- Caller must own this application
   if not exists (
     select 1 from applications
     where id = p_application_id and applicant_id = auth.uid()
@@ -38,6 +39,7 @@ begin
     raise exception 'Not authorized';
   end if;
 
+  -- Lock the session row to prevent race on capacity
   select * into v_session from sessions where id = p_session_id for update;
   if v_session.id is null then
     raise exception 'Session not found';
@@ -51,11 +53,13 @@ begin
     raise exception 'Booking deadline has passed';
   end if;
 
+  -- Capacity check (combined: session_bookings + confirmed allocation_assignments)
   v_count := session_effective_occupied_count(p_session_id);
   if v_count >= v_session.capacity then
     raise exception 'Session is full';
   end if;
 
+  -- Conflict check: any active booking for this participant that overlaps?
   if exists (
     select 1
     from session_bookings sb
@@ -157,6 +161,14 @@ begin
     values (p_application_id, p_session_id)
     returning id into v_waitlist_id;
   exception when unique_violation then
+    -- session_waitlist_active_unique (a partial unique index) can still
+    -- fire here despite the pre-check above, under a race where two
+    -- concurrent calls both pass the exists() check before either
+    -- commits -- same pattern and rationale as
+    -- claim_application_transactional's unique_violation handling.
+    -- Re-raising the same message the pre-check uses keeps the error
+    -- stable/matchable for the participant-facing UI regardless of
+    -- which path produced it.
     raise exception 'You are already on the waitlist for this session';
   end;
 
@@ -216,6 +228,9 @@ begin
   set status = 'cancelled', cancelled_at = now()
   where id = p_booking_id;
 
+  -- Waitlist promotion: only for voluntary cancellation (this function),
+  -- never for staff-initiated session cancellation (handled by the 4c
+  -- trigger, which never calls this function).
   select st.enable_waitlist into v_enable_waitlist
   from session_types st where st.id = v_session.session_type_id;
 
@@ -229,6 +244,13 @@ begin
       order by sw.joined_at asc
       for update of sw
     loop
+      -- Defense-in-depth, not closing a distinct gap: Postgres's FOR
+      -- UPDATE / EvalPlanQual re-check already excludes a row a
+      -- concurrent leave_waitlist withdrew before this loop's lock on
+      -- it was granted, so this branch should be unreachable in
+      -- practice -- kept as a guard against relying on undocumented
+      -- planner behavior staying stable across a future Postgres
+      -- version.
       if v_candidate.status is distinct from 'waiting' then
         continue;
       end if;
