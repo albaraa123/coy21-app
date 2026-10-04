@@ -36,7 +36,11 @@ import type { Database } from '@/types/database';
 // same established pattern as tests/participants/travel-ops-live.test.ts,
 // tests/settings/email-settings-rls-live.test.ts, and
 // tests/attendance/scan-attempt-concurrency-live.test.ts.
-vi.setConfig({ testTimeout: 30000, hookTimeout: 30000 });
+// hookTimeout bumped above testTimeout's 30s: afterAll's cleanup grew to
+// 9+ sequential deletes across this file's 15 tests' worth of fixtures,
+// and was observed timing out at 30000ms against live-DB round-trip
+// latency (see the migration-review follow-up that surfaced this).
+vi.setConfig({ testTimeout: 30000, hookTimeout: 60000 });
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
