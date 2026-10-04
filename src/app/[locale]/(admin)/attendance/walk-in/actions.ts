@@ -13,7 +13,10 @@
 import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers';
 import { buildIlikeOrFilter } from '@/lib/validation/postgrest-search';
 
-export async function admitWalkIn(identifier: string, sessionId: string) {
+export async function admitWalkIn(
+  identifier: string,
+  sessionId: string
+): Promise<{ error: string } | { bookingId: string | null }> {
   const { session, service } = await requireAdmissionStaffCaller();
 
   const trimmed = identifier.trim();
