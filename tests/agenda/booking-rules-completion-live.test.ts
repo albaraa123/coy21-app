@@ -462,6 +462,57 @@ describe('no-show detection and seat release', () => {
     expect(newBooking).not.toBeNull();
   });
 
+  it('does not re-evaluate a same-pass promoted booking as a no-show within the same call', async () => {
+    // Regression test for the central concurrency claim this feature
+    // relies on: process_session_no_shows's outer `for v_booking in
+    // <query> loop` snapshots its result set at cursor-open (standard
+    // PL/pgSQL cursor semantics), so a booking inserted by
+    // promote_next_waitlist_candidate mid-loop -- as a side effect of
+    // processing an EARLIER no-show candidate in the SAME pass -- cannot
+    // be picked up and immediately re-flagged as a no-show by that same
+    // pass. Every other promotion test here uses capacity: 1 with a
+    // single no-show candidate, so the loop only ever iterates once and
+    // never actually exercises this scenario. This test uses capacity: 2
+    // with two simultaneous no-show bookings and one waiting candidate,
+    // so the outer loop iterates (at least) twice and the promoted
+    // booking is present in the table during the second iteration.
+    const waitlistTypeId = await seedSessionType('noshow-samepass', true);
+    const sessionId = await seedPastSession('noshow-samepass', { session_type_id: waitlistTypeId, capacity: 2 });
+    const { applicationId: noShowAppId1 } = await seedAcceptedApplicant('noshow-samepass-absent-1');
+    const { applicationId: noShowAppId2 } = await seedAcceptedApplicant('noshow-samepass-absent-2');
+    const { applicationId: waitingAppId } = await seedAcceptedApplicant('noshow-samepass-waiting');
+    const bookingId1 = await directBooking(noShowAppId1, sessionId);
+    const bookingId2 = await directBooking(noShowAppId2, sessionId);
+
+    await admin.from('session_waitlist').insert({ application_id: waitingAppId, session_id: sessionId, status: 'waiting' });
+
+    const { error: rpcErr } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr).toBeNull();
+
+    const { data: booking1 } = await admin.from('session_bookings').select('status').eq('id', bookingId1).single();
+    expect(booking1?.status).toBe('no_show');
+    const { data: booking2 } = await admin.from('session_bookings').select('status').eq('id', bookingId2).single();
+    expect(booking2?.status).toBe('no_show');
+
+    // Exactly one promotion happened (FIFO, single waiting candidate),
+    // and the promoted booking must still be 'active' after the pass --
+    // not re-picked-up and flipped to 'no_show' by the same call.
+    const { data: promotedBookings } = await admin
+      .from('session_bookings')
+      .select('id, status')
+      .eq('application_id', waitingAppId)
+      .eq('session_id', sessionId);
+    expect(promotedBookings).toHaveLength(1);
+    expect(promotedBookings![0].status).toBe('active');
+
+    const { data: outboxRows } = await admin
+      .from('session_notification_outbox' as never)
+      .select('booking_id')
+      .eq('session_id', sessionId)
+      .eq('notification_type', 'waitlist_promoted');
+    expect(outboxRows).toHaveLength(1);
+  });
+
   it('does not attempt promotion when enable_waitlist is false', async () => {
     // sessionTypeId (the shared default from beforeAll) has enable_waitlist = false
     const sessionId = await seedPastSession('noshow-no-promote', { capacity: 1 });
