@@ -3717,6 +3717,14 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: never; Returns: boolean }
+      join_waitlist: {
+        Args: { p_application_id: string; p_session_id: string }
+        Returns: string
+      }
+      leave_waitlist: {
+        Args: { p_application_id: string; p_session_id: string }
+        Returns: undefined
+      }
       next_application_number: {
         Args: { p_type?: Database["public"]["Enums"]["participant_type"] }
         Returns: string
