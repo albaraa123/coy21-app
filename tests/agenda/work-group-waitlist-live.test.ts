@@ -522,3 +522,40 @@ describe('cancel_booking waitlist promotion', () => {
     expect(cWaitlistRow?.status).toBe('waiting');
   });
 });
+
+describe('session_waitlist RLS', () => {
+  it("a participant cannot SELECT another participant's waitlist row", async () => {
+    const waitlistTypeId = await seedSessionType('rls-select', true);
+    const { applicationId: bookerAppId } = await seedAcceptedApplicant('rls-select-booker');
+    const { applicationId: aAppId, client: aClient } = await seedAcceptedApplicant('rls-select-a');
+    const { client: bClient } = await seedAcceptedApplicant('rls-select-b');
+    const sessionId = await seedSession('rls-select', { session_type_id: waitlistTypeId, capacity: 1 });
+    await directBooking(bookerAppId, sessionId);
+
+    const { data: aWaitlistId, error: aJoinError } = await aClient.rpc('join_waitlist', { p_application_id: aAppId, p_session_id: sessionId });
+    expect(aJoinError).toBeNull();
+
+    // B's own signed-in client (not service-role) tries to read A's row by
+    // id. RLS silently filters this out on SELECT -- PostgREST returns an
+    // empty result set, not a thrown error, so assert emptiness rather
+    // than an `error` field.
+    const { data: rows, error } = await bClient.from('session_waitlist').select('*').eq('id', aWaitlistId as string);
+    expect(error).toBeNull();
+    expect(rows).toEqual([]);
+  });
+
+  it('a participant cannot write to session_waitlist directly, bypassing the RPCs', async () => {
+    const waitlistTypeId = await seedSessionType('rls-insert', true);
+    const { applicationId: bookerAppId } = await seedAcceptedApplicant('rls-insert-booker');
+    const { applicationId: waiterAppId, client: waiterClient } = await seedAcceptedApplicant('rls-insert-waiter');
+    const sessionId = await seedSession('rls-insert', { session_type_id: waitlistTypeId, capacity: 1 });
+    await directBooking(bookerAppId, sessionId);
+
+    // No INSERT policy exists on session_waitlist (see
+    // 20261005020000_session_waitlist_table.sql) -- all writes must go
+    // through join_waitlist/leave_waitlist/cancel_booking. A direct
+    // .insert() from a real participant client must be rejected.
+    const { error } = await waiterClient.from('session_waitlist').insert({ application_id: waiterAppId, session_id: sessionId, status: 'waiting' });
+    expect(error).not.toBeNull();
+  });
+});
