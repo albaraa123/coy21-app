@@ -101,9 +101,20 @@ export function CancelButton({ bookingId, isPastDeadline, onCancelled }: CancelB
 type WaitlistButtonProps = {
   sessionId: string;
   isWaitlisted: boolean;
+  // Called after a successful leave, in addition to this component's own
+  // internal state flip. Needed on my-agenda, where this component is
+  // reused purely for its already-waitlisted branch (see page.tsx) --
+  // without this, a successful leave would locally flip to the
+  // "Join waitlist" branch while staying rendered under a stale
+  // "Waitlisted" badge in a row that should have disappeared entirely,
+  // mirroring the onCancelled callback CancelButton already uses for the
+  // same reason (AgendaDay filters cancelled bookings out of view).
+  // Optional: the browse page's "not yet waitlisted" usage has no row to
+  // remove, so it has no need to pass this.
+  onLeft?: () => void;
 };
 
-export function WaitlistButton({ sessionId, isWaitlisted: initialWaitlisted }: WaitlistButtonProps) {
+export function WaitlistButton({ sessionId, isWaitlisted: initialWaitlisted, onLeft }: WaitlistButtonProps) {
   const [waitlisted, setWaitlisted] = useState(initialWaitlisted);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -119,6 +130,7 @@ export function WaitlistButton({ sessionId, isWaitlisted: initialWaitlisted }: W
             startTransition(async () => {
               const result = await leaveWaitlist(sessionId);
               if (result.error) setError(result.error);
+              else if (onLeft) onLeft();
               else setWaitlisted(false);
             });
           }}

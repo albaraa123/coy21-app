@@ -3,10 +3,8 @@ import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { AgendaDay } from './agenda-day';
-import { WaitlistButton } from './booking-button';
-import { formatConferenceTime } from '@/lib/datetime/conference-time';
+import { WaitlistedSessions } from './waitlisted-sessions';
 
 export default async function MyAgendaPage() {
   const locale = await getLocale();
@@ -78,9 +76,6 @@ export default async function MyAgendaPage() {
 
   const sessionsByDay = groupByDay(bookings ?? []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const waitlisted = (waitlistRows ?? []) as any[];
-
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 md:p-10">
       <div className="flex items-center justify-between">
@@ -90,38 +85,7 @@ export default async function MyAgendaPage() {
         </Button>
       </div>
 
-      {waitlisted.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">
-            Waitlisted
-          </h2>
-          {waitlisted.map((w) => {
-            const s = w.sessions;
-            if (!s) return null;
-
-            const title = locale === 'ar' ? s.title_ar : s.title_en;
-            const room = s.rooms ? (locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en) : '';
-            const start = formatConferenceTime(s.start_time, locale === 'ar' ? 'ar' : 'en');
-            const end = formatConferenceTime(s.end_time, locale === 'ar' ? 'ar' : 'en');
-
-            return (
-              <Card key={w.id} className="flex flex-row items-start gap-3 py-3">
-                <div className="flex flex-1 flex-col gap-0.5">
-                  <p className="text-sm font-medium text-charcoal dark:text-gray-100">{title}</p>
-                  <p className="text-xs text-charcoal/60 dark:text-gray-400">
-                    {start} – {end}
-                    {room ? ` · ${room}` : ''}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
-                  <Badge variant="waitlisted">Waitlisted</Badge>
-                  <WaitlistButton sessionId={s.id} isWaitlisted={true} />
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <WaitlistedSessions entries={waitlistRows ?? []} locale={locale} />
 
       {sessionsByDay.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-10 text-center">
