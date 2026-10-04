@@ -28,6 +28,13 @@
 -- Signature is unchanged (uuid, uuid), so `create or replace function`
 -- preserves the existing `grant execute ... to authenticated` from
 -- 20261006050000 -- no grant needs restating.
+--
+-- Generalized lesson for future SECURITY DEFINER functions: any helper
+-- that calls an extension function (digest(), gen_random_uuid(), etc.)
+-- UNQUALIFIED and declares no search_path of its own will silently break
+-- the first caller that sets an explicit, hardened search_path omitting
+-- that extension's install schema -- check every transitive helper call
+-- before hardening a new function's search_path, not just its own body.
 
 create or replace function admit_walk_in(
   p_application_id uuid,

@@ -140,6 +140,24 @@ async function directBooking(applicationId: string, sessionId: string) {
   return data!.id as string;
 }
 
+async function seedAdmittedAttendance(
+  applicationId: string,
+  applicantId: string,
+  sessionId: string,
+  overrides: Partial<Database['public']['Tables']['attendance_records']['Insert']> = {}
+) {
+  const { error } = await admin.from('attendance_records').insert({
+    application_id: applicationId,
+    session_id: sessionId,
+    time_slot_group_key: `tsg-${applicationId.slice(0, 8)}`,
+    status: 'admitted',
+    entry_type: 'flexible',
+    scanned_by: applicantId,
+    ...overrides,
+  });
+  if (error) throw new Error(`Failed to seed attendance_records: ${error.message}`);
+}
+
 async function setGlobalDeadline(value: string | null) {
   const { error } = await admin.from('conference_settings').update({ global_booking_deadline: value }).eq('id', true);
   if (error) throw new Error(`Failed to set conference_settings.global_booking_deadline: ${error.message}`);
@@ -665,14 +683,7 @@ describe('walk-in admission', () => {
   it('rejects when the session is at capacity', async () => {
     const sessionId = await seedSession('walkin-capacity', { capacity: 1 });
     const { applicationId: admittedAppId, applicantId: admittedApplicantId } = await seedAcceptedApplicant('walkin-capacity-admitted');
-    await admin.from('attendance_records').insert({
-      application_id: admittedAppId,
-      session_id: sessionId,
-      time_slot_group_key: 'walkin-capacity-tsg',
-      status: 'admitted',
-      entry_type: 'flexible',
-      scanned_by: admittedApplicantId,
-    });
+    await seedAdmittedAttendance(admittedAppId, admittedApplicantId, sessionId);
 
     const { applicationId } = await seedAcceptedApplicant('walkin-capacity-new');
     const { error } = await staffClient.rpc('admit_walk_in', {
@@ -702,14 +713,7 @@ describe('walk-in admission', () => {
     // Simulate a normal QR admission with no prior self-service booking --
     // booking_id left null, same as scan_attempt_transactional would leave
     // it when no matching active session_bookings row exists.
-    await admin.from('attendance_records').insert({
-      application_id: applicationId,
-      session_id: sessionId,
-      time_slot_group_key: 'walkin-already-admitted-tsg',
-      status: 'admitted',
-      entry_type: 'flexible',
-      scanned_by: applicantId,
-    });
+    await seedAdmittedAttendance(applicationId, applicantId, sessionId);
 
     const { error } = await staffClient.rpc('admit_walk_in', {
       p_application_id: applicationId,
