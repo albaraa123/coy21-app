@@ -84,14 +84,6 @@ alter table session_bookings add column source text not null default 'self_servi
   check (source in ('self_service', 'walk_in'));
 ```
 
-### `sessions.no_show_processed_at` (new column)
-
-```sql
-alter table sessions add column no_show_processed_at timestamptz;
-```
-
-Idempotency marker for the no-show cron — mirrors the existing timestamp-marker pattern already used elsewhere on `sessions` (`published_at`, `confirmed_at`, `cancelled_at`).
-
 ### `attendance_records.booking_id` (new column)
 
 ```sql
@@ -141,13 +133,75 @@ Uses `session_effective_occupied_count()` (the existing 4b function: active `ses
 
 ## No-Show Detection and Seat Release
 
-New SQL function, called by a new cron route mirroring `process-session-notifications`'s exact structure (CRON_SECRET bearer-token guard, 5-minute cadence, stateless per-row processing):
+**Shared promotion helper, extracted from `cancel_booking`'s current promotion loop.** Reading `cancel_booking`'s authoritative current body (`20261005045000_fix_promotion_recheck_comment.sql`) confirms the promotion loop depends only on `v_session` (for `session_id`/`start_time`/`end_time`, used in the FIFO scan and both conflict-overlap checks) — it never uses the cancelling participant's own `application_id` anywhere. That makes extraction clean: the helper takes just the session id, re-selects the session row itself, and the *reason* a seat freed up (voluntary cancellation vs. no-show) is irrelevant to the promotion logic itself. `cancel_booking` is updated to call this helper in place of its current inline loop (pure refactor, no behavior change — verified by keeping its existing test suite green); the no-show function calls the same helper.
+
+```sql
+create function promote_next_waitlist_candidate(p_session_id uuid) returns void
+language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_session         sessions%rowtype;
+  v_candidate        record;
+  v_new_booking_id   uuid;
+begin
+  select * into v_session from sessions where id = p_session_id;
+
+  <<promotion>>
+  for v_candidate in
+    select sw.id, sw.application_id, sw.status
+    from session_waitlist sw
+    where sw.session_id = p_session_id
+      and sw.status = 'waiting'
+    order by sw.joined_at asc
+    for update of sw
+  loop
+    if v_candidate.status is distinct from 'waiting' then
+      continue;
+    end if;
+
+    if exists (
+      select 1 from session_bookings sb join sessions s on s.id = sb.session_id
+      where sb.application_id = v_candidate.application_id and sb.status = 'active'
+        and tstzrange(s.start_time, s.end_time, '[)') && tstzrange(v_session.start_time, v_session.end_time, '[)')
+    ) or exists (
+      select 1 from allocation_assignments aa join sessions s on s.id = aa.session_id
+      where aa.application_id = v_candidate.application_id and aa.status = 'confirmed'
+        and tstzrange(s.start_time, s.end_time, '[)') && tstzrange(v_session.start_time, v_session.end_time, '[)')
+    ) then
+      continue;
+    end if;
+
+    insert into session_bookings (application_id, session_id)
+    values (v_candidate.application_id, p_session_id)
+    returning id into v_new_booking_id;
+
+    update session_waitlist set status = 'promoted', promoted_at = now() where id = v_candidate.id;
+
+    update session_waitlist sw2
+    set status = 'withdrawn', withdrawn_at = now()
+    from sessions s2
+    where sw2.session_id = s2.id
+      and sw2.application_id = v_candidate.application_id
+      and sw2.status = 'waiting'
+      and tstzrange(s2.start_time, s2.end_time, '[)') && tstzrange(v_session.start_time, v_session.end_time, '[)');
+
+    insert into session_notification_outbox (booking_id, application_id, session_id, notification_type)
+    values (v_new_booking_id, v_candidate.application_id, p_session_id, 'waitlist_promoted');
+
+    exit promotion;
+  end loop;
+end;
+$$;
+```
+
+This also closes a gap the spec review caught: the earlier draft's no-show sketch never queued a `waitlist_promoted` notification, meaning a no-show-triggered promotion would have silently differed from a cancellation-triggered one. Reusing the exact same helper makes that impossible by construction — both call sites get identical promotion behavior, including the notification, with no duplicated logic to drift.
+
+**No-show detection function:**
 
 ```sql
 create function process_session_no_shows(p_session_id uuid) returns void
-language plpgsql as $$
+language plpgsql set search_path = public, pg_temp as $$
 declare
-  v_booking record;
+  v_booking         record;
   v_enable_waitlist boolean;
 begin
   select st.enable_waitlist into v_enable_waitlist
@@ -155,7 +209,7 @@ begin
   where s.id = p_session_id;
 
   for v_booking in
-    select sb.id, sb.application_id
+    select sb.id
     from session_bookings sb
     where sb.session_id = p_session_id
       and sb.status = 'active'
@@ -163,29 +217,31 @@ begin
         select 1 from attendance_records ar
         where ar.booking_id = sb.id and ar.status = 'admitted'
       )
+    for update of sb
   loop
     update session_bookings set status = 'no_show' where id = v_booking.id;
 
     if coalesce(v_enable_waitlist, false) then
-      -- Re-run the same FIFO/conflict-skip/cross-waitlist-withdrawal
-      -- promotion logic cancel_booking() already implements (4d), scoped
-      -- to this one freed seat. Exact mechanism (a shared helper function
-      -- both cancel_booking and this call into, vs. duplicated inline
-      -- logic) is a planning-stage decision — see plan.
-      perform promote_next_waitlist_candidate(p_session_id, v_booking.application_id);
+      perform promote_next_waitlist_candidate(p_session_id);
     end if;
   end loop;
-
-  update sessions set no_show_processed_at = now() where id = p_session_id;
 end;
-$$ language plpgsql set search_path = public, pg_temp;
+$$;
 ```
 
-The cron route queries `sessions where start_time + interval '15 minutes' <= now() and no_show_processed_at is null`, calling `process_session_no_shows()` once per matching session. Note: extracting `cancel_booking`'s inline promotion loop into a shared `promote_next_waitlist_candidate()` helper (rather than duplicating ~40 lines of FIFO/conflict-check/cross-withdrawal SQL a second time) is the clear right call here — the exact extraction shape is a planning-stage decision, not a design-stage one, since it requires re-reading `cancel_booking`'s current full body line-by-line to do safely.
+**Idempotency — per-booking, not per-session.** The original draft of this spec used a single `sessions.no_show_processed_at` timestamp to prevent the cron from reprocessing a session twice. Spec review correctly identified this as a latent bug: if a new active booking is created on a session *after* that session's one no-show pass already ran (e.g., a waitlist promotion triggered by an earlier no-show on the *same* session, or simply a late walk-in admission before the session's own no-show sweep), a session-level marker would permanently block that later booking from ever being checked — it would stay `active` forever even if its holder never shows up.
+
+Fixed by moving the idempotency check to the row being evaluated, which is also simpler: the function's own `where ... not exists (select 1 from attendance_records ...)` check only needs to additionally exclude bookings already marked `no_show`, which it already does implicitly (the `where sb.status = 'active'` clause excludes them — a booking only gets evaluated once, since the function flips it to `'no_show'` the first time and it never matches `status = 'active'` again). **No separate marker column is needed at all** — `sessions.no_show_processed_at` is removed from the Data Model section entirely. The cron route's own query for *which sessions to call* `process_session_no_shows()` **on** still needs a time filter (`start_time + interval '15 minutes' <= now()`), but does not need a processed-marker — calling the function again for a session with zero remaining un-admitted active bookings is a correct, cheap no-op (the loop simply finds no rows), so re-invoking it every 5 minutes for the same session indefinitely is harmless, not wasteful in any way that matters at this scale.
+
+The cron route (mirroring `process-session-notifications`'s exact structure: `CRON_SECRET` bearer-token guard, 5-minute cadence) queries `sessions where start_time + interval '15 minutes' <= now() and status = 'confirmed'` (bounded to a reasonable recent time window — exact window size is a planning-stage detail, e.g. "started within the last 2 hours," to avoid an ever-growing scan as the conference progresses) and calls `process_session_no_shows()` once per matching session.
+
+**Concurrency note** (spec review correctly flagged the original draft's silence on this): `process_session_no_shows` now takes `for update of sb` on each candidate booking before flipping its status, the same lock discipline `promote_next_waitlist_candidate`'s own loop already uses — this protects against the cron racing a concurrent `cancel_booking`/`leave_waitlist` call for the same booking. `cancel_booking` already takes its own `for update` lock on the specific `session_bookings` row it's cancelling, so the two paths cannot corrupt each other's write; whichever acquires the row lock first wins, and the other's conflicting update simply won't find a matching `status = 'active'` row to act on by the time it proceeds (Postgres's standard lock-then-re-evaluate behavior, the same `EvalPlanQual` mechanism 4d's `20261005045000` migration comment already documents in detail for this exact codebase).
 
 ## Walk-In Admission
 
-New SECURITY DEFINER RPC, `admit_walk_in(p_application_id uuid, p_session_id uuid)`, modeled structurally on `book_session`'s shape (same auth-check pattern, same row-lock-then-validate flow) but with deliberately narrower validation per the scope decisions above:
+New SECURITY DEFINER RPC, `admit_walk_in(p_application_id uuid, p_session_id uuid)`, modeled structurally on `book_session`'s shape (same row-lock-then-validate flow) but with deliberately narrower validation per the scope decisions above.
+
+**Authorization: `is_staff()`, decided now, not deferred.** The original draft deferred this to planning with a comment claiming it would "mirror `scan_attempt_transactional`'s own staff/scanner authorization" — spec review correctly caught that this doesn't hold up: reading `scan_attempt_transactional`'s current authoritative body shows it has **no in-function role check at all**; its real authorization happens in TypeScript (`verifyScannerScope`, called before the RPC) and the RPC itself trusts its caller, reachable from the "non-scope-limited" admission-review override path with no role gate inside the function. There is nothing to mirror. Since the new standalone admin page this spec introduces (scope decision 13) has no described TypeScript-side pre-check of its own, `admit_walk_in`'s own `is_staff()` check is the **sole** authorization gate for this feature — so it's decided here, explicitly, rather than left open: `is_staff()` (the existing helper from the staff-role-consolidation work), same as every other staff-only RPC in this codebase.
 
 ```sql
 create function admit_walk_in(
@@ -197,11 +253,8 @@ declare
   v_session      sessions%rowtype;
   v_admitted     int;
   v_booking_id   uuid;
+  v_attendance_id uuid;
 begin
-  -- Caller authorization: staff only (not the applicant themselves --
-  -- this is a door-staff action). Exact role check mirrors whatever
-  -- scan_attempt_transactional's own staff/scanner authorization
-  -- currently requires -- confirmed during planning.
   if not is_staff() then
     raise exception 'Not authorized';
   end if;
@@ -213,6 +266,9 @@ begin
   select * into v_session from sessions where id = p_session_id for update;
   if v_session.id is null then
     raise exception 'Session not found';
+  end if;
+  if v_session.status <> 'confirmed' then
+    raise exception 'Session is not open for admission';
   end if;
 
   select count(*) into v_admitted
@@ -228,19 +284,40 @@ begin
     raise exception 'This participant already has a booking for this session';
   end if;
 
+  if exists (
+    select 1 from attendance_records
+    where application_id = p_application_id and session_id = p_session_id and status = 'admitted'
+  ) then
+    raise exception 'This participant has already been admitted to this session';
+  end if;
+
   insert into session_bookings (application_id, session_id, source)
   values (p_application_id, p_session_id, 'walk_in')
   returning id into v_booking_id;
 
-  insert into attendance_records (application_id, session_id, time_slot_group_key, entry_type, scanned_by, booking_id)
-  values (p_application_id, p_session_id, compute_time_slot_group_key_for_session(p_session_id), 'walk_in', auth.uid(), v_booking_id);
+  begin
+    insert into attendance_records (application_id, session_id, time_slot_group_key, entry_type, scanned_by, booking_id)
+    values (p_application_id, p_session_id, compute_time_slot_group_key_for_session(p_session_id), 'walk_in', auth.uid(), v_booking_id)
+    returning id into v_attendance_id;
+  exception when unique_violation then
+    -- attendance_records_no_duplicate_active (one active admission per
+    -- application+session) can still fire here despite the pre-check
+    -- above, under the same kind of race this codebase already hit and
+    -- fixed once in join_waitlist (20261005035000) -- re-raise the same
+    -- clean message instead of surfacing a raw constraint error.
+    raise exception 'This participant has already been admitted to this session';
+  end;
 
   return v_booking_id;
 end;
 $$;
 ```
 
+Added two things beyond the original draft, both flagged by spec review: (1) a `v_session.status <> 'confirmed'` check mirroring `book_session`'s own session-status gate (the original draft said it was "modeled on `book_session`'s shape" but omitted this, with no stated reason — now closed, since there's no reason a `draft`/`cancelled` session should accept a walk-in); (2) an explicit `attendance_records`-side duplicate check plus a `unique_violation` handler around the insert, closing the race where someone already admitted via the normal QR flow (with no `session_bookings` row — e.g., a flexible/priority admission) could otherwise hit `attendance_records_no_duplicate_active`'s unique index as a raw, uncaught error.
+
 No deadline check (scope decision 11 implies this is irrelevant at the door — a walk-in happens *during* the session, not before it), no time-conflict check, no waitlist interaction (a walk-in bypasses the waitlist entirely — the participant is being seated directly by staff judgment).
+
+**Re-admission after no-show — explicitly out of scope, noted here rather than silently left ambiguous.** Spec review asked what happens if a participant marked `no_show` later shows up physically. Answer: `admit_walk_in` handles this correctly without any special-casing, because its only duplicate check is against `status = 'active'` bookings/admissions — a `no_show` booking doesn't block it. Calling `admit_walk_in` again creates a *second* `session_bookings` row (`source = 'walk_in'`) alongside the original now-`no_show` one. This is accepted as correct, not a bug: the two rows accurately represent what happened (the original booking really did go unattended at the 15-minute mark; the walk-in is a distinct, later admission event), and no code path needs them merged or deduplicated for this sub-project's scope.
 
 `scan_attempt_transactional` (the existing Phase 6 function, current authoritative version in `20260928000000_scan_attempt_transactional_scope_check.sql`) is separately modified to populate `attendance_records.booking_id` on its own existing `insert into attendance_records (...)` statement (line ~183), adding a lookup:
 
@@ -267,11 +344,14 @@ Live integration tests, following the established conventions from 4c/4d's live 
 3. Session capacity downsize is rejected when the new capacity would be below `session_effective_occupied_count()`; succeeds when at or above it.
 4. No-show cron: an active booking with no `attendance_records` row 15+ minutes after session start is marked `no_show`; a booking with a matching admitted attendance record is left `active`.
 5. No-show seat release triggers waitlist promotion only when the session's type has `enable_waitlist = true`; no promotion attempt occurs otherwise.
-6. No-show cron idempotency: a second cron pass over an already-processed session (`no_show_processed_at` set) makes no further changes.
+6. No-show cron idempotency: a second `process_session_no_shows()` call for the same session makes no further changes to bookings already marked `no_show`; a booking added to the session *after* the first pass (e.g., a late waitlist promotion) is still correctly evaluated on the next pass, since idempotency is per-booking (via `status = 'active'`), not a session-level marker.
 7. `admit_walk_in` succeeds when admitted count < capacity; rejects at capacity.
 8. `admit_walk_in` rejects a duplicate (participant already has an active booking for this session).
 9. `admit_walk_in` creates both a `session_bookings` row (`source = 'walk_in'`) and a linked `attendance_records` row atomically; both are visible via the normal `/my-agenda` and `session_effective_occupied_count()` query paths exactly as a self-service booking would be.
 10. `scan_attempt_transactional` correctly populates `attendance_records.booking_id` when a matching active booking exists, and leaves it NULL when none exists (both cases, live).
+11. `book_session` (ordinary self-service booking, unrelated to walk-in) still produces `session_bookings.source = 'self_service'` after this column's addition — a simple regression check confirming the new column's default doesn't silently break the existing booking path.
+12. `admit_walk_in` rejects a participant already admitted via the normal QR scan flow with no prior `session_bookings` row (the `attendance_records`-side duplicate case, distinct from test 8's `session_bookings`-side case) — covers both the pre-check and, if feasible to construct live, the `unique_violation` fallback path.
+13. A no-show-triggered promotion queues a `waitlist_promoted` outbox notification identical in shape to a cancellation-triggered one (same `promote_next_waitlist_candidate` helper, both call sites) — confirms parity, not just that *a* promotion happened.
 
 ## Out of Scope
 
@@ -279,4 +359,4 @@ Live integration tests, following the established conventions from 4c/4d's live 
 - **Integrating walk-in admission into the existing scanner UI** (`scanner-client.tsx` and its `resolve-admission-decision`/`result-presentation` layer) — 4e ships a working RPC and a separate, simple standalone admin page; folding this into the scanner's existing decision/override system is deferred as its own future task.
 - **No-show/walk-in analytics or reporting** beyond the `/my-agenda` badge — the mechanism (status tracking, seat release) is in scope; dashboards or aggregate reports are not.
 - **Retroactive processing** of sessions already past their 15-minute no-show threshold at the moment this ships — the cron only acts going forward from deployment.
-- **Dropping the four confirmed-dead legacy columns** (`is_mandatory`, `enable_qr_checkin`, `checkin_opens_at`, `checkin_closes_at`) that the Phase 6 spec already flagged for future cleanup — unrelated to this sub-project's scope, left untouched.
+- **Dropping confirmed-dead legacy columns** (`enable_qr_checkin`, `checkin_opens_at`, `checkin_closes_at` — explicitly documented as dead in the Phase 6 spec) that a future cleanup migration was already expected to remove — unrelated to this sub-project's scope, left untouched. (`is_mandatory` is a separate, actively-used column in the allocation domain, not part of this dead-column group — not touched here either, but for a different reason: it's live, not dead.)
