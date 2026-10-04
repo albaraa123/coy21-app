@@ -237,6 +237,8 @@ The cron route (mirroring `process-session-notifications`'s exact structure: `CR
 
 **Concurrency note** (spec review correctly flagged the original draft's silence on this): `process_session_no_shows` now takes `for update of sb` on each candidate booking before flipping its status, the same lock discipline `promote_next_waitlist_candidate`'s own loop already uses — this protects against the cron racing a concurrent `cancel_booking`/`leave_waitlist` call for the same booking. `cancel_booking` already takes its own `for update` lock on the specific `session_bookings` row it's cancelling, so the two paths cannot corrupt each other's write; whichever acquires the row lock first wins, and the other's conflicting update simply won't find a matching `status = 'active'` row to act on by the time it proceeds (Postgres's standard lock-then-re-evaluate behavior, the same `EvalPlanQual` mechanism 4d's `20261005045000` migration comment already documents in detail for this exact codebase).
 
+**Within-pass promotion feedback is safe by construction, not by luck.** Each no-show flip inside the loop may call `promote_next_waitlist_candidate`, which inserts a brand-new `active` `session_bookings` row for this same session. PL/pgSQL's `for v_booking in <query> loop` materializes its result set once, when the cursor opens — so a row inserted *during* the loop's execution is never a candidate the same loop iteration could see or act on. The newly-promoted booking cannot be immediately flipped back to `no_show` within the same `process_session_no_shows` call; it's only eligible for evaluation on a later pass (correctly covered by testing item 6's "a booking added to the session after the first pass is still correctly evaluated on the next pass").
+
 ## Walk-In Admission
 
 New SECURITY DEFINER RPC, `admit_walk_in(p_application_id uuid, p_session_id uuid)`, modeled structurally on `book_session`'s shape (same row-lock-then-validate flow) but with deliberately narrower validation per the scope decisions above.
@@ -253,7 +255,6 @@ declare
   v_session      sessions%rowtype;
   v_admitted     int;
   v_booking_id   uuid;
-  v_attendance_id uuid;
 begin
   if not is_staff() then
     raise exception 'Not authorized';
@@ -263,6 +264,15 @@ begin
     raise exception 'Application not found or not accepted';
   end if;
 
+  -- The for update lock held here for the rest of this function's
+  -- transaction is what makes the capacity check below safe against two
+  -- concurrent admit_walk_in calls for the same session: a second call
+  -- blocks on this same lock until the first commits (or rolls back),
+  -- so the two calls' capacity reads can never interleave -- the second
+  -- call's read happens only after the first's insert has committed,
+  -- always seeing the up-to-date admitted count. Same serialization
+  -- mechanism book_session already relies on for its own capacity
+  -- check.
   select * into v_session from sessions where id = p_session_id for update;
   if v_session.id is null then
     raise exception 'Session not found';
@@ -297,8 +307,7 @@ begin
 
   begin
     insert into attendance_records (application_id, session_id, time_slot_group_key, entry_type, scanned_by, booking_id)
-    values (p_application_id, p_session_id, compute_time_slot_group_key_for_session(p_session_id), 'walk_in', auth.uid(), v_booking_id)
-    returning id into v_attendance_id;
+    values (p_application_id, p_session_id, compute_time_slot_group_key_for_session(p_session_id), 'walk_in', auth.uid(), v_booking_id);
   exception when unique_violation then
     -- attendance_records_no_duplicate_active (one active admission per
     -- application+session) can still fire here despite the pre-check
@@ -314,6 +323,8 @@ $$;
 ```
 
 Added two things beyond the original draft, both flagged by spec review: (1) a `v_session.status <> 'confirmed'` check mirroring `book_session`'s own session-status gate (the original draft said it was "modeled on `book_session`'s shape" but omitted this, with no stated reason — now closed, since there's no reason a `draft`/`cancelled` session should accept a walk-in); (2) an explicit `attendance_records`-side duplicate check plus a `unique_violation` handler around the insert, closing the race where someone already admitted via the normal QR flow (with no `session_bookings` row — e.g., a flexible/priority admission) could otherwise hit `attendance_records_no_duplicate_active`'s unique index as a raw, uncaught error.
+
+**Access path for `compute_time_slot_group_key_for_session()` — works, but via a different mechanism than its existing callers, worth stating explicitly rather than leaving implicit.** That function's `EXECUTE` privilege was explicitly revoked from `public`/`anon`/`authenticated` and granted only to `service_role` (`20260814100000_scan_qr_attempt_transactional.sql`). Its only existing callers today (`scan_attempt_transactional`/`scan_qr_attempt_transactional`) are themselves plain (not `security definer`) functions granted only to `service_role` — they're invoked from a trusted server-side API route using the service-role key, never directly by an `authenticated` client; that's *their* access path. `admit_walk_in` takes a different one: it **is** `security definer`, so Postgres runs its body — including this nested call — as the function's *owner*, not as the calling `authenticated` staff user. The owner role is never in the revoked list, so the call succeeds once `admit_walk_in` itself exists, with no additional grant needed on `compute_time_slot_group_key_for_session`. A planning-stage implementer should rely on this reasoning (ownership via `security definer`), not on the unrelated `service_role` grant the function's existing callers happen to use.
 
 No deadline check (scope decision 11 implies this is irrelevant at the door — a walk-in happens *during* the session, not before it), no time-conflict check, no waitlist interaction (a walk-in bypasses the waitlist entirely — the participant is being seated directly by staff judgment).
 
