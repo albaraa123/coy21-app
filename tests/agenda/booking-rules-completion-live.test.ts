@@ -291,3 +291,46 @@ describe('global deadline enforcement across book_session/join_waitlist/cancel_b
     }
   });
 });
+
+describe('session capacity downsize guard', () => {
+  it('rejects reducing capacity below the current occupied count', async () => {
+    const sessionId = await seedSession('downsize-reject', { capacity: 3 });
+    const { applicationId: appId1 } = await seedAcceptedApplicant('downsize-reject-1');
+    const { applicationId: appId2 } = await seedAcceptedApplicant('downsize-reject-2');
+    await directBooking(appId1, sessionId);
+    await directBooking(appId2, sessionId);
+
+    const { error } = await admin.from('sessions').update({ capacity: 1 }).eq('id', sessionId);
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain('Cannot reduce session capacity');
+  });
+
+  it('allows reducing capacity to exactly the occupied count', async () => {
+    const sessionId = await seedSession('downsize-exact', { capacity: 3 });
+    const { applicationId: appId1 } = await seedAcceptedApplicant('downsize-exact-1');
+    const { applicationId: appId2 } = await seedAcceptedApplicant('downsize-exact-2');
+    await directBooking(appId1, sessionId);
+    await directBooking(appId2, sessionId);
+
+    const { error } = await admin.from('sessions').update({ capacity: 2 }).eq('id', sessionId);
+    expect(error).toBeNull();
+  });
+
+  it('allows reducing capacity when no bookings exist', async () => {
+    const sessionId = await seedSession('downsize-empty', { capacity: 5 });
+
+    const { error } = await admin.from('sessions').update({ capacity: 1 }).eq('id', sessionId);
+    expect(error).toBeNull();
+  });
+
+  it('allows increasing capacity regardless of occupied count', async () => {
+    const sessionId = await seedSession('downsize-increase', { capacity: 2 });
+    const { applicationId: appId1 } = await seedAcceptedApplicant('downsize-increase-1');
+    const { applicationId: appId2 } = await seedAcceptedApplicant('downsize-increase-2');
+    await directBooking(appId1, sessionId);
+    await directBooking(appId2, sessionId);
+
+    const { error } = await admin.from('sessions').update({ capacity: 5 }).eq('id', sessionId);
+    expect(error).toBeNull();
+  });
+});
