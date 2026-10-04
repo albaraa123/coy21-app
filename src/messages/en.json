@@ -1001,6 +1001,8 @@
       "status": "Status",
       "active": "Active",
       "inactive": "Inactive",
+      "enableWaitlist": "Enable waitlist when full",
+      "waitlistEnabled": "Waitlist",
       "actions": "Actions",
       "edit": "Edit",
       "deactivate": "Deactivate",

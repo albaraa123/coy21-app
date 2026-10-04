@@ -160,6 +160,12 @@ export async function sendSessionCancellationNotificationEmail(params: {
   }
   const { config } = configResult;
 
+  // Links to /browse, not /my-agenda: the booking this email is about is
+  // gone, so there's nothing left to see on the agenda -- send the
+  // participant somewhere with something to act on. Contrast
+  // sendWaitlistPromotionNotificationEmail below, which links straight to
+  // /my-agenda because that email's whole point is a new booking the
+  // participant now has to see.
   const browseUrl = `${config.appUrl}/my-agenda/browse`;
 
   const subject =
@@ -211,6 +217,47 @@ export async function sendSessionRescheduleNotificationEmail(params: {
     params.locale === 'ar'
       ? `مرحباً ${params.fullName}،\n\nتغيّر موعد الجلسة التي حجزتها "${params.sessionTitle}".\n\nالموعد السابق: ${oldTimeFormatted}\nالموعد الجديد: ${newTimeFormatted}\n\nحجزك لا يزال سارياً على الموعد الجديد تلقائياً، ولا حاجة لإعادة الحجز. إذا تعارض الموعد الجديد مع حجز آخر لديك، يرجى مراجعة برنامجك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nThe session you booked, "${params.sessionTitle}", has had its time changed.\n\nPrevious time: ${oldTimeFormatted}\nNew time: ${newTimeFormatted}\n\nYour booking remains valid for the new time automatically -- no need to re-book. If the new time conflicts with another of your bookings, please review your agenda.\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendWaitlistPromotionNotificationEmail(params: {
+  to: string;
+  fullName: string;
+  sessionTitle: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  // Links to /my-agenda, not /browse: unlike sendSessionCancellationNotificationEmail
+  // above (where the booking is gone and browse gives the participant
+  // something to act on), this email's whole point is a new confirmed
+  // booking the participant now has -- send them straight to see it.
+  const agendaUrl = `${config.appUrl}/my-agenda`;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تمت ترقيتك من قائمة الانتظار: ${params.sessionTitle}`
+      : `You're off the waitlist: ${params.sessionTitle}`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nتحرر مقعد في الجلسة "${params.sessionTitle}" وتمت ترقيتك تلقائياً من قائمة الانتظار إلى حجز مؤكد.\n\nيمكنك مراجعة برنامجك من هنا: ${agendaUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nA seat opened up in "${params.sessionTitle}" and you've been automatically promoted from the waitlist to a confirmed booking.\n\nYou can review your agenda here: ${agendaUrl}\n\nIf you have any questions, please contact us.`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
-import { BookButton } from '../booking-button';
+import { BookButton, WaitlistButton } from '../booking-button';
 import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
 export default async function BrowseSessionsPage() {
@@ -40,7 +40,8 @@ export default async function BrowseSessionsPage() {
       capacity,
       rooms ( name_en, name_ar ),
       tracks ( color, name_en, name_ar ),
-      conference_days ( conference_date, label_en, label_ar, display_order )
+      conference_days ( conference_date, label_en, label_ar, display_order ),
+      session_types ( enable_waitlist )
     `)
     .in('status', ['published', 'confirmed'])
     .order('start_time');
@@ -53,6 +54,15 @@ export default async function BrowseSessionsPage() {
     .eq('status', 'active');
 
   const myBookedIds = new Set((myBookings ?? []).map((b) => b.session_id));
+
+  // Caller's own waitlist entries — to show "On waitlist" state immediately
+  const { data: myWaitlistRows } = await supabase
+    .from('session_waitlist')
+    .select('session_id')
+    .eq('application_id', application.id)
+    .eq('status', 'waiting');
+
+  const myWaitlistedIds = new Set((myWaitlistRows ?? []).map((w) => w.session_id));
 
   // Active booking counts per session — from a single query
   const { data: countRows } = await supabase
@@ -113,6 +123,7 @@ export default async function BrowseSessionsPage() {
             const bookedCount = countMap.get(s.id) ?? 0;
             const isFull = bookedCount >= s.capacity;
             const alreadyBooked = myBookedIds.has(s.id);
+            const waitlistEnabled = s.session_types?.enable_waitlist ?? false;
 
             const title = locale === 'ar' ? s.title_ar : s.title_en;
             const room = s.rooms ? (locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en) : '';
@@ -144,6 +155,22 @@ export default async function BrowseSessionsPage() {
                 <div className="shrink-0 pt-0.5">
                   {alreadyBooked ? (
                     <span className="text-sm font-medium text-green-600 dark:text-green-400">Booked ✓</span>
+                  ) : isFull && waitlistEnabled && (myWaitlistedIds.has(s.id) || !isPastDeadline) ? (
+                    // Deadline only gates *joining*: join_waitlist rejects a
+                    // past-deadline join server-side, so without this guard a
+                    // full+waitlist-enabled session past its deadline would
+                    // show an active "Join waitlist" button guaranteed to
+                    // fail on click -- falling through to BookButton below
+                    // correctly renders its existing "Closed" state instead.
+                    // But leave_waitlist has NO deadline check (withdrawing
+                    // is always allowed), so an already-waitlisted
+                    // participant must still see their "Leave waitlist"
+                    // control even past the deadline -- hence the
+                    // myWaitlistedIds.has(s.id) escape hatch here.
+                    <WaitlistButton
+                      sessionId={s.id}
+                      isWaitlisted={myWaitlistedIds.has(s.id)}
+                    />
                   ) : (
                     <BookButton
                       sessionId={s.id}

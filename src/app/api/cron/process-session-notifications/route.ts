@@ -22,7 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { sendSessionCancellationNotificationEmail, sendSessionRescheduleNotificationEmail } from '@/lib/email/resend';
+import { sendSessionCancellationNotificationEmail, sendSessionRescheduleNotificationEmail, sendWaitlistPromotionNotificationEmail } from '@/lib/email/resend';
 
 // Rows are processed sequentially (2 reads + 1 email send + 1 write each),
 // not in parallel, so this has to stay small enough that a full batch
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     id: string;
     application_id: string;
     session_id: string;
-    notification_type: 'session_cancelled' | 'session_rescheduled';
+    notification_type: 'session_cancelled' | 'session_rescheduled' | 'waitlist_promoted';
     old_start_time: string | null;
     new_start_time: string | null;
   }>) {
@@ -117,21 +117,17 @@ export async function GET(req: NextRequest) {
     const locale = (application?.preferred_language as 'ar' | 'en') ?? 'en';
     const sessionTitle = ((locale === 'ar' ? session.title_ar : session.title_en) || session.title_en || session.title_ar || 'Your session').trim() || 'Your session';
 
-    const result = row.notification_type === 'session_cancelled'
-      ? await sendSessionCancellationNotificationEmail({
-          to: profile.email,
-          fullName: profile.full_name,
-          sessionTitle,
-          locale,
-        })
-      : await sendSessionRescheduleNotificationEmail({
-          to: profile.email,
-          fullName: profile.full_name,
-          sessionTitle,
-          oldStartTime: row.old_start_time!,
-          newStartTime: row.new_start_time!,
-          locale,
-        });
+    let result: { id: string | null; error: string | null };
+    if (row.notification_type === 'session_cancelled') {
+      result = await sendSessionCancellationNotificationEmail({ to: profile.email, fullName: profile.full_name, sessionTitle, locale });
+    } else if (row.notification_type === 'session_rescheduled') {
+      result = await sendSessionRescheduleNotificationEmail({
+        to: profile.email, fullName: profile.full_name, sessionTitle,
+        oldStartTime: row.old_start_time!, newStartTime: row.new_start_time!, locale,
+      });
+    } else {
+      result = await sendWaitlistPromotionNotificationEmail({ to: profile.email, fullName: profile.full_name, sessionTitle, locale });
+    }
 
     if (result.error) {
       await service

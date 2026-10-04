@@ -1001,6 +1001,8 @@
       "status": "الحالة",
       "active": "نشط",
       "inactive": "غير نشط",
+      "enableWaitlist": "تفعيل قائمة الانتظار عند الامتلاء",
+      "waitlistEnabled": "قائمة انتظار",
       "actions": "الإجراءات",
       "edit": "تعديل",
       "deactivate": "إيقاف",

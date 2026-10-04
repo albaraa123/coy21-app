@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AgendaDay } from './agenda-day';
+import { WaitlistedSessions } from './waitlisted-sessions';
 
 export default async function MyAgendaPage() {
   const locale = await getLocale();
@@ -51,6 +52,28 @@ export default async function MyAgendaPage() {
     .in('status', ['active', 'session_cancelled'])
     .order('booked_at');
 
+  // Fetch active waitlist entries with session + room info — a flat list,
+  // not grouped by day, since a waitlisted session has no confirmed slot
+  // the participant can rely on yet (see Task 6 self-review for rationale).
+  const { data: waitlistRows } = await supabase
+    .from('session_waitlist')
+    .select(`
+      id,
+      session_id,
+      joined_at,
+      sessions (
+        id,
+        title_en,
+        title_ar,
+        start_time,
+        end_time,
+        rooms ( name_en, name_ar )
+      )
+    `)
+    .eq('application_id', application.id)
+    .eq('status', 'waiting')
+    .order('joined_at');
+
   const sessionsByDay = groupByDay(bookings ?? []);
 
   return (
@@ -61,6 +84,8 @@ export default async function MyAgendaPage() {
           Browse sessions
         </Button>
       </div>
+
+      <WaitlistedSessions entries={waitlistRows ?? []} locale={locale} />
 
       {sessionsByDay.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-10 text-center">

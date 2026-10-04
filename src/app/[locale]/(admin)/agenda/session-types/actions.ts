@@ -8,6 +8,7 @@ const sessionTypeInputSchema = z.object({
   code: z.string().trim().min(1),
   nameAr: z.string().trim().min(1),
   nameEn: z.string().trim().min(1),
+  enableWaitlist: z.boolean(),
 });
 
 export async function createSessionType(input: z.infer<typeof sessionTypeInputSchema>) {
@@ -23,6 +24,7 @@ export async function createSessionType(input: z.infer<typeof sessionTypeInputSc
       code: parsed.code,
       name_ar: parsed.nameAr,
       name_en: parsed.nameEn,
+      enable_waitlist: parsed.enableWaitlist,
       updated_by: userId,
     })
     .select('id')
@@ -52,6 +54,7 @@ export async function updateSessionType(id: string, input: z.infer<typeof sessio
       code: parsed.code,
       name_ar: parsed.nameAr,
       name_en: parsed.nameEn,
+      enable_waitlist: parsed.enableWaitlist,
       updated_by: userId,
     })
     .eq('id', id);
