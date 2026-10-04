@@ -21,7 +21,7 @@ type Session = {
 type Booking = {
   id: string;
   session_id: string;
-  status: 'active' | 'session_cancelled';
+  status: 'active' | 'session_cancelled' | 'no_show';
   sessions: Session | null;
 };
 
@@ -83,6 +83,8 @@ export function AgendaDay({ date: _date, label, bookings, locale }: Props) {
               <div className="shrink-0">
                 {b.status === 'session_cancelled' ? (
                   <Badge variant="sessionCancelled">Session Cancelled</Badge>
+                ) : b.status === 'no_show' ? (
+                  <Badge variant="noShow">No Show</Badge>
                 ) : (
                   <CancelButton
                     bookingId={b.id}

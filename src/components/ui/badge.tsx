@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'sessionCancelled' | 'waitlisted' | 'changed' | 'pending' | 'neutral';
+type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'sessionCancelled' | 'waitlisted' | 'changed' | 'pending' | 'neutral' | 'noShow';
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   // Solid gold fill: required/urgent.
@@ -27,6 +27,15 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   pending: 'border border-gold text-charcoal bg-transparent dark:border-amber-700 dark:text-amber-200',
   // Charcoal outline only (no fill), lower emphasis than elective's fill.
   neutral: 'border border-charcoal/30 text-charcoal/70 bg-transparent dark:border-gray-600 dark:text-gray-400',
+  // Muted amber fill, no strikethrough: informational/past-tense like
+  // `cancelled`, not an action-required warning like `sessionCancelled` --
+  // the participant didn't act, the system marked it after the fact. No
+  // strikethrough because the booking still represents something genuinely
+  // scheduled and attended-but-missed, not voided. Amber (not red, which is
+  // reserved for `sessionCancelled`'s staff-initiated warning) and a
+  // distinct fill from `cancelled` so "I cancelled this" reads differently
+  // from "I didn't show up to this" at a glance.
+  noShow: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
 };
 
 export function Badge({ variant, children }: { variant: BadgeVariant; children: ReactNode }) {
