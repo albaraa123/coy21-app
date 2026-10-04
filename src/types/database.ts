@@ -1066,6 +1066,35 @@ export type Database = {
           },
         ]
       }
+      conference_settings: {
+        Row: {
+          global_booking_deadline: string | null
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          global_booking_deadline?: string | null
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          global_booking_deadline?: string | null
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conference_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diag_app_number_function_props: {
         Row: {
           captured_at: string
