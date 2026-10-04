@@ -48,6 +48,7 @@
     "attendance": {
       "scanners": "تعيينات الماسحات",
       "admissions": "إدارة القبول",
+      "walkIn": "قبول الحضور المباشر",
       "demand": "الطلب والسعة"
     },
     "reports": "التقارير",
@@ -1654,6 +1655,19 @@
     "correctSuccess": "تم تصحيح الحضور.",
     "transferSuccess": "تم نقل الحضور.",
     "actionError": "فشل تنفيذ الإجراء"
+  },
+  "walkInAdmission": {
+    "title": "قبول الحضور المباشر",
+    "description": "اقبل مشاركًا مقبولًا لم يحجز هذه الجلسة مسبقًا، مباشرة عند الباب.",
+    "session": "الجلسة",
+    "selectSession": "اختر جلسة",
+    "identifierLabel": "رقم الطلب أو اسم المشارك",
+    "identifierPlaceholder": "مثال: APP-00123 أو جين دو",
+    "sessionRequiredError": "يرجى اختيار جلسة",
+    "identifierRequiredError": "أدخل رقم الطلب أو اسم المشارك",
+    "admitAction": "قبول",
+    "admitSuccess": "تم القبول — تم إنشاء الحجز.",
+    "admitError": "فشل القبول"
   },
   "attendanceDemand": {
     "title": "الطلب والسعة",

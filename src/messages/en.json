@@ -48,6 +48,7 @@
     "attendance": {
       "scanners": "Scanners",
       "admissions": "Admissions",
+      "walkIn": "Walk-In Admission",
       "demand": "Demand & Capacity"
     },
     "reports": "Reports",
@@ -1654,6 +1655,19 @@
     "correctSuccess": "Attendance corrected.",
     "transferSuccess": "Attendance transferred.",
     "actionError": "Action failed"
+  },
+  "walkInAdmission": {
+    "title": "Walk-In Admission",
+    "description": "Admit an accepted participant who did not book this session in advance, directly at the door.",
+    "session": "Session",
+    "selectSession": "Select a session",
+    "identifierLabel": "Application number or applicant name",
+    "identifierPlaceholder": "e.g. APP-00123 or Jane Doe",
+    "sessionRequiredError": "Select a session",
+    "identifierRequiredError": "Enter an application number or applicant name",
+    "admitAction": "Admit",
+    "admitSuccess": "Admitted — booking created.",
+    "admitError": "Admission failed"
   },
   "attendanceDemand": {
     "title": "Demand & Capacity",
