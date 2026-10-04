@@ -155,7 +155,18 @@ export default async function BrowseSessionsPage() {
                 <div className="shrink-0 pt-0.5">
                   {alreadyBooked ? (
                     <span className="text-sm font-medium text-green-600 dark:text-green-400">Booked ✓</span>
-                  ) : isFull && waitlistEnabled ? (
+                  ) : isFull && waitlistEnabled && (myWaitlistedIds.has(s.id) || !isPastDeadline) ? (
+                    // Deadline only gates *joining*: join_waitlist rejects a
+                    // past-deadline join server-side, so without this guard a
+                    // full+waitlist-enabled session past its deadline would
+                    // show an active "Join waitlist" button guaranteed to
+                    // fail on click -- falling through to BookButton below
+                    // correctly renders its existing "Closed" state instead.
+                    // But leave_waitlist has NO deadline check (withdrawing
+                    // is always allowed), so an already-waitlisted
+                    // participant must still see their "Leave waitlist"
+                    // control even past the deadline -- hence the
+                    // myWaitlistedIds.has(s.id) escape hatch here.
                     <WaitlistButton
                       sessionId={s.id}
                       isWaitlisted={myWaitlistedIds.has(s.id)}
