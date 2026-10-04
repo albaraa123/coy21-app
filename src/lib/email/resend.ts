@@ -225,6 +225,43 @@ export async function sendSessionRescheduleNotificationEmail(params: {
   });
 }
 
+export async function sendWaitlistPromotionNotificationEmail(params: {
+  to: string;
+  fullName: string;
+  sessionTitle: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const agendaUrl = `${config.appUrl}/my-agenda`;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تمت ترقيتك من قائمة الانتظار: ${params.sessionTitle}`
+      : `You're off the waitlist: ${params.sessionTitle}`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nتحرر مقعد في الجلسة "${params.sessionTitle}" وتمت ترقيتك تلقائياً من قائمة الانتظار إلى حجز مؤكد.\n\nيمكنك مراجعة برنامجك من هنا: ${agendaUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nA seat opened up in "${params.sessionTitle}" and you've been automatically promoted from the waitlist to a confirmed booking.\n\nYou can review your agenda here: ${agendaUrl}\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
 // Escapes the handful of characters that matter for safe HTML text-node
 // interpolation. Every interpolated value here is either a participant's
 // own name/email (never expected to contain markup, but escaped
