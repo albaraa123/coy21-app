@@ -160,6 +160,12 @@ export async function sendSessionCancellationNotificationEmail(params: {
   }
   const { config } = configResult;
 
+  // Links to /browse, not /my-agenda: the booking this email is about is
+  // gone, so there's nothing left to see on the agenda -- send the
+  // participant somewhere with something to act on. Contrast
+  // sendWaitlistPromotionNotificationEmail below, which links straight to
+  // /my-agenda because that email's whole point is a new booking the
+  // participant now has to see.
   const browseUrl = `${config.appUrl}/my-agenda/browse`;
 
   const subject =
@@ -237,6 +243,10 @@ export async function sendWaitlistPromotionNotificationEmail(params: {
   }
   const { config } = configResult;
 
+  // Links to /my-agenda, not /browse: unlike sendSessionCancellationNotificationEmail
+  // above (where the booking is gone and browse gives the participant
+  // something to act on), this email's whole point is a new confirmed
+  // booking the participant now has -- send them straight to see it.
   const agendaUrl = `${config.appUrl}/my-agenda`;
 
   const subject =
