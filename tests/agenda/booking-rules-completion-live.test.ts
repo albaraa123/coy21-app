@@ -1,4 +1,4 @@
-﻿// tests/agenda/booking-rules-completion-live.test.ts
+// tests/agenda/booking-rules-completion-live.test.ts
 //
 // Live coverage for sub-project 4e (booking rules completion). Task 1
 // covers the new conference_settings singleton table and the
@@ -94,7 +94,7 @@ async function seedAcceptedApplicant(emailSlug: string): Promise<{ applicationId
 async function seedSessionType(codeSlug: string, enableWaitlist: boolean): Promise<string> {
   const { data } = await admin
     .from('session_types')
-    .insert({ code: `BRC-TYPE-${codeSlug}-${runId}`, name_ar: 'Ù†ÙˆØ¹', name_en: 'Type', enable_waitlist: enableWaitlist })
+    .insert({ code: `BRC-TYPE-${codeSlug}-${runId}`, name_ar: 'نوع', name_en: 'Type', enable_waitlist: enableWaitlist })
     .select('id')
     .single();
   sessionTypeIds.push(data!.id);
@@ -102,14 +102,14 @@ async function seedSessionType(codeSlug: string, enableWaitlist: boolean): Promi
 }
 
 async function seedSession(codeSlug: string, overrides: Partial<Database['public']['Tables']['sessions']['Insert']> = {}) {
-  const { data: room } = await admin.from('rooms').insert({ code: `BRC-ROOM-${codeSlug}-${runId}`, name_ar: 'Ù‚Ø§Ø¹Ø©', name_en: 'Room', capacity: 10 }).select('id').single();
+  const { data: room } = await admin.from('rooms').insert({ code: `BRC-ROOM-${codeSlug}-${runId}`, name_ar: 'قاعة', name_en: 'Room', capacity: 10 }).select('id').single();
   roomIds.push(room!.id);
 
   const { data } = await admin
     .from('sessions')
     .insert({
       session_code: `BRC-${codeSlug}-${runId}`,
-      title_ar: 'Ø¬Ù„Ø³Ø© Ø§Ø®ØªØ¨Ø§Ø±',
+      title_ar: 'جلسة اختبار',
       title_en: 'Test Session',
       conference_day_id: conferenceDayId,
       start_time: `${DAY}T09:00:00+03:00`,
@@ -146,9 +146,9 @@ async function setGlobalDeadline(value: string | null) {
 }
 
 beforeAll(async () => {
-  const { data: day } = await admin.from('conference_days').insert({ conference_date: DAY, label_ar: 'ÙŠÙˆÙ… Ø§Ø®ØªØ¨Ø§Ø±', label_en: 'Test Day', display_order: 1 }).select('id').single();
+  const { data: day } = await admin.from('conference_days').insert({ conference_date: DAY, label_ar: 'يوم اختبار', label_en: 'Test Day', display_order: 1 }).select('id').single();
   conferenceDayId = day!.id;
-  const { data: track } = await admin.from('tracks').insert({ code: `BRC-TRACK-${runId}`, name_ar: 'Ù…Ø³Ø§Ø±', name_en: 'Track' }).select('id').single();
+  const { data: track } = await admin.from('tracks').insert({ code: `BRC-TRACK-${runId}`, name_ar: 'مسار', name_en: 'Track' }).select('id').single();
   trackId = track!.id;
   sessionTypeId = await seedSessionType('default', false);
 });
@@ -368,7 +368,7 @@ describe('no-show detection and seat release', () => {
   beforeAll(async () => {
     const { data: day, error } = await admin
       .from('conference_days')
-      .insert({ conference_date: PAST_DAY, label_ar: 'ÙŠÙˆÙ… Ù…Ø§Ø¶Ù', label_en: 'Past Day', display_order: 1 })
+      .insert({ conference_date: PAST_DAY, label_ar: 'يوم ماضٍ', label_en: 'Past Day', display_order: 1 })
       .select('id')
       .single();
     if (error) throw new Error(`Failed to seed past conference_days row: ${error.message}`);
