@@ -1041,7 +1041,18 @@ describe('admit_walk_in', () => {
     // other live tests in this codebase, e.g. admin-layout-live.test.ts,
     // for the right pattern); assert a session_bookings row exists with
     // source='walk_in' and an attendance_records row exists with
-    // entry_type='walk_in' and the correct booking_id
+    // entry_type='walk_in' and the correct booking_id. Per spec testing
+    // requirement 9, also confirm the walk-in booking is visible
+    // through the SAME query paths a self-service booking would be,
+    // not just that the raw rows exist with the right shape:
+    //   - call session_effective_occupied_count(session_id) (the same
+    //     function book_session/join_waitlist use for their own
+    //     capacity checks) and assert it includes this walk-in booking
+    //     in its count (i.e. it increased by 1 after admit_walk_in,
+    //     same as it would after a successful book_session call)
+    //   - query session_bookings the same way /my-agenda's page.tsx
+    //     does (.eq('application_id', ...).in('status', ['active', ...]))
+    //     and assert the walk-in row is included
   });
 
   it('rejects when admitted count equals capacity', async () => {
@@ -1058,14 +1069,24 @@ describe('admit_walk_in', () => {
     // seed an attendance_records row (status='admitted', entry_type
     // e.g. 'flexible', booking_id null -- simulating a normal QR
     // admission with no self-service booking); assert admit_walk_in
-    // raises 'This participant has already been admitted to this session'
-    -- this is the attendance_records-side duplicate check, distinct
-    -- from the session_bookings-side case above
+    // raises 'This participant has already been admitted to this session'.
+    // This is the attendance_records-side duplicate check, distinct
+    // from the session_bookings-side case above.
   });
 
   it('rejects admission to a non-confirmed session', async () => {
     // seed a draft session; assert admit_walk_in raises
     // 'Session is not open for admission'
+  });
+
+  it('book_session still produces source = \'self_service\' after this column\'s addition', async () => {
+    // spec testing requirement 11: a plain regression check that this
+    // task's new session_bookings.source column's default doesn't
+    // silently change ordinary self-service booking behavior. Seed a
+    // normal bookable session, call book_session (not admit_walk_in)
+    // through a signed-in participant client exactly as earlier tasks'
+    // tests already do, then assert the resulting session_bookings
+    // row's source column is 'self_service'.
   });
 });
 
@@ -1093,7 +1114,7 @@ For both `describe` blocks, check `tests/attendance/*.test.ts` (any existing liv
 
 Run: `npx vitest run tests/agenda/booking-rules-completion-live.test.ts`
 
-Expected: all tests (16 from Tasks 1/3/4, plus 7 new = 23) PASS.
+Expected: all tests (16 from Tasks 1/3/4, plus 8 new = 24) PASS.
 
 - [ ] **Step 6: Also re-run existing attendance live tests to confirm `scan_attempt_transactional`'s edit didn't regress anything**
 
