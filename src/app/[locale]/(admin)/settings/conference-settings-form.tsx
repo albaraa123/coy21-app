@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { setGlobalBookingDeadline, clearGlobalBookingDeadline } from './actions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { isoToConferenceLocalInputValue, conferenceLocalInputValueToIso, formatConferenceDate, formatConferenceTime } from '@/lib/datetime/conference-time';
 
 type Props = {
   globalBookingDeadline: string | null;
@@ -14,10 +15,20 @@ type Props = {
 
 export default function ConferenceSettingsForm({ globalBookingDeadline, isSuperAdmin }: Props) {
   const t = useTranslations('settings');
+  const locale = useLocale() === 'ar' ? 'ar' : 'en';
   const router = useRouter();
 
+  // isoToConferenceLocalInputValue/conferenceLocalInputValueToIso (not a
+  // raw toISOString()/slice(0,16) round-trip) are required here, same as
+  // session-edit-form.tsx's startTime/endTime/checkin fields -- a
+  // datetime-local input has no timezone of its own, so a plain ISO
+  // round-trip would silently reinterpret the stored UTC instant as the
+  // *browser's* local time on every unmodified save, shifting it by
+  // whatever offset separates the admin's browser from UTC. These
+  // helpers instead fix the interpretation to Europe/Istanbul (the
+  // conference's own timezone), independent of the browser.
   const [deadlineInput, setDeadlineInput] = useState(
-    globalBookingDeadline ? new Date(globalBookingDeadline).toISOString().slice(0, 16) : ''
+    globalBookingDeadline ? isoToConferenceLocalInputValue(globalBookingDeadline) : ''
   );
   const [saving, setSaving] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -36,7 +47,7 @@ export default function ConferenceSettingsForm({ globalBookingDeadline, isSuperA
     clearMessages();
     setSaving(true);
     try {
-      const deadlineIso = new Date(deadlineInput).toISOString();
+      const deadlineIso = conferenceLocalInputValueToIso(deadlineInput);
       const result = await setGlobalBookingDeadline(deadlineIso);
       if (result.error) {
         setError(result.error);
@@ -123,7 +134,7 @@ export default function ConferenceSettingsForm({ globalBookingDeadline, isSuperA
         ) : (
           <p className="mt-4 text-sm text-charcoal dark:text-gray-100">
             {globalBookingDeadline
-              ? new Date(globalBookingDeadline).toLocaleString()
+              ? `${formatConferenceDate(globalBookingDeadline, locale)} ${formatConferenceTime(globalBookingDeadline, locale)}`
               : t('globalDeadlineNotSet')}
           </p>
         )}
