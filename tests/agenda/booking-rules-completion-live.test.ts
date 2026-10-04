@@ -1,4 +1,4 @@
-// tests/agenda/booking-rules-completion-live.test.ts
+﻿// tests/agenda/booking-rules-completion-live.test.ts
 //
 // Live coverage for sub-project 4e (booking rules completion). Task 1
 // covers the new conference_settings singleton table and the
@@ -72,7 +72,7 @@ const applicationIds: string[] = [];
 const sessionIds: string[] = [];
 const sessionTypeIds: string[] = []; // per-test waitlist-enabled types, cleaned up in afterAll
 
-async function seedAcceptedApplicant(emailSlug: string): Promise<{ applicationId: string; client: ReturnType<typeof createClient<Database>> }> {
+async function seedAcceptedApplicant(emailSlug: string): Promise<{ applicationId: string; applicantId: string; client: ReturnType<typeof createClient<Database>> }> {
   const email = `booking-rules-completion-live-${runId}-${emailSlug}@test.local`;
   const { data: user } = await admin.auth.admin.createUser({ email, password: 'password123', email_confirm: true });
   const applicantId = user!.user!.id;
@@ -88,13 +88,13 @@ async function seedAcceptedApplicant(emailSlug: string): Promise<{ applicationId
   const client = createClient<Database>(URL, ANON_KEY);
   await client.auth.signInWithPassword({ email, password: 'password123' });
 
-  return { applicationId: app!.id, client };
+  return { applicationId: app!.id, applicantId, client };
 }
 
 async function seedSessionType(codeSlug: string, enableWaitlist: boolean): Promise<string> {
   const { data } = await admin
     .from('session_types')
-    .insert({ code: `BRC-TYPE-${codeSlug}-${runId}`, name_ar: 'نوع', name_en: 'Type', enable_waitlist: enableWaitlist })
+    .insert({ code: `BRC-TYPE-${codeSlug}-${runId}`, name_ar: 'Ù†ÙˆØ¹', name_en: 'Type', enable_waitlist: enableWaitlist })
     .select('id')
     .single();
   sessionTypeIds.push(data!.id);
@@ -102,14 +102,14 @@ async function seedSessionType(codeSlug: string, enableWaitlist: boolean): Promi
 }
 
 async function seedSession(codeSlug: string, overrides: Partial<Database['public']['Tables']['sessions']['Insert']> = {}) {
-  const { data: room } = await admin.from('rooms').insert({ code: `BRC-ROOM-${codeSlug}-${runId}`, name_ar: 'قاعة', name_en: 'Room', capacity: 10 }).select('id').single();
+  const { data: room } = await admin.from('rooms').insert({ code: `BRC-ROOM-${codeSlug}-${runId}`, name_ar: 'Ù‚Ø§Ø¹Ø©', name_en: 'Room', capacity: 10 }).select('id').single();
   roomIds.push(room!.id);
 
   const { data } = await admin
     .from('sessions')
     .insert({
       session_code: `BRC-${codeSlug}-${runId}`,
-      title_ar: 'جلسة اختبار',
+      title_ar: 'Ø¬Ù„Ø³Ø© Ø§Ø®ØªØ¨Ø§Ø±',
       title_en: 'Test Session',
       conference_day_id: conferenceDayId,
       start_time: `${DAY}T09:00:00+03:00`,
@@ -146,9 +146,9 @@ async function setGlobalDeadline(value: string | null) {
 }
 
 beforeAll(async () => {
-  const { data: day } = await admin.from('conference_days').insert({ conference_date: DAY, label_ar: 'يوم اختبار', label_en: 'Test Day', display_order: 1 }).select('id').single();
+  const { data: day } = await admin.from('conference_days').insert({ conference_date: DAY, label_ar: 'ÙŠÙˆÙ… Ø§Ø®ØªØ¨Ø§Ø±', label_en: 'Test Day', display_order: 1 }).select('id').single();
   conferenceDayId = day!.id;
-  const { data: track } = await admin.from('tracks').insert({ code: `BRC-TRACK-${runId}`, name_ar: 'مسار', name_en: 'Track' }).select('id').single();
+  const { data: track } = await admin.from('tracks').insert({ code: `BRC-TRACK-${runId}`, name_ar: 'Ù…Ø³Ø§Ø±', name_en: 'Track' }).select('id').single();
   trackId = track!.id;
   sessionTypeId = await seedSessionType('default', false);
 });
@@ -162,6 +162,13 @@ afterAll(async () => {
 
   await admin.from('session_notification_outbox').delete().in('session_id', sessionIds);
   await admin.from('session_waitlist').delete().in('session_id', sessionIds);
+  // attendance_records has no ON DELETE CASCADE from sessions/applications
+  // (20260804120000_create_attendance_records_table.sql) -- must be
+  // deleted before sessions/applications below, or those deletes fail
+  // with a foreign key violation. Only this file's no-show describe block
+  // inserts attendance_records rows, but deleting by session_id here is
+  // harmless (a no-op) for any run where no rows were inserted.
+  await admin.from('attendance_records').delete().in('session_id', sessionIds);
   await admin.from('session_bookings').delete().in('application_id', applicationIds);
   await admin.from('sessions').delete().in('id', sessionIds);
   await admin.from('rooms').delete().in('id', roomIds);
@@ -332,5 +339,209 @@ describe('session capacity downsize guard', () => {
 
     const { error } = await admin.from('sessions').update({ capacity: 5 }).eq('id', sessionId);
     expect(error).toBeNull();
+  });
+});
+
+describe('no-show detection and seat release', () => {
+  // All sessions in this block use a start_time/end_time well in the past
+  // (relative to "now" at test-run time) so the 15-minute no-show
+  // threshold has already elapsed -- process_session_no_shows has no
+  // separate "is it actually past the threshold" parameter, it just
+  // compares attendance_records against active session_bookings, so a
+  // past start_time isn't even strictly required for the RPC itself, but
+  // it keeps these fixtures honest relative to what the real cron route
+  // would pick up.
+  //
+  // enforce_session_day_match() (20261002000000_sessions_day_match_europe_
+  // istanbul.sql) requires a session's start/end time (in Europe/Istanbul)
+  // to fall on the same calendar date as its conference_day_id's
+  // conference_date -- the shared `conferenceDayId` from the outer
+  // beforeAll points at `DAY` (2099+), so a past start_time needs its own
+  // dedicated conference_days row. conference_days.conference_date has a
+  // unique constraint, so (like `DAY` above) this is randomized per test
+  // run rather than a fixed literal, to avoid colliding with a leftover
+  // row from a previous run that errored before its own afterAll ran.
+  const pastDayOffset = Math.floor(Math.random() * 3000) + 1;
+  const PAST_DAY = new Date(Date.UTC(2015, 0, 1) + pastDayOffset * 86400000).toISOString().slice(0, 10);
+  let pastConferenceDayId: string;
+
+  beforeAll(async () => {
+    const { data: day, error } = await admin
+      .from('conference_days')
+      .insert({ conference_date: PAST_DAY, label_ar: 'ÙŠÙˆÙ… Ù…Ø§Ø¶Ù', label_en: 'Past Day', display_order: 1 })
+      .select('id')
+      .single();
+    if (error) throw new Error(`Failed to seed past conference_days row: ${error.message}`);
+    pastConferenceDayId = day!.id;
+  });
+
+  afterAll(async () => {
+    await admin.from('conference_days').delete().eq('id', pastConferenceDayId);
+  });
+
+  async function seedPastSession(codeSlug: string, overrides: Partial<Database['public']['Tables']['sessions']['Insert']> = {}) {
+    return seedSession(codeSlug, {
+      conference_day_id: pastConferenceDayId,
+      start_time: `${PAST_DAY}T09:00:00+03:00`,
+      end_time: `${PAST_DAY}T10:00:00+03:00`,
+      ...overrides,
+    });
+  }
+
+  it('marks an active booking with no admitted attendance record as no_show', async () => {
+    const sessionId = await seedPastSession('noshow-basic');
+    const { applicationId } = await seedAcceptedApplicant('noshow-basic');
+    const bookingId = await directBooking(applicationId, sessionId);
+
+    // `as never` on both the function name and args: process_session_no_shows
+    // was added in 20261006040000_no_show_detection_and_promotion_helper.sql
+    // and is not yet reflected in the generated src/types/database.ts
+    // snapshot -- same established workaround as reclassify.ts's
+    // regenerate_application_number RPC call.
+    const { error: rpcErr } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr).toBeNull();
+
+    const { data: booking } = await admin.from('session_bookings').select('status').eq('id', bookingId).single();
+    expect(booking?.status).toBe('no_show');
+  });
+
+  it('leaves a booking active when a matching admitted attendance record exists', async () => {
+    const sessionId = await seedPastSession('noshow-admitted');
+    const { applicationId, applicantId } = await seedAcceptedApplicant('noshow-admitted');
+    const bookingId = await directBooking(applicationId, sessionId);
+
+    // scanned_by must reference a profiles row -- use the applicant's own
+    // user id, same established pattern as session-alternatives-live.test.ts.
+    const { error: attendanceErr } = await admin.from('attendance_records').insert({
+      application_id: applicationId,
+      session_id: sessionId,
+      time_slot_group_key: 'noshow-admitted-tsg',
+      status: 'admitted',
+      entry_type: 'priority',
+      scanned_by: applicantId,
+      booking_id: bookingId,
+    } as never);
+    expect(attendanceErr).toBeNull();
+
+    const { error: rpcErr } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr).toBeNull();
+
+    const { data: booking } = await admin.from('session_bookings').select('status').eq('id', bookingId).single();
+    expect(booking?.status).toBe('active');
+  });
+
+  it('triggers waitlist promotion only when the session type has enable_waitlist = true', async () => {
+    const waitlistTypeId = await seedSessionType('noshow-promote', true);
+    const sessionId = await seedPastSession('noshow-promote', { session_type_id: waitlistTypeId, capacity: 1 });
+    const { applicationId: noShowAppId } = await seedAcceptedApplicant('noshow-promote-absent');
+    const { applicationId: waitingAppId } = await seedAcceptedApplicant('noshow-promote-waiting');
+    const bookingId = await directBooking(noShowAppId, sessionId);
+
+    const { data: waitlistRow } = await admin
+      .from('session_waitlist')
+      .insert({ application_id: waitingAppId, session_id: sessionId, status: 'waiting' })
+      .select('id')
+      .single();
+
+    const { error: rpcErr } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr).toBeNull();
+
+    const { data: booking } = await admin.from('session_bookings').select('status').eq('id', bookingId).single();
+    expect(booking?.status).toBe('no_show');
+
+    const { data: promotedWaitlist } = await admin.from('session_waitlist').select('status').eq('id', waitlistRow!.id).single();
+    expect(promotedWaitlist?.status).toBe('promoted');
+
+    const { data: newBooking } = await admin
+      .from('session_bookings')
+      .select('id, status')
+      .eq('application_id', waitingAppId)
+      .eq('session_id', sessionId)
+      .eq('status', 'active')
+      .maybeSingle();
+    expect(newBooking).not.toBeNull();
+  });
+
+  it('does not attempt promotion when enable_waitlist is false', async () => {
+    // sessionTypeId (the shared default from beforeAll) has enable_waitlist = false
+    const sessionId = await seedPastSession('noshow-no-promote', { capacity: 1 });
+    const { applicationId: noShowAppId } = await seedAcceptedApplicant('noshow-no-promote-absent');
+    const { applicationId: waitingAppId } = await seedAcceptedApplicant('noshow-no-promote-waiting');
+    await directBooking(noShowAppId, sessionId);
+
+    const { data: waitlistRow } = await admin
+      .from('session_waitlist')
+      .insert({ application_id: waitingAppId, session_id: sessionId, status: 'waiting' })
+      .select('id')
+      .single();
+
+    const { error: rpcErr } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr).toBeNull();
+
+    const { data: untouchedWaitlist } = await admin.from('session_waitlist').select('status').eq('id', waitlistRow!.id).single();
+    expect(untouchedWaitlist?.status).toBe('waiting');
+
+    const { data: newBooking } = await admin
+      .from('session_bookings')
+      .select('id')
+      .eq('application_id', waitingAppId)
+      .eq('session_id', sessionId)
+      .maybeSingle();
+    expect(newBooking).toBeNull();
+  });
+
+  it('is idempotent per-booking: a second call makes no further changes to already-processed bookings, and still evaluates a booking added after the first pass', async () => {
+    const sessionId = await seedPastSession('noshow-idempotent', { capacity: 5 });
+    const { applicationId: appIdA } = await seedAcceptedApplicant('noshow-idempotent-a');
+    const bookingIdA = await directBooking(appIdA, sessionId);
+
+    const { error: rpcErr1 } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr1).toBeNull();
+
+    const { data: bookingAAfterFirst } = await admin.from('session_bookings').select('status').eq('id', bookingIdA).single();
+    expect(bookingAAfterFirst?.status).toBe('no_show');
+
+    // Seed a NEW active booking B for the same session, added after the
+    // first pass already ran.
+    const { applicationId: appIdB } = await seedAcceptedApplicant('noshow-idempotent-b');
+    const bookingIdB = await directBooking(appIdB, sessionId);
+
+    const { error: rpcErr2 } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr2).toBeNull();
+
+    const { data: bookingAAfterSecond } = await admin.from('session_bookings').select('status').eq('id', bookingIdA).single();
+    expect(bookingAAfterSecond?.status).toBe('no_show'); // untouched by the second pass
+
+    const { data: bookingBAfterSecond } = await admin.from('session_bookings').select('status').eq('id', bookingIdB).single();
+    expect(bookingBAfterSecond?.status).toBe('no_show'); // newly evaluated on the second pass
+  });
+
+  it('queues a waitlist_promoted outbox notification identical in shape to a cancel_booking-triggered promotion', async () => {
+    const waitlistTypeId = await seedSessionType('noshow-outbox', true);
+    const sessionId = await seedPastSession('noshow-outbox', { session_type_id: waitlistTypeId, capacity: 1 });
+    const { applicationId: noShowAppId } = await seedAcceptedApplicant('noshow-outbox-absent');
+    const { applicationId: waitingAppId } = await seedAcceptedApplicant('noshow-outbox-waiting');
+    await directBooking(noShowAppId, sessionId);
+    await admin.from('session_waitlist').insert({ application_id: waitingAppId, session_id: sessionId, status: 'waiting' });
+
+    const { error: rpcErr } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr).toBeNull();
+
+    const { data: newBooking } = await admin
+      .from('session_bookings')
+      .select('id')
+      .eq('application_id', waitingAppId)
+      .eq('session_id', sessionId)
+      .eq('status', 'active')
+      .single();
+
+    const { data: outboxRows } = await admin
+      .from('session_notification_outbox' as never)
+      .select('booking_id, notification_type')
+      .eq('session_id', sessionId)
+      .eq('notification_type', 'waitlist_promoted');
+
+    expect(outboxRows).toHaveLength(1);
+    expect((outboxRows as unknown as Array<{ booking_id: string; notification_type: string }>)[0].booking_id).toBe(newBooking!.id);
   });
 });
