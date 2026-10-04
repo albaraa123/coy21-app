@@ -220,6 +220,45 @@ describe('join_waitlist', () => {
     expect(error?.message).toContain('You are already on the waitlist for this session');
   });
 
+  it('rejects a true concurrent duplicate join with the same clean message (unique_violation race, not just the sequential pre-check)', async () => {
+    // Regression test for a code-review finding: the pre-check exists()
+    // and the insert are two separate statements, so two truly
+    // concurrent calls can both pass the pre-check before either commits.
+    // The session_waitlist_active_unique partial index (20261005020000)
+    // still prevents both from succeeding, but without the
+    // unique_violation handler added in 20261005035000, the loser would
+    // have surfaced a raw Postgres 23505 error instead of this same
+    // clean message. Firing both calls via Promise.allSettled (not
+    // sequentially) actually exercises the race rather than the
+    // already-covered sequential path above.
+    const waitlistTypeId = await seedSessionType('join-race', true);
+    const { applicationId: bookerAppId } = await seedAcceptedApplicant('join-race-booker');
+    const { applicationId: waiterAppId, client: waiterClient } = await seedAcceptedApplicant('join-race-waiter');
+    const sessionId = await seedSession('join-race', { session_type_id: waitlistTypeId, capacity: 1 });
+    await directBooking(bookerAppId, sessionId);
+
+    const [first, second] = await Promise.all([
+      waiterClient.rpc('join_waitlist', { p_application_id: waiterAppId, p_session_id: sessionId }),
+      waiterClient.rpc('join_waitlist', { p_application_id: waiterAppId, p_session_id: sessionId }),
+    ]);
+
+    const results = [first, second];
+    const succeeded = results.filter((r) => r.error === null);
+    const failed = results.filter((r) => r.error !== null);
+
+    expect(succeeded).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    expect(failed[0].error?.message).toContain('You are already on the waitlist for this session');
+
+    const { data: rows } = await admin
+      .from('session_waitlist')
+      .select('id')
+      .eq('application_id', waiterAppId)
+      .eq('session_id', sessionId)
+      .eq('status', 'waiting');
+    expect(rows).toHaveLength(1);
+  });
+
   it('rejects when the caller already holds an active booking for the session', async () => {
     const waitlistTypeId = await seedSessionType('join-selfbooked', true);
     const { applicationId: bookerAppId, client: bookerClient } = await seedAcceptedApplicant('join-selfbooked-booker');
