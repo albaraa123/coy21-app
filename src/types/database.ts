@@ -3074,6 +3074,57 @@ export type Database = {
           },
         ]
       }
+      session_waitlist: {
+        Row: {
+          application_id: string
+          created_at: string
+          id: string
+          joined_at: string
+          promoted_at: string | null
+          session_id: string
+          status: Database["public"]["Enums"]["waitlist_status"]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          id?: string
+          joined_at?: string
+          promoted_at?: string | null
+          session_id: string
+          status?: Database["public"]["Enums"]["waitlist_status"]
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          id?: string
+          joined_at?: string
+          promoted_at?: string | null
+          session_id?: string
+          status?: Database["public"]["Enums"]["waitlist_status"]
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_waitlist_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_waitlist_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessions: {
         Row: {
           admission_policy: string
@@ -4221,7 +4272,10 @@ export type Database = {
         | "all_levels"
       session_language: "ar" | "en" | "bilingual"
       session_notification_status: "pending" | "sent" | "failed"
-      session_notification_type: "session_cancelled" | "session_rescheduled"
+      session_notification_type:
+        | "session_cancelled"
+        | "session_rescheduled"
+        | "waitlist_promoted"
       session_person_role:
         | "speaker"
         | "guest"
@@ -4254,6 +4308,7 @@ export type Database = {
         | "program_attendance_manager"
         | "scanner_device"
         | "staff"
+      waitlist_status: "waiting" | "promoted" | "withdrawn"
     }
     CompositeTypes: {
       qr_credential_lifecycle_result: {
@@ -4442,7 +4497,11 @@ export const Constants = {
       ],
       session_language: ["ar", "en", "bilingual"],
       session_notification_status: ["pending", "sent", "failed"],
-      session_notification_type: ["session_cancelled", "session_rescheduled"],
+      session_notification_type: [
+        "session_cancelled",
+        "session_rescheduled",
+        "waitlist_promoted",
+      ],
       session_person_role: [
         "speaker",
         "guest",
@@ -4479,6 +4538,7 @@ export const Constants = {
         "scanner_device",
         "staff",
       ],
+      waitlist_status: ["waiting", "promoted", "withdrawn"],
     },
   },
 } as const
