@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { bookSession, cancelBooking } from './actions';
+import { bookSession, cancelBooking, joinWaitlist, leaveWaitlist } from './actions';
 
 // ---------------------------------------------------------------------------
 // BookButton — shown on the browse page next to each session
@@ -88,6 +88,66 @@ export function CancelButton({ bookingId, isPastDeadline, onCancelled }: CancelB
       >
         {isPending ? 'Cancelling…' : 'Cancel'}
       </button>
+      {error && <p className="max-w-[160px] text-right text-xs text-red-600 dark:text-red-400">{error}</p>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WaitlistButton — shown on the browse page (and my-agenda) for full,
+// waitlist-enabled sessions; toggles between "Join waitlist" and the
+// "On waitlist" / "Leave waitlist" state.
+// ---------------------------------------------------------------------------
+type WaitlistButtonProps = {
+  sessionId: string;
+  isWaitlisted: boolean;
+};
+
+export function WaitlistButton({ sessionId, isWaitlisted: initialWaitlisted }: WaitlistButtonProps) {
+  const [waitlisted, setWaitlisted] = useState(initialWaitlisted);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  if (waitlisted) {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <span className="text-sm font-medium text-turquoise dark:text-blue-300">On waitlist</span>
+        <button
+          disabled={isPending}
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              const result = await leaveWaitlist(sessionId);
+              if (result.error) setError(result.error);
+              else setWaitlisted(false);
+            });
+          }}
+          className="text-xs text-charcoal/50 underline hover:text-red-600 disabled:opacity-50 dark:text-gray-500"
+        >
+          {isPending ? 'Leaving…' : 'Leave waitlist'}
+        </button>
+        {error && <p className="max-w-[160px] text-right text-xs text-red-600 dark:text-red-400">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={isPending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const result = await joinWaitlist(sessionId);
+            if (result.error) setError(result.error);
+            else setWaitlisted(true);
+          });
+        }}
+      >
+        {isPending ? 'Joining…' : 'Join waitlist'}
+      </Button>
       {error && <p className="max-w-[160px] text-right text-xs text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );

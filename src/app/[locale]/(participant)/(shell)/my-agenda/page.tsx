@@ -3,7 +3,10 @@ import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { AgendaDay } from './agenda-day';
+import { WaitlistButton } from './booking-button';
+import { formatConferenceTime } from '@/lib/datetime/conference-time';
 
 export default async function MyAgendaPage() {
   const locale = await getLocale();
@@ -51,7 +54,32 @@ export default async function MyAgendaPage() {
     .in('status', ['active', 'session_cancelled'])
     .order('booked_at');
 
+  // Fetch active waitlist entries with session + room info — a flat list,
+  // not grouped by day, since a waitlisted session has no confirmed slot
+  // the participant can rely on yet (see Task 6 self-review for rationale).
+  const { data: waitlistRows } = await supabase
+    .from('session_waitlist')
+    .select(`
+      id,
+      session_id,
+      joined_at,
+      sessions (
+        id,
+        title_en,
+        title_ar,
+        start_time,
+        end_time,
+        rooms ( name_en, name_ar )
+      )
+    `)
+    .eq('application_id', application.id)
+    .eq('status', 'waiting')
+    .order('joined_at');
+
   const sessionsByDay = groupByDay(bookings ?? []);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const waitlisted = (waitlistRows ?? []) as any[];
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 md:p-10">
@@ -61,6 +89,39 @@ export default async function MyAgendaPage() {
           Browse sessions
         </Button>
       </div>
+
+      {waitlisted.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">
+            Waitlisted
+          </h2>
+          {waitlisted.map((w) => {
+            const s = w.sessions;
+            if (!s) return null;
+
+            const title = locale === 'ar' ? s.title_ar : s.title_en;
+            const room = s.rooms ? (locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en) : '';
+            const start = formatConferenceTime(s.start_time, locale === 'ar' ? 'ar' : 'en');
+            const end = formatConferenceTime(s.end_time, locale === 'ar' ? 'ar' : 'en');
+
+            return (
+              <Card key={w.id} className="flex flex-row items-start gap-3 py-3">
+                <div className="flex flex-1 flex-col gap-0.5">
+                  <p className="text-sm font-medium text-charcoal dark:text-gray-100">{title}</p>
+                  <p className="text-xs text-charcoal/60 dark:text-gray-400">
+                    {start} – {end}
+                    {room ? ` · ${room}` : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
+                  <Badge variant="waitlisted">Waitlisted</Badge>
+                  <WaitlistButton sessionId={s.id} isWaitlisted={true} />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {sessionsByDay.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-10 text-center">

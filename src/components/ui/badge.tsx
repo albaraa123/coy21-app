@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'sessionCancelled' | 'changed' | 'pending' | 'neutral';
+type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'sessionCancelled' | 'waitlisted' | 'changed' | 'pending' | 'neutral';
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   // Solid gold fill: required/urgent.
@@ -16,6 +16,10 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   // list item. Occupies the same slot a "Cancel" action button would, so
   // it needs equivalent visual weight, not a de-emphasized treatment.
   sessionCancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  // Turquoise outline only (no fill): awaiting action like `pending`, but
+  // kept visually distinct since it sits next to a "Leave waitlist" action
+  // rather than a passive status.
+  waitlisted: 'border border-turquoise text-turquoise bg-transparent dark:border-blue-400 dark:text-blue-300',
   // Solid turquoise fill: content has changed, draws the eye.
   changed: 'bg-turquoise text-white font-semibold dark:bg-blue-900/40 dark:text-blue-200',
   // Gold outline only (no fill): awaiting action, same hue family as
