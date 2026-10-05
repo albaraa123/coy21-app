@@ -12,7 +12,7 @@ This sub-project (5a of the 6-part platform decomposition; 5b, offline scanning 
 2. **Four live metrics, chosen by the user as equally important**: (a) actual occupied-count per session plus occupancy percentage, (b) alerts for full/near-full sessions, (c) scanner device health (flagging a device "stale" after 15 minutes with no scan), (d) rejection/problem rate per session (`invalid_qr`, `timeslot_conflict`, `duplicate`, `restricted_denied`, `full`, etc.) over a trailing window.
 3. **Live update mechanism**: Supabase Realtime, used here for the first time in this codebase. Chosen over polling because a centralized control-room screen left open for hours benefits from instant updates without a fixed-interval compromise between freshness and request volume.
 4. **Architecture split — "RPC for data, Realtime for notification only"**: all actual computation (occupancy, which admission policy applies, priority-release timing, etc.) stays server-side in one RPC, re-invoked on demand. Realtime's only job is telling the browser "something changed, re-fetch" — never computing or transmitting the business data itself. This avoids duplicating the admission-policy logic client-side (a real risk flagged during 4e's final review: client-side deadline logic had already drifted out of sync with server enforcement once before) and keeps a single source of truth.
-5. **Realtime transport — broadcast via trigger, not postgres_changes on the base tables**: `attendance_records` and `scan_attempts` have no RLS policies today (default-deny; access is `service_role`-only, enforced at the function level, not the row level — see `qr_credentials`' identical pattern). Subscribing a browser client (anon/authenticated key) directly to `postgres_changes` on these tables would either return nothing (RLS blocks it) or require opening RLS on sensitive attendance data purely to carry a change notification — out of proportion to what's needed. Instead: a lightweight `AFTER INSERT OR UPDATE` trigger on each table calls Supabase's Realtime broadcast helper (`realtime.send(...)`, confirmed as the current Supabase-provided mechanism; exact function name to be verified against the live project's Supabase version during implementation) to a fixed channel, with a minimal payload (at most `{session_id}`, possibly no payload at all — the client doesn't need data, just the fact that something changed). This leaves the existing service-role-only security posture on both tables completely untouched.
+5. **Realtime transport — broadcast via trigger, not postgres_changes on the base tables**: `attendance_records` and `scan_attempts` already have RLS enabled with real policies (`attendance_records_manager_all`/`scan_attempts_manager_all`, both `using (is_staff())`, from `20260929010000_consolidate_rls_policies_to_staff.sql`, plus earlier `scanner_device`-scoped policies from `20260804150000_attendance_rls_policies.sql`) — this is NOT a service-role-only, default-deny pair of tables (unlike `qr_credentials`, which genuinely is; an earlier draft of this spec incorrectly claimed the same was true here). A staff caller's own session client could, in principle, subscribe directly to `postgres_changes` on these tables today with no RLS change needed. The broadcast-via-trigger approach is still preferred, but on different grounds: (a) `attendance_records`/`scan_attempts` are the two highest-write-frequency tables in the whole schema during the conference — a `postgres_changes` subscription fires one event per row per insert/update, which is far more granular than the dashboard needs (it only ever wants "something changed, go re-fetch the aggregate snapshot," never a specific row's contents); (b) decoupling the notification channel's payload from these tables' actual row shape means a future schema change to either table (a new column, a renamed one) can never silently break the dashboard's live-update wiring, since the broadcast payload is independently defined (just `{session_id}`) rather than being whatever `postgres_changes` happens to serialize; (c) it keeps the dashboard's realtime concern self-contained in one small trigger function, rather than coupling it to RLS policies that exist for a different purpose (gating staff's own direct table access) and could change independently of this dashboard's needs.
 6. **Staleness threshold**: a scanner device is flagged "stale" after 15 minutes with no scan, matching the existing no-show cron's threshold from sub-project 4e (`process-session-no-shows`, 15-minute post-session-start threshold) — not because the two thresholds are conceptually related, but to keep a single "15 minutes" mental model across the ops tooling rather than introducing an arbitrary second number.
 7. **Rejection-rate window**: a trailing 30-minute window (`scan_attempts.created_at > now() - interval '30 minutes'`), not a cumulative since-conference-start count — the dashboard's job is surfacing an active, ongoing problem (e.g., a scanner misconfigured for the wrong session producing a run of `timeslot_conflict`s right now), not a historical report.
 8. **Occupancy source of truth**: the dashboard's occupied-count reuses the existing `session_effective_occupied_count(p_session_id uuid)` RPC (from sub-project 4e) rather than reimplementing an occupancy calculation — this guarantees the number staff see on the dashboard is always identical to the number `book_session`/`join_waitlist`/the capacity-downsize trigger actually enforce, never a second, driftable definition of "how full is this session."
@@ -56,23 +56,38 @@ begin
     round(100.0 * session_effective_occupied_count(s.id) / greatest(s.capacity, 1), 1),
     session_effective_occupied_count(s.id) >= s.capacity,
     session_effective_occupied_count(s.id) >= (s.capacity * 0.9), -- near-full threshold
-    (select count(*) from scanner_assignments sa where sa.is_active and (sa.session_id = s.id or sa.room_id = s.room_id)),
-    (select count(*) from scanner_assignments sa
+    -- count(distinct scanner_user_id), not count(*): a single physical
+    -- scanner can hold two assignment rows (one room-scoped, one
+    -- session-scoped) that both match this session, and count(*) would
+    -- double-count it.
+    (select count(distinct sa.scanner_user_id) from scanner_assignments sa where sa.is_active and (sa.session_id = s.id or sa.room_id = s.room_id)),
+    (select count(distinct sa.scanner_user_id) from scanner_assignments sa
        where sa.is_active and (sa.session_id = s.id or sa.room_id = s.room_id)
          and not exists (
+           -- Room-scoped assignments must count a recent scan against ANY
+           -- session in that room, not just this one -- otherwise a
+           -- room-scoped scanner that just finished scanning the PREVIOUS
+           -- back-to-back session in the same room would be wrongly
+           -- flagged stale for the next one, even though it's clearly
+           -- online. Session-scoped assignments still only count a scan
+           -- against this exact session.
            select 1 from scan_attempts sc
-           where sc.scanned_by = sa.scanner_user_id and sc.session_id = s.id
+           where sc.scanned_by = sa.scanner_user_id
              and sc.created_at > now() - interval '15 minutes'
+             and (
+               sc.session_id = s.id
+               or (sa.room_id is not null and sc.session_id in (select id from sessions where room_id = sa.room_id))
+             )
          )),
     (select max(sc.created_at) from scan_attempts sc where sc.session_id = s.id),
     (select count(*) from scan_attempts sc where sc.session_id = s.id and sc.created_at > now() - interval '30 minutes'
        and sc.result not in ('admitted', 'flexible_admitted', 'override_admitted')),
-    (select coalesce(jsonb_object_agg(sc.result, sc.cnt), '{}'::jsonb) from (
+    (select coalesce(jsonb_object_agg(breakdown.result, breakdown.cnt), '{}'::jsonb) from (
        select sc.result, count(*) as cnt from scan_attempts sc
        where sc.session_id = s.id and sc.created_at > now() - interval '30 minutes'
          and sc.result not in ('admitted', 'flexible_admitted', 'override_admitted')
        group by sc.result
-     ) sc)
+     ) breakdown)
   from sessions s
   join rooms r on r.id = s.room_id
   where s.status = 'confirmed';
@@ -111,7 +126,7 @@ create trigger scan_attempts_notify_ops_dashboard
   for each row execute function notify_ops_dashboard();
 ```
 
-(The exact Supabase Realtime broadcast call — `realtime.send(...)` vs. an alternative helper — must be verified against the live project's current Supabase/Postgres extension version before this migration is written for real; this is a sketch of the intended shape, not verbatim final SQL.)
+(The exact Supabase Realtime broadcast call — `realtime.send(...)` vs. an alternative helper — must be verified against the live project's current Supabase/Postgres extension version before this migration is written for real; this is a sketch of the intended shape, not verbatim final SQL. **The implementation plan's first task must be a standalone spike**: write a throwaway trigger/migration that calls whatever broadcast function the live project actually exposes, subscribe a test client to the channel, and confirm the message arrives — before building `ops_dashboard_snapshot()` or any UI on top of this assumption. If the live project's Realtime extension doesn't support the assumed call shape, the fallback (`postgres_changes` on these tables directly, now confirmed viable per the corrected scope decision 5 above, or plain polling) should be decided at that point, not discovered mid-implementation.)
 
 ## UI
 
