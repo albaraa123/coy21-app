@@ -39,6 +39,7 @@ export default function SessionControls({
   rooms,
   people,
   tags,
+  currentlyBooked,
 }: {
   session: Session;
   sessionPeople: SessionPersonRow[];
@@ -50,6 +51,7 @@ export default function SessionControls({
   rooms: RefOption[];
   people: RefOption[];
   tags: RefOption[];
+  currentlyBooked: number;
 }) {
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -65,6 +67,7 @@ export default function SessionControls({
         tracks={tracks}
         sessionTypes={sessionTypes}
         rooms={rooms}
+        currentlyBooked={currentlyBooked}
       />
 
       <SpeakerAssignment

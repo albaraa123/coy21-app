@@ -1135,6 +1135,7 @@
           "language": "اللغة",
           "difficultyLevel": "مستوى الصعوبة",
           "capacity": "السعة",
+          "currentlyBooked": "المحجوز حاليًا: {count} من {capacity}",
           "minCapacity": "الحد الأدنى للسعة",
           "isMandatory": "إلزامية",
           "isPublic": "عامة",

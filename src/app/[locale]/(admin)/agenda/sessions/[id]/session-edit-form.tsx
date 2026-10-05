@@ -79,12 +79,14 @@ export default function SessionEditForm({
   tracks,
   sessionTypes,
   rooms,
+  currentlyBooked,
 }: {
   session: Session;
   days: RefOption[];
   tracks: RefOption[];
   sessionTypes: RefOption[];
   rooms: RefOption[];
+  currentlyBooked: number;
 }) {
   const t = useTranslations('agenda.sessions.detail.edit');
   const router = useRouter();
@@ -224,6 +226,9 @@ export default function SessionEditForm({
           {t('capacity')}
           <input type="number" min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)} required className={FIELD_CLASS} />
         </label>
+        <p className="text-xs text-charcoal/60 dark:text-gray-400">
+          {t('currentlyBooked', { count: currentlyBooked, capacity: form.capacity })}
+        </p>
         <label className={LABEL_CLASS}>
           {t('minCapacity')}
           <input type="number" min="0" value={form.minCapacity} onChange={(e) => updateField('minCapacity', e.target.value)} required className={FIELD_CLASS} />

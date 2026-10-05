@@ -1135,6 +1135,7 @@
           "language": "Language",
           "difficultyLevel": "Difficulty level",
           "capacity": "Capacity",
+          "currentlyBooked": "Currently booked: {count} of {capacity}",
           "minCapacity": "Minimum capacity",
           "isMandatory": "Mandatory",
           "isPublic": "Public",

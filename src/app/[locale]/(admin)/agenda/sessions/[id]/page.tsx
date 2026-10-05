@@ -64,6 +64,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
     { data: rooms },
     { data: people },
     { data: tags },
+    { data: occupiedCount },
   ] = await Promise.all([
     supabase
       .from('session_people')
@@ -80,6 +81,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
     supabase.from('rooms').select('id, name_en, capacity').order('name_en', { ascending: true }),
     supabase.from('people').select('id, full_name_en').eq('is_active', true).order('full_name_en', { ascending: true }),
     supabase.from('tags').select('id, name_en').eq('is_active', true).order('name_en', { ascending: true }),
+    supabase.rpc('session_effective_occupied_count', { p_session_id: id }),
   ]);
 
   const validNextStatuses = SESSION_VALID_TRANSITIONS[session.status as SessionStatus] ?? [];
@@ -109,6 +111,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         rooms={rooms ?? []}
         people={people ?? []}
         tags={tags ?? []}
+        currentlyBooked={occupiedCount ?? 0}
       />
     </div>
   );
