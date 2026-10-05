@@ -226,6 +226,10 @@ export default function SessionEditForm({
           {t('capacity')}
           <input type="number" min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)} required className={FIELD_CLASS} />
         </label>
+        {/* Snapshot at page load; intentionally not re-fetched while this
+            form is open. Purely informational -- the Task 3 capacity-
+            downsize guard trigger re-validates server-side on submit
+            regardless of what this shows. */}
         <p className="text-xs text-charcoal/60 dark:text-gray-400">
           {t('currentlyBooked', { count: currentlyBooked, capacity: form.capacity })}
         </p>
