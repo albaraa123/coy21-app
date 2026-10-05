@@ -79,6 +79,43 @@ Only the plan-document edit (if the confirmed shape differs from the assumption)
 git status  # must show no new/modified files from the spike itself
 ```
 
+**RESULT OF THIS SPIKE (recorded 2026-10-06, against the live `deukwztsmcnxxchrdrfo` project, Postgres 17.6.1.147, confirmed `ACTIVE_HEALTHY`):**
+
+`realtime.send(payload jsonb, event text, topic text, private boolean DEFAULT true)` DOES exist on this project with exactly the signature the spec/plan assumed — confirmed via `select p.proname, pg_get_function_arguments(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='realtime'`. Calling `realtime_spike_test()` (which wraps `realtime.send(jsonb_build_object('spike', true), 'spike-event', 'ops-dashboard-spike', false)`) executed with no SQL error.
+
+However, **the end-to-end broadcast did NOT reach a subscribed client on the first attempt** — `node scripts/realtime-spike.mjs` subscribed successfully (`status: SUBSCRIBED`) and the RPC call succeeded, but no `broadcast`/`spike-event` message was ever delivered; the script reported `SPIKE FAILED -- no broadcast received`. Root-caused as follows, without guessing:
+- `select rowsecurity from pg_tables where schemaname='realtime' and tablename='messages'` → `true`. RLS is enabled on `realtime.messages`.
+- `select * from pg_policy where polrelid = 'realtime.messages'::regclass'` → zero rows. **No RLS policies exist on `realtime.messages` at all** — i.e. default-deny, nothing can be read by any role including `anon`/`authenticated`.
+- Confirmed via Supabase's own docs (Realtime Authorization guide, and the "realtime-messages-not-arriving" troubleshooting page): Supabase Realtime now checks RLS on `realtime.messages` for every subscribing client as its authorization mechanism — **this applies regardless of whether the channel/broadcast is marked `private: false`/public**. A client channel's `private` flag only changes how strictly that check is enforced on the connection, it does not bypass the RLS check on `realtime.messages` itself when RLS is enabled with no policies.
+- Ruled out the project-level override: `GET https://api.supabase.com/v1/projects/deukwztsmcnxxchrdrfo/config/realtime` → `"private_only":null` (not forced), so this is specifically the missing-policy case, not a project-wide private-only setting.
+
+**THE FIX — APPLIED, and the end-to-end broadcast is now CONFIRMED WORKING (2026-10-06, same session, after explicit user approval for the live-project DDL):**
+
+The coordinating session applied the policy directly (`npx supabase db query --linked`, since this was a narrow, additive, explicitly user-approved change against this project's shared scratch database) and re-ran the client-receives-broadcast proof with a fresh spike function and script (both deleted again afterward, same as the first attempt):
+
+```sql
+create policy "ops_dashboard_broadcast_select" on realtime.messages
+  for select
+  to authenticated
+  using (extension = 'broadcast');
+```
+
+Confirmed present on the live project via `select polname, polcmd, pg_get_expr(polqual, polrelid) from pg_policy where polrelid = 'realtime.messages'::regclass` → `ops_dashboard_broadcast_select`, `r` (SELECT), `(extension = 'broadcast'::text)`. With this policy in place, a genuinely signed-in `authenticated` client (not `anon` — a throwaway user created via `auth.admin.createUser`, signed in via `signInWithPassword`, matching the role the policy actually gates) subscribed to a broadcast channel and RECEIVED the message after the RPC fired: `RECEIVED: {"type":"broadcast","event":"spike-event","payload":{"id":"...","spike":true},...}` → `SPIKE SUCCEEDED`. The spike function was dropped afterward and confirmed absent (`select proname from pg_proc where proname like 'realtime_spike%'` → empty), and the throwaway test user was deleted. This is the actual, now-obtained proof Task 0 exists to produce — not a prediction of what should happen once the policy lands.
+
+**Task 1 must still add this exact policy in its own migration** (it was applied directly to prove the mechanism works, but was NOT committed as a tracked migration file — Task 1 is responsible for making it a real, reviewed part of this codebase's schema history, not leaving it as an undocumented live-only change):
+
+```sql
+create policy "ops_dashboard_broadcast_select" on realtime.messages
+  for select
+  to authenticated
+  using (extension = 'broadcast');
+```
+
+(`to authenticated` is sufficient and preferred over `anon` — every real caller of this dashboard is already an authenticated staff user per `is_staff()`; there is no need to also admit `anon`.) Without this policy in Task 1's migration, the broadcast trigger (`notify_ops_dashboard()`) will insert successfully (no SQL error — same false-positive this spike hit on its first, pre-policy attempt) but Task 3's client-side subscription will NEVER receive anything — a silent failure, not a loud one, so Task 1 Step 4's tests and Task 3's manual-verification step must specifically watch for it. This policy is new, additive schema (nothing today in this codebase touches `realtime.messages`), so it is safe to add directly in Task 1's migration with no other migration needing changes. **Before writing Task 1's migration, check whether this exact policy already exists on the live project** (`select polname from pg_policy where polrelid = 'realtime.messages'::regclass`) — it currently DOES, because this spike's apply-and-verify step created it directly against the live database (not via a tracked migration). Postgres has no `create policy if not exists` syntax, so a plain `create policy "ops_dashboard_broadcast_select" on realtime.messages ...` in Task 1's migration will fail with "policy already exists" when pushed against THIS specific live project. Task 1's implementer must either (a) drop the live-only policy first (`drop policy "ops_dashboard_broadcast_select" on realtime.messages;` via `db query --linked`) immediately before running `db push`, so the migration creates it cleanly and the schema history is the single source of truth going forward, or (b) use `create policy ... ` wrapped in a `do $$ begin ... exception when duplicate_object then null; end $$;` block if a no-op-on-exists shape is preferred. Option (a) is simpler and recommended — the live-only policy was always meant to be superseded by Task 1's real migration, not coexist with it.
+
+**The confirmed working call shape to use in Task 1 (unchanged from the spec/plan's original assumption — only the missing RLS policy was new information, not the call shape itself):**
+`realtime.send(payload jsonb, event text, topic text, private boolean)` — called positionally as `realtime.send(jsonb_build_object(...), '<event-name>', '<topic-name>', false)`. The spec's `notify_ops_dashboard()` trigger sketch (`event := 'change'`, `topic := 'ops-dashboard-events'`) is correct as written and needs no change beyond adding the policy above in the same migration.
+
 ---
 
 ### Task 0.5: Fix pre-existing drift in `tests/lib/nav/nav-config.test.ts` — ALREADY DONE
@@ -123,17 +160,21 @@ This task fixed ONLY what was needed to bring the test file current with the rea
 
 Depends on Task 0 (needs the confirmed `realtime.send(...)` — or equivalent — call shape).
 
+**Task 0's confirmed findings (read before writing this migration):** `realtime.send(payload jsonb, event text, topic text, private boolean)` exists on the live project exactly as assumed below — no call-shape change needed. BUT Task 0 found the broadcast does NOT reach a subscribed client without an additional RLS policy on `realtime.messages` (RLS is enabled there with zero existing policies — default-deny). This policy is NEW, additive schema (nothing else in this codebase touches `realtime.messages` today) and MUST be added in this migration, in Step 2 below — this was not in the spec's original sketch because it was only discovered during Task 0's spike. See Task 0's "RESULT OF THIS SPIKE" note above for the full root-cause trail.
+
 - [ ] **Step 1: Write the RPC migration**
 
 Copy the full `ops_dashboard_snapshot()` SQL from the spec's Data Model section verbatim (`docs/superpowers/specs/2026-10-05-ops-dashboard-design.md`) — it already incorporates both review rounds' fixes (`count(distinct ...)`, the room-vs-session staleness scoping, the renamed `breakdown` alias). Do not rewrite it from scratch; copy it, then adjust ONLY the broadcast function call in the trigger (Step 2 below) to match whatever Task 0 confirmed.
 
-- [ ] **Step 2: Write the broadcast trigger using Task 0's confirmed call shape**
+- [ ] **Step 2: Write the broadcast trigger using Task 0's confirmed call shape, plus the required `realtime.messages` RLS policy**
+
+The call shape below is confirmed correct as-is. In addition to the trigger/function, this migration must also create the SELECT policy Task 0 found missing — without it, this trigger will insert broadcasts with no SQL error (a silent false-positive, exactly what Task 0's spike hit) but no subscribed client will ever receive one:
 
 ```sql
 create or replace function notify_ops_dashboard() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  perform realtime.send( -- or whatever Task 0 confirmed
+  perform realtime.send( -- CONFIRMED by Task 0: realtime.send(payload jsonb, event text, topic text, private boolean) exists on the live project with this exact signature
     jsonb_build_object('session_id', coalesce(new.session_id, old.session_id)),
     'change',
     'ops-dashboard-events',
@@ -150,11 +191,23 @@ create trigger attendance_records_notify_ops_dashboard
 create trigger scan_attempts_notify_ops_dashboard
   after insert on scan_attempts
   for each row execute function notify_ops_dashboard();
+
+-- REQUIRED (found missing by Task 0's spike): without this policy, the
+-- trigger above inserts into realtime.messages with no SQL error, but
+-- RLS on that table (enabled, zero prior policies) silently blocks
+-- every subscribing client from ever receiving the broadcast. `to
+-- authenticated` is sufficient -- every real caller of this dashboard
+-- is already gated through is_staff(), which requires an authenticated
+-- session; there is no need to also admit `anon`.
+create policy "ops_dashboard_broadcast_select" on realtime.messages
+  for select
+  to authenticated
+  using (extension = 'broadcast');
 ```
 
 - [ ] **Step 3: Apply the migration**
 
-Run: `SUPABASE_ACCESS_TOKEN=sbp_fc74787c8d47c3706fe5c10e393533ca334e3049 npx supabase db push`.
+Run: `npx supabase db push` with `SUPABASE_ACCESS_TOKEN` read from this worktree's `.env.local` (do not reuse any token value hardcoded in an earlier draft of this plan or in prior task history — read the live value directly from `.env.local` each time, since it can change). **Known pre-existing hazard, unrelated to this task's own changes**: Task 0's spike found that a plain `supabase db push` on this project currently fails partway through its backlog of not-yet-recorded-on-remote migrations, at `20260930000000_reset_all_accounts_and_participant_data.sql`, with `ERROR: update or delete on table "profiles" violates foreign key constraint "feature_extraction_rules_updated_by_fkey"` — that migration's Part 2 cleanup never accounts for `feature_extraction_rules.updated_by`, which now holds a real reference on this live project. This is a pre-existing bug on `master`, not something Task 0 or Task 1 introduced, and fixing it is out of this plan's scope — but it means a bare `db push` will not reach THIS task's migration either, the same way it blocked Task 0. Task 0 worked around it for its own throwaway spike by applying SQL directly via `npx supabase db query --linked "<sql>"` instead of `db push`. Task 1's implementer should expect to hit the same wall and will need to either get that unrelated migration fixed first (outside this plan) or apply this task's migration the same direct-query way Task 0 did, confirming afterward via `npx supabase migration list --linked` that the state is what's expected.
 
 - [ ] **Step 4: Write the failing tests**
 
@@ -230,7 +283,7 @@ Expected: all 9 tests PASS. If any fail, fix the migration (not the test) unless
 
 - [ ] **Step 6: Regenerate database types**
 
-Run: `SUPABASE_ACCESS_TOKEN=sbp_fc74787c8d47c3706fe5c10e393533ca334e3049 npx supabase gen types typescript --linked`, diff against the current `src/types/database.ts` to confirm the diff is purely additive (the new `ops_dashboard_snapshot` RPC entry), then replace the file.
+Run: `npx supabase gen types typescript --linked` with `SUPABASE_ACCESS_TOKEN` read from this worktree's `.env.local` (not any hardcoded value from an earlier draft of this plan), diff against the current `src/types/database.ts` to confirm the diff is purely additive (the new `ops_dashboard_snapshot` RPC entry), then replace the file.
 
 - [ ] **Step 7: Typecheck and lint**
 
