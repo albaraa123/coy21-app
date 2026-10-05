@@ -81,6 +81,52 @@ git status  # must show no new/modified files from the spike itself
 
 ---
 
+### Task 0.5: Fix pre-existing drift in `tests/lib/nav/nav-config.test.ts`
+
+**Files:**
+- Modify: `tests/lib/nav/nav-config.test.ts`
+
+**This is a prerequisite fix, independent of the ops dashboard feature itself** — discovered during this plan's own review when a reviewer ran the test suite and found it already red on `master`, unrelated to anything this plan touches. `tests/lib/nav/nav-config.test.ts` was last synced with the real route tree at "Phase 5.5 Task 4 (2026-07-28)" (per its own header comment) and has drifted out of sync with several pieces of work since then (at minimum: sub-project 4e's Task 7 added `/attendance/walk-in` without updating this file; a `staff` nav group and a `settings` nav group were added without updating this file; a `/schedule` participant route was added without updating `PARTICIPANT_VERIFIED_ROUTES`). Confirmed via `npx vitest run tests/lib/nav/nav-config.test.ts`: 5 of 14 tests currently fail on this branch before any of Tasks 0-5 below are implemented, and `git diff master -- tests/lib/nav/nav-config.test.ts src/lib/nav/admin-nav-config.ts` shows zero diff, confirming this is pre-existing breakage, not something this plan's own Task 0 introduced.
+
+This task fixes ONLY what's needed to bring the test file current with the real, already-existing route tree — it does not add any new route, nav entry, or feature. Task 4 (later in this plan) then adds the ops-dashboard entry on top of a CORRECT baseline, rather than inheriting broken test expectations.
+
+- [ ] **Step 1: Read the current real route tree and nav configs**
+
+Read `src/lib/nav/admin-nav-config.ts` and `src/lib/nav/participant-nav-config.ts` in full, and list the actual admin route directories: `find "src/app/[locale]/(admin)" -maxdepth 3 -type d`. Cross-reference against `tests/lib/nav/nav-config.test.ts`'s current `ADMIN_VERIFIED_ROUTES`, `ADMIN_DETAIL_ONLY_ROUTES`, and `PARTICIPANT_VERIFIED_ROUTES` arrays to find every discrepancy — don't assume the list below is exhaustive; confirm it against what you actually find, since routes may have changed again since this plan was written.
+
+- [ ] **Step 2: Update `ADMIN_VERIFIED_ROUTES`**
+
+At minimum, add: `/attendance/walk-in`, `/staff`, `/staff/assignments`, `/settings`. Check whether any other admin route directory found in Step 1 (e.g. `/content/local-info`, `/local-info-hub`, `/reports/local-info`, `/agenda/sessions/new`) is also missing and genuinely reachable (real page, not a stray/placeholder directory) — add any that are. Do not add a route that turns out to be unused/dead; confirm each addition corresponds to a real `page.tsx`.
+
+- [ ] **Step 3: Update `PARTICIPANT_VERIFIED_ROUTES`**
+
+Add `/schedule` (confirmed real, defined in `participant-nav-config.ts`'s `participantNavItems` but missing from this list).
+
+- [ ] **Step 4: Update the group-count/order test**
+
+The test `'has exactly 6 groups: ...'` must become 7 (or whatever the real current count is after Step 1's re-check), with the correct `labelKey` sequence including `nav.groups.staff` and `nav.groups.settings` in their actual positions. Rename the test's description to match its new correct list (don't leave a test named "has exactly 6 groups" asserting 8, or similarly mismatched).
+
+- [ ] **Step 5: Update the Attendance-group hrefs test**
+
+The test `'puts /attendance/scanners, /attendance/admissions, and /attendance/demand under the Attendance group'` must become `['/attendance/scanners', '/attendance/admissions', '/attendance/walk-in', '/attendance/demand']` (matching the REAL current insertion order in `admin-nav-config.ts`, confirmed in Step 1 — `.toEqual()` is order-sensitive). Rename the test's description to mention `/attendance/walk-in` too.
+
+- [ ] **Step 6: Run the test suite to confirm it's fully green**
+
+Run: `npx vitest run tests/lib/nav/nav-config.test.ts`. All 14 tests must pass. This is the actual gate for this task — do not proceed to Task 4 later in this plan until this file is clean, since Task 4 Step 5 assumes a green baseline and will only need to add ONE more route/href on top of it.
+
+- [ ] **Step 7: Typecheck and lint**
+
+Run: `npx tsc --noEmit` and `npx eslint tests/lib/nav/nav-config.test.ts`.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add tests/lib/nav/nav-config.test.ts
+git commit -m "fix: sync nav-config regression test with the real current route tree"
+```
+
+---
+
 ### Task 1: `ops_dashboard_snapshot()` RPC + Realtime broadcast triggers
 
 **Files:**
@@ -296,9 +342,9 @@ git commit -m "feat: wire up Realtime live updates and fallback polling on ops d
 - Modify: `src/lib/nav/admin-nav-config.ts`
 - Modify: `src/messages/en.json`
 - Modify: `src/messages/ar.json`
-- Modify: `tests/lib/nav/nav-config.test.ts` — **required, not optional.** This file has a standing regression test that asserts an EXACT, literal 3-item array for the Attendance group's hrefs, plus a separate "no href outside the verified route list" test. Both will fail the moment this task's nav entry is added, unless this file is updated in the SAME commit. The file's own header comment says exactly this: "If you rename, add, or remove a route under the admin app directory, you MUST update this list (and the corresponding nav-config file) in the same change, or this test will fail."
+- Modify: `tests/lib/nav/nav-config.test.ts` — **required, not optional.** This file has a standing regression test that asserts an EXACT, literal array for the Attendance group's hrefs, plus a separate "no href outside the verified route list" test. Both will fail the moment this task's nav entry is added, unless this file is updated in the SAME commit. The file's own header comment says exactly this: "If you rename, add, or remove a route under the admin app directory, you MUST update this list (and the corresponding nav-config file) in the same change, or this test will fail."
 
-Depends on Task 2 (the page must exist to link to).
+Depends on Task 0.5 (this file must already be a correctly-passing baseline — matching the REAL current route tree, including `/attendance/walk-in` — before this task adds one more route on top of it; without Task 0.5, this task would be patching an already-broken/stale test and risk compounding the drift instead of fixing it) and Task 2 (the page must exist to link to).
 
 - [ ] **Step 1: Add the nav entry**
 
@@ -310,9 +356,9 @@ Add `"opsDashboard": "Ops Dashboard"` (en) / an appropriately natural Arabic equ
 
 - [ ] **Step 3: Update the nav regression tests**
 
-In `tests/lib/nav/nav-config.test.ts`:
-1. Add `'/attendance/ops-dashboard'` to the `ADMIN_VERIFIED_ROUTES` array (alongside the existing `'/attendance/scanners'`, `'/attendance/admissions'`, `'/attendance/demand'` entries — read the file to find their exact current line numbers before editing, since Tasks 1-3 of this plan don't touch this file and line numbers won't have shifted, but confirm directly rather than assuming).
-2. Update the test `'puts /attendance/scanners, /attendance/admissions, and /attendance/demand under the Attendance group'` — rename it to include the new route in its description, and update its `.toEqual([...])` array to include `'/attendance/ops-dashboard'` at whatever position Step 1 inserted it into the actual nav config (the array must match the real insertion order exactly, not just contain the same 4 items in any order — `.toEqual` on an array is order-sensitive).
+In `tests/lib/nav/nav-config.test.ts` (now a correctly-passing baseline per Task 0.5):
+1. Add `'/attendance/ops-dashboard'` to the `ADMIN_VERIFIED_ROUTES` array, alongside the now-present `'/attendance/scanners'`, `'/attendance/admissions'`, `'/attendance/walk-in'`, `'/attendance/demand'` entries (read the file to find their exact current line numbers before editing, since Task 0.5 will have changed them from what an earlier draft of this plan assumed — confirm directly rather than assuming).
+2. Update the test Task 0.5 renamed to include `/attendance/walk-in` — add `/attendance/ops-dashboard` to its `.toEqual([...])` array at whatever position Step 1 above inserted it into the actual nav config (the array must match the real insertion order exactly, not just contain the same items in any order — `.toEqual` on an array is order-sensitive), and update the test's description once more to also mention the new route.
 
 - [ ] **Step 4: Typecheck and lint**
 
@@ -338,7 +384,7 @@ git commit -m "feat: add ops dashboard nav entry"
 
 - [ ] **Step 1: Full relevant-suite run**
 
-Run: `npx vitest run tests/attendance tests/agenda tests/lib/nav tests/program-attendance` (the broadcast triggers touch `attendance_records`/`scan_attempts`, which every scanner/admission/no-show test exercises; `tests/lib/nav` covers Task 4's nav-config regression tests — though Task 4 Step 5 should have already left these green, re-confirming here catches anything a later task accidentally broke; `tests/program-attendance` includes `demand-capacity-live.test.ts`, which exercises `session_effective_occupied_count()`, the same RPC this sub-project's snapshot function reuses, making it the closest related existing coverage outside the two primary directories).
+Run: `npx vitest run tests/attendance tests/agenda tests/lib/nav tests/program-attendance` (the broadcast triggers touch `attendance_records`/`scan_attempts`, which every scanner/admission/no-show test exercises; `tests/lib/nav` covers Task 0.5/4's nav-config regression tests — though both tasks' own gates should have already left these green, re-confirming here catches anything a later task accidentally broke; `tests/program-attendance` includes `demand-capacity-live.test.ts`, which directly reads `attendance_records.status='admitted'` rows — NOT `session_effective_occupied_count()`, which it does not call — making it a second, independent consumer of the same table this sub-project's broadcast trigger attaches to, worth a regression check even though it doesn't share the snapshot RPC itself).
 
 - [ ] **Step 2: Full typecheck and lint**
 
