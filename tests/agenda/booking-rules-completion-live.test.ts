@@ -613,6 +613,36 @@ describe('no-show detection and seat release', () => {
     expect(outboxRows).toHaveLength(1);
     expect((outboxRows as unknown as Array<{ booking_id: string; notification_type: string }>)[0].booking_id).toBe(newBooking!.id);
   });
+
+  it('never flags a walk-in booking as a no-show: admit_walk_in inserts the booking and an admitted attendance_records row atomically, so it is always excluded', async () => {
+    // Walk-in admission itself is exercised in the 'walk-in admission'
+    // describe block via admit_walk_in; this test only needs the SAME
+    // booking_id-linked, status='admitted' shape admit_walk_in produces
+    // (session_bookings.source='walk_in' + an attendance_records row with
+    // booking_id set and status='admitted'), seeded directly, to isolate
+    // process_session_no_shows's own exclusion logic from admit_walk_in's
+    // staff-auth/capacity/locking concerns (already covered elsewhere).
+    const sessionId = await seedPastSession('noshow-walkin-excluded');
+    const { applicationId, applicantId } = await seedAcceptedApplicant('noshow-walkin-excluded');
+
+    const { data: booking, error: bookingErr } = await admin
+      .from('session_bookings')
+      .insert({ application_id: applicationId, session_id: sessionId, status: 'active', source: 'walk_in' })
+      .select('id')
+      .single();
+    if (bookingErr) throw new Error(`Failed to seed walk_in session_bookings: ${bookingErr.message}`);
+
+    await seedAdmittedAttendance(applicationId, applicantId, sessionId, {
+      entry_type: 'walk_in',
+      booking_id: booking!.id,
+    });
+
+    const { error: rpcErr } = await admin.rpc('process_session_no_shows' as never, { p_session_id: sessionId } as never);
+    expect(rpcErr).toBeNull();
+
+    const { data: afterSweep } = await admin.from('session_bookings').select('status').eq('id', booking!.id).single();
+    expect(afterSweep?.status).toBe('active');
+  });
 });
 
 describe('walk-in admission', () => {
@@ -795,6 +825,41 @@ describe('walk-in admission', () => {
       .eq('application_id', applicationId)
       .in('status', ['active']);
     expect(visibleBookings?.map((b) => b.id)).toContain(bookingId);
+  });
+
+  it('can push session_effective_occupied_count() above capacity when self-service bookings already filled it -- self-correcting, not a bug: admit_walk_in checks live attendance_records admissions, not booking-slot occupancy', async () => {
+    // capacity=2, both slots filled by active self-service bookings
+    // (occupied count = 2, "full" for book_session/join_waitlist
+    // purposes) but neither participant has actually been admitted at
+    // the door yet -- attendance_records admitted count is still 0, so
+    // admit_walk_in's own capacity check (deliberately against admitted
+    // attendance, not session_effective_occupied_count) allows a walk-in
+    // through, pushing session_effective_occupied_count() to 3, above
+    // the session's capacity of 2. This is the expected, documented
+    // divergence between the two capacity concepts (see admit_walk_in's
+    // own migration comment), not a regression -- every consumer of
+    // session_effective_occupied_count() (book_session, join_waitlist,
+    // the capacity-downsize trigger) uses >=/< comparisons that remain
+    // correct even when the count overshoots.
+    const sessionId = await seedSession('walkin-overshoot', { capacity: 2 });
+    const { applicationId: bookedAppId1 } = await seedAcceptedApplicant('walkin-overshoot-booked-1');
+    const { applicationId: bookedAppId2 } = await seedAcceptedApplicant('walkin-overshoot-booked-2');
+    await directBooking(bookedAppId1, sessionId);
+    await directBooking(bookedAppId2, sessionId);
+
+    const { data: countBeforeWalkIn } = await admin.rpc('session_effective_occupied_count', { p_session_id: sessionId });
+    expect(countBeforeWalkIn).toBe(2);
+
+    const { applicationId: walkInAppId } = await seedAcceptedApplicant('walkin-overshoot-walkin');
+    const { data: bookingId, error } = await staffClient.rpc('admit_walk_in', {
+      p_application_id: walkInAppId,
+      p_session_id: sessionId,
+    });
+    expect(error, `RPC error: ${error?.message}`).toBeNull();
+    expect(bookingId).toBeTruthy();
+
+    const { data: countAfterWalkIn } = await admin.rpc('session_effective_occupied_count', { p_session_id: sessionId });
+    expect(countAfterWalkIn).toBe(3); // exceeds capacity=2, by design
   });
 });
 
