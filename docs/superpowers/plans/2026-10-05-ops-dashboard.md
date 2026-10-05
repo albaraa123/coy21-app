@@ -81,42 +81,31 @@ git status  # must show no new/modified files from the spike itself
 
 ---
 
-### Task 0.5: Fix pre-existing drift in `tests/lib/nav/nav-config.test.ts`
+### Task 0.5: Fix pre-existing drift in `tests/lib/nav/nav-config.test.ts` — ALREADY DONE
 
 **Files:**
-- Modify: `tests/lib/nav/nav-config.test.ts`
+- Modified: `tests/lib/nav/nav-config.test.ts`
 
-**This is a prerequisite fix, independent of the ops dashboard feature itself** — discovered during this plan's own review when a reviewer ran the test suite and found it already red on `master`, unrelated to anything this plan touches. `tests/lib/nav/nav-config.test.ts` was last synced with the real route tree at "Phase 5.5 Task 4 (2026-07-28)" (per its own header comment) and has drifted out of sync with several pieces of work since then (at minimum: sub-project 4e's Task 7 added `/attendance/walk-in` without updating this file; a `staff` nav group and a `settings` nav group were added without updating this file; a `/schedule` participant route was added without updating `PARTICIPANT_VERIFIED_ROUTES`). Confirmed via `npx vitest run tests/lib/nav/nav-config.test.ts`: 5 of 14 tests currently fail on this branch before any of Tasks 0-5 below are implemented, and `git diff master -- tests/lib/nav/nav-config.test.ts src/lib/nav/admin-nav-config.ts` shows zero diff, confirming this is pre-existing breakage, not something this plan's own Task 0 introduced.
+**This was a prerequisite fix, independent of the ops dashboard feature itself** — discovered during this plan's own review when a reviewer ran the test suite and found it already red on `master`, unrelated to anything this plan touches. `tests/lib/nav/nav-config.test.ts` was last synced with the real route tree at "Phase 5.5 Task 4 (2026-07-28)" (per its own header comment) and had drifted out of sync with several pieces of work since then. It was fixed and verified green (14/14 tests pass, `npx tsc --noEmit` and `npx eslint tests/lib/nav/nav-config.test.ts` both clean) directly during plan review, rather than left as a prescriptive future step — a second review round (after an initial attempt that only covered 2 of the actual failure modes) found the drift was deeper than first assessed, so the full fix is recorded here for reference rather than as instructions to re-derive.
 
-This task fixes ONLY what's needed to bring the test file current with the real, already-existing route tree — it does not add any new route, nav entry, or feature. Task 4 (later in this plan) then adds the ops-dashboard entry on top of a CORRECT baseline, rather than inheriting broken test expectations.
+**What was actually wrong and how it was fixed** (for context — this task is DONE, no further action needed before Task 1):
 
-- [ ] **Step 1: Read the current real route tree and nav configs**
+1. `ADMIN_VERIFIED_ROUTES` was missing `/attendance/walk-in`, `/staff`, `/staff/assignments`, `/settings` (all real, rendered sidebar routes added by work since the list was last synced) — added.
+2. `PARTICIPANT_VERIFIED_ROUTES` was missing `/schedule` (real, defined in `participant-nav-config.ts`) — added.
+3. The group-count test asserted 6 groups with a stale label sequence (`nav.groups.schedulePublication`, which doesn't exist in the real config — the real 3rd group is `nav.groups.allocation`); the real config has 7 groups including `staff` and `settings`, added since the test was last synced — corrected to 7 groups with the real `labelKey` sequence.
+4. The Attendance-group hrefs test was missing `/attendance/walk-in` in its `.toEqual([...])` array — corrected.
+5. **A deeper, initially-missed category of drift**: several real, fully-built admin pages were never rendered as their own sidebar `NavItem`s, because they're reachable only by clicking through from a hub/landing page or another page's body — the SAME relationship `ADMIN_DETAIL_ONLY_ROUTES` already modeled for dynamic-segment detail routes, just never extended to cover non-dynamic-segment click-through-only pages. Found by actually running the suite after fixes 1-4 and iterating on each newly-surfaced failure rather than assuming the first visible failure was the only one (the test's `for` loop throws on the first bad assertion, so later failures in the same loop were invisible until earlier ones were fixed). The full set, each verified by reading its actual page file and confirming where it's actually linked from:
+   - `/agenda` (hub page; its own body links to `/agenda/session-types`, `/agenda/tags`, among others)
+   - `/agenda/session-types`, `/agenda/tags` (both real pages, reachable only via click-through from `/agenda`)
+   - `/allocation` (hub page; its own body links to `/allocation/clustering`, `/allocation/extraction`)
+   - `/allocation/clustering`, `/allocation/extraction` (both real pages, reachable only via click-through from `/allocation`)
+   - `/allocation/schedules/changed` (real page, linked from `/allocation/schedules`'s own body)
+   - `/participants` (no content of its own — transparently redirects to `/applications`)
+   - `/participants/imports` (real page, linked from three cards on `/dashboard`)
 
-Read `src/lib/nav/admin-nav-config.ts` and `src/lib/nav/participant-nav-config.ts` in full, and list the actual admin route directories: `find "src/app/[locale]/(admin)" -maxdepth 3 -type d`. Cross-reference against `tests/lib/nav/nav-config.test.ts`'s current `ADMIN_VERIFIED_ROUTES`, `ADMIN_DETAIL_ONLY_ROUTES`, and `PARTICIPANT_VERIFIED_ROUTES` arrays to find every discrepancy — don't assume the list below is exhaustive; confirm it against what you actually find, since routes may have changed again since this plan was written.
+   All 9 were added to `ADMIN_DETAIL_ONLY_ROUTES`, and that array's header comment was rewritten to describe both the dynamic-segment pattern and this click-through-only pattern (previously the comment claimed every entry contained a `[...]` token, which stopped being true). The test `'never renders a detail-only route...'`'s name was updated to stop implying the carve-out is exclusively about dynamic segments. No new rendered `NavItem` was added for any of these 9 routes — this task fixed the TEST file's accuracy only, not the sidebar's actual rendered contents, which is a separate product/UX decision outside this prerequisite fix's scope.
 
-- [ ] **Step 2: Update `ADMIN_VERIFIED_ROUTES`**
-
-At minimum, add: `/attendance/walk-in`, `/staff`, `/staff/assignments`, `/settings`. Check whether any other admin route directory found in Step 1 (e.g. `/content/local-info`, `/local-info-hub`, `/reports/local-info`, `/agenda/sessions/new`) is also missing and genuinely reachable (real page, not a stray/placeholder directory) — add any that are. Do not add a route that turns out to be unused/dead; confirm each addition corresponds to a real `page.tsx`.
-
-- [ ] **Step 3: Update `PARTICIPANT_VERIFIED_ROUTES`**
-
-Add `/schedule` (confirmed real, defined in `participant-nav-config.ts`'s `participantNavItems` but missing from this list).
-
-- [ ] **Step 4: Update the group-count/order test**
-
-The test `'has exactly 6 groups: ...'` must become 7 (or whatever the real current count is after Step 1's re-check), with the correct `labelKey` sequence including `nav.groups.staff` and `nav.groups.settings` in their actual positions. Rename the test's description to match its new correct list (don't leave a test named "has exactly 6 groups" asserting 8, or similarly mismatched).
-
-- [ ] **Step 5: Update the Attendance-group hrefs test**
-
-The test `'puts /attendance/scanners, /attendance/admissions, and /attendance/demand under the Attendance group'` must become `['/attendance/scanners', '/attendance/admissions', '/attendance/walk-in', '/attendance/demand']` (matching the REAL current insertion order in `admin-nav-config.ts`, confirmed in Step 1 — `.toEqual()` is order-sensitive). Rename the test's description to mention `/attendance/walk-in` too.
-
-- [ ] **Step 6: Run the test suite to confirm it's fully green**
-
-Run: `npx vitest run tests/lib/nav/nav-config.test.ts`. All 14 tests must pass. This is the actual gate for this task — do not proceed to Task 4 later in this plan until this file is clean, since Task 4 Step 5 assumes a green baseline and will only need to add ONE more route/href on top of it.
-
-- [ ] **Step 7: Typecheck and lint**
-
-Run: `npx tsc --noEmit` and `npx eslint tests/lib/nav/nav-config.test.ts`.
+This task fixed ONLY what was needed to bring the test file current with the real, already-existing route tree — it did not add any new route, nav entry, or feature. Task 4 (later in this plan) adds the ops-dashboard entry on top of this now-correct, fully-verified baseline.
 
 - [ ] **Step 8: Commit**
 

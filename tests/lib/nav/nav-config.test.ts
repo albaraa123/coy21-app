@@ -75,25 +75,57 @@ const ADMIN_VERIFIED_ROUTES = [
   '/participants/imports/[batchId]',
   '/attendance/scanners',
   '/attendance/admissions',
+  '/attendance/walk-in',
   '/attendance/demand',
+  '/staff',
+  '/staff/assignments',
+  '/settings',
   '/reports',
   '/communications',
 ];
 
 /**
- * Real, valid admin routes that are intentionally NOT rendered as sidebar
- * NavItems because they are detail-only pages requiring a dynamic id to be
- * meaningful (see the module doc comment above and admin-nav-config.ts).
- * Every entry here contains a "[...]" dynamic-segment path token.
+ * Real, valid admin routes that are intentionally NOT rendered as their own
+ * sidebar NavItems. Most entries contain a "[...]" dynamic-segment path
+ * token and require a real dynamic id to be meaningful (see the module doc
+ * comment above and admin-nav-config.ts) -- reached by clicking through
+ * from a parent list page.
+ *
+ * The remaining, non-dynamic-segment entries fall into two patterns, both
+ * verified by reading each page directly (not assumed):
+ *
+ * 1. Hub/landing pages whose own body links to their real sub-pages, where
+ *    the sidebar's group header only toggles expand/collapse (sidebar-nav.tsx
+ *    uses onClick, not a Link, for group headers) rather than navigating
+ *    anywhere -- so the hub page itself, and any of its sub-pages the
+ *    sidebar's own nav group doesn't separately list, are reachable only via
+ *    click-through, never as a standalone sidebar link. This covers `/agenda`
+ *    (links to `/agenda/session-types`, `/agenda/tags`, among others already
+ *    in the sidebar) and `/allocation` (links to `/allocation/clustering`,
+ *    `/allocation/extraction`).
+ * 2. A page reachable via click-through from somewhere OTHER than its own
+ *    section's hub -- `/allocation/schedules/changed` is linked from
+ *    `/allocation/schedules`'s own page body; `/participants/imports` is
+ *    linked from three `/dashboard` cards; `/participants` has no content of
+ *    its own at all and transparently redirects to `/applications`.
  */
 const ADMIN_DETAIL_ONLY_ROUTES = [
+  '/agenda',
+  '/agenda/session-types',
+  '/agenda/tags',
   '/agenda/sessions/[id]',
+  '/allocation',
+  '/allocation/clustering',
+  '/allocation/extraction',
   '/allocation/runs/[id]',
   '/allocation/runs/[id]/capacity',
+  '/allocation/schedules/changed',
   '/allocation/schedules/participants/[applicationId]',
   '/allocation/schedules/stage/[allocationRunId]',
   '/allocation/schedules/stage/draft/[draftId]',
   '/applications/[id]',
+  '/participants',
+  '/participants/imports',
   '/participants/[applicationId]',
   '/participants/import/[batchId]/confirm',
   '/participants/import/[batchId]/map',
@@ -109,6 +141,7 @@ const ADMIN_SIDEBAR_ROUTES = ADMIN_VERIFIED_ROUTES.filter(
 const PARTICIPANT_VERIFIED_ROUTES = [
   '/my-dashboard',
   '/my-agenda',
+  '/schedule',
   '/my-travel',
   '/my-profile',
   '/my-application',
@@ -147,7 +180,7 @@ describe('admin nav config', () => {
     }
   });
 
-  it('never renders a detail-only route (dynamic-segment href) as a sidebar NavItem', () => {
+  it('never renders a detail-only route (dynamic-segment href or click-through-only hub page) as a sidebar NavItem', () => {
     // Every href actually rendered by the sidebar becomes a clickable
     // next-intl <Link>, which crashes on a literal, unfilled dynamic
     // segment (e.g. "/participants/[applicationId]"). This is the
@@ -170,22 +203,23 @@ describe('admin nav config', () => {
     expect(adminDashboardItem.href).toBe('/dashboard');
   });
 
-  it('has exactly 6 groups: Participants, Agenda, Allocation, Schedule Publication, Attendance, Reporting', () => {
-    expect(adminNavGroups).toHaveLength(6);
+  it('has exactly 7 groups: Participants, Agenda, Allocation, Attendance, Reporting, Staff, Settings', () => {
+    expect(adminNavGroups).toHaveLength(7);
     expect(adminNavGroups.map((g) => g.labelKey)).toEqual([
       'nav.groups.participants',
       'nav.groups.agenda',
       'nav.groups.allocation',
-      'nav.groups.schedulePublication',
       'nav.groups.attendance',
       'nav.groups.reporting',
+      'nav.groups.staff',
+      'nav.groups.settings',
     ]);
   });
 
-  it('puts /attendance/scanners, /attendance/admissions, and /attendance/demand under the Attendance group', () => {
+  it('puts /attendance/scanners, /attendance/admissions, /attendance/walk-in, and /attendance/demand under the Attendance group', () => {
     const attendanceGroup = adminNavGroups.find((g) => g.labelKey === 'nav.groups.attendance');
     expect(attendanceGroup).toBeDefined();
-    expect(collectHrefs(attendanceGroup!.items)).toEqual(['/attendance/scanners', '/attendance/admissions', '/attendance/demand']);
+    expect(collectHrefs(attendanceGroup!.items)).toEqual(['/attendance/scanners', '/attendance/admissions', '/attendance/walk-in', '/attendance/demand']);
   });
 
   it('puts /applications under the Participants group (detail route /applications/[id] intentionally not rendered)', () => {
