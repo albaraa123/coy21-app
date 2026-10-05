@@ -1685,6 +1685,36 @@
     "atOrOverCapacity": "At/over capacity",
     "hasCapacity": "Has capacity"
   },
+  "opsDashboard": {
+    "title": "Live Operations Dashboard",
+    "description": "Read-only live view of occupancy, scanner health, and rejection rates for confirmed sessions.",
+    "emptyTitle": "No confirmed sessions",
+    "emptyDescription": "Confirmed sessions will appear here once the agenda is finalized.",
+    "alerts": {
+      "title": "Alerts",
+      "none": "No sessions currently need attention.",
+      "reasonFull": "Full",
+      "reasonNearFull": "Near full",
+      "reasonStaleScanners": "{count} stale scanner(s)",
+      "reasonElevatedRejections": "Elevated rejections ({count} in last 30m)"
+    },
+    "sessions": {
+      "title": "Sessions",
+      "session": "Session",
+      "room": "Room",
+      "occupancyColumn": "Occupancy",
+      "status": "Status",
+      "scanners": "Scanners",
+      "rejectionsColumn": "Rejections (30m)",
+      "occupancy": "{occupied} / {capacity} ({pct}%)",
+      "full": "Full",
+      "nearFull": "Near full",
+      "staleScanners": "{count} stale scanner(s)",
+      "scannerCount": "{count} scanner(s)",
+      "lastScanAt": "last scan {time}",
+      "rejections": "{count} rejection(s) (30m)"
+    }
+  },
   "travelOps": {
     "title": "Travel Operations",
     "description": "Search for a participant to view and update their travel and passport information.",

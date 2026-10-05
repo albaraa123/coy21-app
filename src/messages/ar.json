@@ -1685,6 +1685,36 @@
     "atOrOverCapacity": "عند/فوق السعة",
     "hasCapacity": "يوجد سعة"
   },
+  "opsDashboard": {
+    "title": "لوحة العمليات المباشرة",
+    "description": "نظرة عامة مباشرة للقراءة فقط على الإشغال وحالة أجهزة المسح ومعدلات الرفض للجلسات المؤكدة.",
+    "emptyTitle": "لا توجد جلسات مؤكدة",
+    "emptyDescription": "ستظهر الجلسات المؤكدة هنا بمجرد اعتماد الأجندة.",
+    "alerts": {
+      "title": "التنبيهات",
+      "none": "لا توجد جلسات تحتاج إلى انتباه حالياً.",
+      "reasonFull": "ممتلئة",
+      "reasonNearFull": "قريبة من الامتلاء",
+      "reasonStaleScanners": "{count} جهاز مسح متوقف",
+      "reasonElevatedRejections": "ارتفاع في الرفض ({count} خلال آخر 30 دقيقة)"
+    },
+    "sessions": {
+      "title": "الجلسات",
+      "session": "الجلسة",
+      "room": "القاعة",
+      "occupancyColumn": "الإشغال",
+      "status": "الحالة",
+      "scanners": "أجهزة المسح",
+      "rejectionsColumn": "الرفض (30 د)",
+      "occupancy": "{occupied} / {capacity} ({pct}%)",
+      "full": "ممتلئة",
+      "nearFull": "قريبة من الامتلاء",
+      "staleScanners": "{count} جهاز مسح متوقف",
+      "scannerCount": "{count} جهاز مسح",
+      "lastScanAt": "آخر مسح {time}",
+      "rejections": "{count} حالة رفض (30 د)"
+    }
+  },
   "travelOps": {
     "title": "عمليات السفر",
     "description": "ابحث عن مشارك لعرض وتحديث معلومات السفر وجواز السفر الخاصة به.",
