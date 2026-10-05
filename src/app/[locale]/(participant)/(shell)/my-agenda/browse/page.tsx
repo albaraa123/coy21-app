@@ -64,6 +64,21 @@ export default async function BrowseSessionsPage() {
 
   const myWaitlistedIds = new Set((myWaitlistRows ?? []).map((w) => w.session_id));
 
+  // Global booking-closing deadline (a singleton row) — mirrors
+  // session_effective_deadline()'s own least(global, per-session) logic
+  // client-side, so the "Book"/"Join waitlist" buttons below reflect the
+  // same hard ceiling book_session/join_waitlist actually enforce
+  // server-side, instead of only ever checking each session's own
+  // booking_deadline.
+  const { data: conferenceSettings } = await supabase
+    .from('conference_settings')
+    .select('global_booking_deadline')
+    .eq('id', true)
+    .maybeSingle();
+  const globalDeadline = conferenceSettings?.global_booking_deadline
+    ? new Date(conferenceSettings.global_booking_deadline)
+    : null;
+
   // Active booking counts per session — from a single query
   const { data: countRows } = await supabase
     .from('session_bookings')
@@ -116,9 +131,10 @@ export default async function BrowseSessionsPage() {
           </h2>
 
           {day.sessions.map((s) => {
-            const deadline = s.booking_deadline
+            const perSessionDeadline = s.booking_deadline
               ? new Date(s.booking_deadline)
               : new Date(new Date(s.start_time).getTime() - 3 * 60 * 60 * 1000);
+            const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
             const isPastDeadline = now > deadline;
             const bookedCount = countMap.get(s.id) ?? 0;
             const isFull = bookedCount >= s.capacity;

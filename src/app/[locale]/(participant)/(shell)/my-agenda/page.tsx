@@ -74,6 +74,18 @@ export default async function MyAgendaPage() {
     .eq('status', 'waiting')
     .order('joined_at');
 
+  // Global booking-closing deadline (a singleton row) -- mirrors
+  // session_effective_deadline()'s own least(global, per-session) logic
+  // client-side, so AgendaDay's "Cancel" button reflects the same hard
+  // ceiling cancel_booking actually enforces server-side, instead of only
+  // ever checking each session's own booking_deadline.
+  const { data: conferenceSettings } = await supabase
+    .from('conference_settings')
+    .select('global_booking_deadline')
+    .eq('id', true)
+    .maybeSingle();
+  const globalBookingDeadline = conferenceSettings?.global_booking_deadline ?? null;
+
   const sessionsByDay = groupByDay(bookings ?? []);
 
   return (
@@ -105,6 +117,7 @@ export default async function MyAgendaPage() {
             bookings={day.bookings}
             locale={locale}
             applicationId={application.id}
+            globalBookingDeadline={globalBookingDeadline}
           />
         ))
       )}

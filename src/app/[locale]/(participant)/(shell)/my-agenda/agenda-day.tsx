@@ -31,9 +31,10 @@ type Props = {
   bookings: Booking[];
   locale: string;
   applicationId: string;
+  globalBookingDeadline: string | null;
 };
 
-export function AgendaDay({ date: _date, label, bookings, locale }: Props) {
+export function AgendaDay({ date: _date, label, bookings, locale, globalBookingDeadline }: Props) {
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
 
   const visible = bookings.filter((b) => !cancelled.has(b.id));
@@ -51,9 +52,11 @@ export function AgendaDay({ date: _date, label, bookings, locale }: Props) {
           if (!s) return null;
 
           const now = new Date();
-          const deadline = s.booking_deadline
+          const perSessionDeadline = s.booking_deadline
             ? new Date(s.booking_deadline)
             : new Date(new Date(s.start_time).getTime() - 3 * 60 * 60 * 1000);
+          const globalDeadline = globalBookingDeadline ? new Date(globalBookingDeadline) : null;
+          const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
           const isPastDeadline = now > deadline;
 
           const start = formatConferenceTime(s.start_time, locale === 'ar' ? 'ar' : 'en');
