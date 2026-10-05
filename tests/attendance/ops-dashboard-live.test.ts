@@ -201,7 +201,9 @@ async function seedScanAttempt(
   return data.id as string;
 }
 
-async function findSnapshotRow(rows: Array<{ session_id: string }> | null, sessionId: string) {
+type SnapshotRow = Database['public']['Functions']['ops_dashboard_snapshot']['Returns'][number];
+
+async function findSnapshotRow(rows: SnapshotRow[] | null, sessionId: string): Promise<SnapshotRow> {
   const row = rows?.find((r) => r.session_id === sessionId);
   if (!row) throw new Error(`ops_dashboard_snapshot() did not return a row for session ${sessionId}`);
   return row;
@@ -261,7 +263,7 @@ describe('ops_dashboard_snapshot', () => {
     expect(effectiveError).toBeNull();
     expect(effectiveCount).toBe(2);
 
-    const { data: snapshotRows, error: snapshotError } = await admin.rpc('ops_dashboard_snapshot' as never);
+    const { data: snapshotRows, error: snapshotError } = await admin.rpc('ops_dashboard_snapshot');
     expect(snapshotError, `RPC error: ${snapshotError?.message}`).toBeNull();
     const row = await findSnapshotRow(snapshotRows as never, sessionId);
 
@@ -275,14 +277,14 @@ describe('ops_dashboard_snapshot', () => {
     const { applicationId: appId1 } = await seedAcceptedApplicant('is-full-boundary-1');
     await directBooking(appId1, sessionId);
 
-    const { data: rowsBelow } = await admin.rpc('ops_dashboard_snapshot' as never);
+    const { data: rowsBelow } = await admin.rpc('ops_dashboard_snapshot');
     const belowRow = await findSnapshotRow(rowsBelow as never, sessionId);
     expect(belowRow.is_full).toBe(false);
 
     const { applicationId: appId2 } = await seedAcceptedApplicant('is-full-boundary-2');
     await directBooking(appId2, sessionId);
 
-    const { data: rowsAt } = await admin.rpc('ops_dashboard_snapshot' as never);
+    const { data: rowsAt } = await admin.rpc('ops_dashboard_snapshot');
     const atRow = await findSnapshotRow(rowsAt as never, sessionId);
     expect(atRow.is_full).toBe(true);
   });
@@ -294,8 +296,8 @@ describe('ops_dashboard_snapshot', () => {
       await directBooking(applicationId, sessionId);
     }
 
-    const { data: rows } = await admin.rpc('ops_dashboard_snapshot' as never);
-    const row = await findSnapshotRow(rows as never, sessionId);
+    const { data: rows } = await admin.rpc('ops_dashboard_snapshot');
+    const row = await findSnapshotRow(rows, sessionId);
     expect(row.is_near_full).toBe(true);
     expect(row.is_full).toBe(false);
   });
@@ -306,9 +308,9 @@ describe('ops_dashboard_snapshot', () => {
     await seedScannerAssignment(scannerId, { roomId });
     await seedScannerAssignment(scannerId, { sessionId });
 
-    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot' as never);
+    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot');
     expect(error, `RPC error: ${error?.message}`).toBeNull();
-    const row = await findSnapshotRow(rows as never, sessionId);
+    const row = await findSnapshotRow(rows, sessionId);
     expect(row.scanner_count).toBe(1);
   });
 
@@ -324,9 +326,9 @@ describe('ops_dashboard_snapshot', () => {
     await seedScanAttempt(sessionId, staleScannerId, 'invalid_qr', { created_at: twentyMinutesAgo, finalized_at: twentyMinutesAgo });
     await seedScanAttempt(sessionId, freshScannerId, 'invalid_qr', { created_at: fiveMinutesAgo, finalized_at: fiveMinutesAgo });
 
-    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot' as never);
+    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot');
     expect(error, `RPC error: ${error?.message}`).toBeNull();
-    const row = await findSnapshotRow(rows as never, sessionId);
+    const row = await findSnapshotRow(rows, sessionId);
     // staleScannerId's last scan is 20 minutes ago (stale); freshScannerId's
     // last scan is 5 minutes ago (not stale) -- exactly one of the two
     // assigned scanners should be counted stale.
@@ -351,9 +353,9 @@ describe('ops_dashboard_snapshot', () => {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
     await seedScanAttempt(sessionA, scannerId, 'invalid_qr', { created_at: fiveMinutesAgo, finalized_at: fiveMinutesAgo });
 
-    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot' as never);
+    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot');
     expect(error, `RPC error: ${error?.message}`).toBeNull();
-    const rowB = await findSnapshotRow(rows as never, sessionB);
+    const rowB = await findSnapshotRow(rows, sessionB);
     expect(rowB.scanner_count).toBe(1);
     expect(rowB.stale_scanner_count).toBe(0);
   });
@@ -368,9 +370,9 @@ describe('ops_dashboard_snapshot', () => {
     await seedScanAttempt(sessionId, scannerId, 'invalid_qr', { created_at: tenMinutesAgo, finalized_at: tenMinutesAgo }); // counted: within window, rejection-flavored
     await seedScanAttempt(sessionId, scannerId, 'duplicate', { created_at: fortyMinutesAgo, finalized_at: fortyMinutesAgo }); // excluded: aged out (older than 30 minutes)
 
-    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot' as never);
+    const { data: rows, error } = await admin.rpc('ops_dashboard_snapshot');
     expect(error, `RPC error: ${error?.message}`).toBeNull();
-    const row = await findSnapshotRow(rows as never, sessionId);
+    const row = await findSnapshotRow(rows, sessionId);
     expect(row.rejection_count_30m).toBe(1);
     expect(row.rejection_breakdown).toEqual({ invalid_qr: 1 });
   });
@@ -378,7 +380,7 @@ describe('ops_dashboard_snapshot', () => {
   it('rejects a non-staff caller with Not authorized [spec req 5]', async () => {
     const { client: participantClient } = await seedAcceptedApplicant('non-staff-caller');
 
-    const { error } = await participantClient.rpc('ops_dashboard_snapshot' as never);
+    const { error } = await participantClient.rpc('ops_dashboard_snapshot');
     expect(error).not.toBeNull();
     expect(error?.message).toContain('Not authorized');
   });

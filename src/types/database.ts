@@ -3776,6 +3776,26 @@ export type Database = {
         Args: { p_type?: Database["public"]["Enums"]["participant_type"] }
         Returns: string
       }
+      ops_dashboard_snapshot: {
+        Args: never
+        Returns: {
+          capacity: number
+          is_full: boolean
+          is_near_full: boolean
+          last_scan_at: string
+          occupancy_pct: number
+          occupied_count: number
+          rejection_breakdown: Json
+          rejection_count_30m: number
+          room_name_ar: string
+          room_name_en: string
+          scanner_count: number
+          session_id: string
+          stale_scanner_count: number
+          title_ar: string
+          title_en: string
+        }[]
+      }
       override_allocation_assignment_transactional: {
         Args: {
           p_assignment_id: string
