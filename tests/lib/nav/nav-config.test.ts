@@ -44,6 +44,7 @@ const ADMIN_VERIFIED_ROUTES = [
   '/agenda/session-types',
   '/agenda/sessions',
   '/agenda/sessions/[id]',
+  '/agenda/sessions/new',
   '/agenda/tags',
   '/agenda/tracks',
   '/allocation',
@@ -107,11 +108,15 @@ const ADMIN_VERIFIED_ROUTES = [
  *    section's hub -- `/allocation/schedules/changed` is linked from
  *    `/allocation/schedules`'s own page body; `/participants/imports` is
  *    linked from three `/dashboard` cards; `/participants` has no content of
- *    its own at all and transparently redirects to `/applications`.
+ *    its own at all and transparently redirects to `/applications`;
+ *    `/agenda/sessions/new` is linked from `/agenda/sessions`'s own "new
+ *    session" button, the same relationship its dynamic-segment sibling
+ *    `/agenda/sessions/[id]` has to that same list page.
  */
 const ADMIN_DETAIL_ONLY_ROUTES = [
   '/agenda',
   '/agenda/session-types',
+  '/agenda/sessions/new',
   '/agenda/tags',
   '/agenda/sessions/[id]',
   '/allocation',

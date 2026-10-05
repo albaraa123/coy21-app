@@ -103,16 +103,15 @@ git status  # must show no new/modified files from the spike itself
    - `/participants` (no content of its own — transparently redirects to `/applications`)
    - `/participants/imports` (real page, linked from three cards on `/dashboard`)
 
-   All 9 were added to `ADMIN_DETAIL_ONLY_ROUTES`, and that array's header comment was rewritten to describe both the dynamic-segment pattern and this click-through-only pattern (previously the comment claimed every entry contained a `[...]` token, which stopped being true). The test `'never renders a detail-only route...'`'s name was updated to stop implying the carve-out is exclusively about dynamic segments. No new rendered `NavItem` was added for any of these 9 routes — this task fixed the TEST file's accuracy only, not the sidebar's actual rendered contents, which is a separate product/UX decision outside this prerequisite fix's scope.
+   All 9 were added to `ADMIN_DETAIL_ONLY_ROUTES`, and that array's header comment was rewritten to describe both the dynamic-segment pattern and this click-through-only pattern (previously the comment claimed every entry contained a `[...]` token, which stopped being true). The test `'never renders a detail-only route...'`'s name was updated to stop implying the carve-out is exclusively about dynamic segments.
+
+6. **A 4th review round, re-running an exhaustive route-by-route diff rather than trusting "14/14 pass" as proof of completeness, found a 10th instance of the exact same pattern**: `/agenda/sessions/new` (a real, staff-gated session-creation page, linked from `/agenda/sessions`'s own "new session" button — the same relationship its dynamic-segment sibling `/agenda/sessions/[id]` already has to that list page) was present in neither `ADMIN_VERIFIED_ROUTES` nor `ADMIN_DETAIL_ONLY_ROUTES`, giving it zero test coverage (not failing — simply invisible to the suite). Added to both arrays alongside `/agenda/sessions/[id]`. Re-confirmed 14/14 passing after this addition.
+
+   That same review round also flagged 3 fully orphaned, unreachable pages (`/content/local-info`, `/local-info-hub` — a literal dead test stub, `/reports/local-info`) with zero inbound links anywhere in the app — these are pre-existing dead code, not nav-config drift in the same sense (the test can only validate routes someone tells it about; unreachable code has no nav entry to be missing), and are explicitly left out of this prerequisite fix's scope. Worth a separate cleanup, not a blocker here.
+
+No new rendered `NavItem` was added for any of the 10 click-through-only routes found across all rounds — this task fixed the TEST file's accuracy only, not the sidebar's actual rendered contents, which is a separate product/UX decision outside this prerequisite fix's scope.
 
 This task fixed ONLY what was needed to bring the test file current with the real, already-existing route tree — it did not add any new route, nav entry, or feature. Task 4 (later in this plan) adds the ops-dashboard entry on top of this now-correct, fully-verified baseline.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add tests/lib/nav/nav-config.test.ts
-git commit -m "fix: sync nav-config regression test with the real current route tree"
-```
 
 ---
 
@@ -346,7 +345,7 @@ Add `"opsDashboard": "Ops Dashboard"` (en) / an appropriately natural Arabic equ
 - [ ] **Step 3: Update the nav regression tests**
 
 In `tests/lib/nav/nav-config.test.ts` (now a correctly-passing baseline per Task 0.5):
-1. Add `'/attendance/ops-dashboard'` to the `ADMIN_VERIFIED_ROUTES` array, alongside the now-present `'/attendance/scanners'`, `'/attendance/admissions'`, `'/attendance/walk-in'`, `'/attendance/demand'` entries (read the file to find their exact current line numbers before editing, since Task 0.5 will have changed them from what an earlier draft of this plan assumed — confirm directly rather than assuming).
+1. Add `'/attendance/ops-dashboard'` to the `ADMIN_VERIFIED_ROUTES` array, alongside the now-present `'/attendance/scanners'`, `'/attendance/admissions'`, `'/attendance/walk-in'`, `'/attendance/demand'` entries (Task 0.5 already changed this file's line numbers from what an earlier draft of this plan assumed — read the file to find their actual current line numbers before editing, rather than trusting any number written here).
 2. Update the test Task 0.5 renamed to include `/attendance/walk-in` — add `/attendance/ops-dashboard` to its `.toEqual([...])` array at whatever position Step 1 above inserted it into the actual nav config (the array must match the real insertion order exactly, not just contain the same items in any order — `.toEqual` on an array is order-sensitive), and update the test's description once more to also mention the new route.
 
 - [ ] **Step 4: Typecheck and lint**
