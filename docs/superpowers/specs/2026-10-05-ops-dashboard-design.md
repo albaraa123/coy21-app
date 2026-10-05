@@ -70,7 +70,17 @@ begin
            -- back-to-back session in the same room would be wrongly
            -- flagged stale for the next one, even though it's clearly
            -- online. Session-scoped assignments still only count a scan
-           -- against this exact session.
+           -- against this exact session -- but only because
+           -- scanner-assignment-management.ts's two insert call sites
+           -- never set both session_id and room_id on the same row. The
+           -- scanner_assignments_scope_check constraint itself is an
+           -- inclusive OR (room_id is not null or session_id is not
+           -- null), not XOR, so it permits both fields set; if a future
+           -- caller ever created such a row, this subquery would widen
+           -- past the single session for it too. Not reachable today,
+           -- but worth tightening the constraint to a true XOR, or
+           -- adding an explicit `and sa.room_id is null` guard here, if
+           -- that assumption ever needs to stop being implicit.
            select 1 from scan_attempts sc
            where sc.scanned_by = sa.scanner_user_id
              and sc.created_at > now() - interval '15 minutes'
