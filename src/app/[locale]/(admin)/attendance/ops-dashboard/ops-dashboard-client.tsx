@@ -5,15 +5,29 @@
 // Sub-project 5a — see
 // docs/superpowers/specs/2026-10-05-ops-dashboard-design.md for the full
 // design and docs/superpowers/plans/2026-10-05-ops-dashboard.md ("Task
-// 2") for this task's scope.
+// 3") for this task's scope.
 //
-// Task 2 (this file, as first written): render the initial snapshot
-// passed from the server component as a static view. Deliberately NO
-// Realtime subscription and NO polling here yet -- that's Task 3's job,
-// added as a later, separately reviewable change to this same file.
+// Task 2 (this file, as first written) rendered the initial snapshot
+// passed from the server component as a static view only.
+//
+// Task 3 (this change): wires up live updates via two independent
+// triggers that both re-invoke ops_dashboard_snapshot():
+//   1. A Realtime broadcast subscription on the 'ops-dashboard-events'
+//      channel ('change' event -- confirmed in Task 1's migration,
+//      supabase/migrations/20261006071000_ops_dashboard_snapshot.sql).
+//      Debounced ~1.5s since a burst of scans can fire many broadcasts
+//      in quick succession.
+//   2. A 30-second fallback poll, independent of Realtime, as a
+//      silent-disconnect safety net.
+// Both call sites share a single request-id-guarded fetch helper
+// (fetchSnapshot below) so a slow-resolving response from one trigger
+// can never clobber a fresher response already applied by the other --
+// see requestIdRef.
+import { useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { createClient } from '@/lib/supabase/client';
 import type { Database } from '@/types/database';
 
 // row.rejection_breakdown is carried through from the RPC but intentionally
@@ -56,10 +70,72 @@ function OccupancyBar({ occupancyPct }: { occupancyPct: number }) {
 }
 
 export default function OpsDashboardClient({ initialRows }: { initialRows: OpsDashboardRow[] }) {
-  // Task 2: static render only. Task 3 replaces this plain destructure
-  // with Realtime-subscription + polling-driven state (see that task's
-  // required request-id guard against out-of-order responses).
-  const rows = initialRows;
+  const [rows, setRows] = useState<OpsDashboardRow[]>(initialRows);
+
+  // Monotonically-increasing request-id guard, shared by BOTH the
+  // debounced Realtime handler and the 30s poll below. Each call site
+  // increments this ref and captures the new value before issuing its
+  // RPC call; when the call resolves, it only applies the result if no
+  // newer request has been issued since (thisRequestId === current
+  // ref value). Without this, a slow-resolving poll response that
+  // started before but resolves after a faster Realtime-triggered
+  // response could overwrite fresher data with stale data.
+  const requestIdRef = useRef(0);
+
+  // Shared fetch helper -- the ONLY place that calls the snapshot RPC
+  // and the ONLY place that calls setRows for a live update. Both
+  // useEffects below call this; neither bypasses it.
+  const fetchSnapshot = async () => {
+    requestIdRef.current += 1;
+    const thisRequestId = requestIdRef.current;
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc('ops_dashboard_snapshot');
+    if (error) {
+      // Transient failure (e.g. a dropped connection) -- next poll or
+      // broadcast will retry. Nothing useful to show the user for a
+      // background refresh failure, so just skip this update.
+      return;
+    }
+    if (thisRequestId !== requestIdRef.current) {
+      // A newer request was issued while this one was in flight --
+      // discard this now-stale response silently.
+      return;
+    }
+    setRows(data ?? []);
+  };
+
+  // Step 1: Realtime subscription. Opens on mount, debounces bursts of
+  // broadcast messages (~1.5s), re-fetches the snapshot through the
+  // shared guarded helper above, and unsubscribes on unmount.
+  useEffect(() => {
+    const supabase = createClient();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const channel = supabase.channel('ops-dashboard-events');
+    channel.on('broadcast', { event: 'change' }, () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        void fetchSnapshot();
+      }, 1500);
+    });
+    channel.subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Step 2: fallback polling. Independent of Realtime -- re-fetches
+  // every 30s through the SAME shared guarded helper, regardless of
+  // whether a broadcast fired recently.
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      void fetchSnapshot();
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   const t = useTranslations('opsDashboard');
   const locale = useLocale();
