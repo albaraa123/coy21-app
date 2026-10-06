@@ -265,7 +265,7 @@ describe('ops_dashboard_snapshot', () => {
 
     const { data: snapshotRows, error: snapshotError } = await admin.rpc('ops_dashboard_snapshot');
     expect(snapshotError, `RPC error: ${snapshotError?.message}`).toBeNull();
-    const row = await findSnapshotRow(snapshotRows as never, sessionId);
+    const row = await findSnapshotRow(snapshotRows, sessionId);
 
     expect(row.occupied_count).toBe(effectiveCount);
     expect(row.occupancy_pct).toBe(Math.round(100 * (2 / 4) * 10) / 10);
@@ -278,14 +278,14 @@ describe('ops_dashboard_snapshot', () => {
     await directBooking(appId1, sessionId);
 
     const { data: rowsBelow } = await admin.rpc('ops_dashboard_snapshot');
-    const belowRow = await findSnapshotRow(rowsBelow as never, sessionId);
+    const belowRow = await findSnapshotRow(rowsBelow, sessionId);
     expect(belowRow.is_full).toBe(false);
 
     const { applicationId: appId2 } = await seedAcceptedApplicant('is-full-boundary-2');
     await directBooking(appId2, sessionId);
 
     const { data: rowsAt } = await admin.rpc('ops_dashboard_snapshot');
-    const atRow = await findSnapshotRow(rowsAt as never, sessionId);
+    const atRow = await findSnapshotRow(rowsAt, sessionId);
     expect(atRow.is_full).toBe(true);
   });
 
@@ -393,6 +393,22 @@ describe('ops_dashboard_snapshot', () => {
     const { error } = await participantClient.rpc('ops_dashboard_snapshot');
     expect(error).not.toBeNull();
     expect(error?.message).toContain('Not authorized');
+  });
+
+  it('rejects a genuinely unauthenticated (anon key, no signed-in user) caller [spec req 5]', async () => {
+    // Distinct from the test above: that one uses a signed-in participant,
+    // where current_user_role() returns a real non-staff role and
+    // is_staff() correctly returns false. An anon-key client with NO
+    // signed-in user is a different case -- auth.uid() is null, so
+    // current_user_role()'s profiles lookup returns no row, and
+    // is_staff() returns NULL (not false). A bare `if not is_staff()`
+    // treats NULL as falsy and silently skips the check entirely,
+    // which is exactly the bug this test guards against (found during
+    // final branch review; fixed via coalesce(is_staff(), false) plus
+    // revoking the function's default PUBLIC execute grant).
+    const anonClient = createClient<Database>(URL, ANON_KEY);
+    const { error } = await anonClient.rpc('ops_dashboard_snapshot');
+    expect(error).not.toBeNull();
   });
 
   it('inserting attendance_records/scan_attempts rows does not error (broadcast trigger does not break normal writes) [spec req 6]', async () => {

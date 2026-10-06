@@ -55,7 +55,23 @@ create or replace function ops_dashboard_snapshot() returns table (
   rejection_breakdown jsonb
 ) language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if not is_staff() then
+  -- is_staff() returns NULL (not false) for an unauthenticated/anon
+  -- caller, since current_user_role() looks up profiles by auth.uid()
+  -- and finds no row -- "not NULL" is also NULL, which `if` treats as
+  -- falsy, so a bare `if not is_staff()` would silently skip this
+  -- check entirely for anon callers. coalesce(..., false) is required
+  -- to make the unauthenticated case correctly raise.
+  --
+  -- service_role (this project's live test fixtures, and any future
+  -- server-side admin code) also has no auth.uid(), so it hits the
+  -- exact same NULL path as anon unless explicitly allowed here --
+  -- confirmed by a live regression this fix originally introduced:
+  -- the test suite's own service-role admin client started getting
+  -- "Not authorized" once coalesce(..., false) correctly started
+  -- treating NULL as not-staff. auth.role() = 'service_role' is the
+  -- correct, narrow way to allow it back in without reopening the
+  -- anon hole this whole fix exists to close.
+  if not (coalesce(is_staff(), false) or auth.role() = 'service_role') then
     raise exception 'Not authorized';
   end if;
 
@@ -117,6 +133,13 @@ begin
 end;
 $$;
 
+-- Postgres grants EXECUTE on new functions to PUBLIC by default, which
+-- includes anon -- confirmed live via information_schema.role_routine_grants
+-- that PUBLIC had EXECUTE here despite only ever `grant`ing to
+-- `authenticated`. The is_staff() coalesce fix above stops an anon
+-- caller's RPC from returning data, but revoking PUBLIC here closes the
+-- hole at the grant layer too, defense in depth.
+revoke execute on function ops_dashboard_snapshot() from public;
 grant execute on function ops_dashboard_snapshot() to authenticated;
 
 -- Realtime broadcast trigger. Only job: tell the browser "something
@@ -161,7 +184,20 @@ create trigger scan_attempts_notify_ops_dashboard
 -- policy in place alongside this one.
 drop policy if exists "ops_dashboard_broadcast_select" on realtime.messages;
 
+-- Scoped to this exact topic AND staff-only -- a bare `extension =
+-- 'broadcast'` policy (the original, Task-0-spike-proven shape) would
+-- let ANY authenticated user, including participants and scanner
+-- devices, read every private broadcast channel in the project, not
+-- just this one. Nothing else uses realtime.messages today, so this
+-- was latent rather than actively exploitable, but the first future
+-- channel for non-staff-visible data would silently inherit this open
+-- read policy. realtime.topic() confirmed to exist on this project
+-- (pg_proc lookup) with signature topic() returns text.
 create policy "ops_dashboard_broadcast_select" on realtime.messages
   for select
   to authenticated
-  using (extension = 'broadcast');
+  using (
+    extension = 'broadcast'
+    and realtime.topic() = 'ops-dashboard-events'
+    and coalesce(is_staff(), false)
+  );
