@@ -289,18 +289,28 @@ describe('ops_dashboard_snapshot', () => {
     expect(atRow.is_full).toBe(true);
   });
 
-  it('is_near_full is true at the 90% threshold boundary [spec req 2]', async () => {
-    const { sessionId } = await seedSession('is-near-full-boundary', { capacity: 10 });
-    for (let i = 0; i < 9; i++) {
-      const { applicationId } = await seedAcceptedApplicant(`is-near-full-boundary-${i}`);
-      await directBooking(applicationId, sessionId);
-    }
+  it(
+    'is_near_full is true at the 90% threshold boundary [spec req 2]',
+    async () => {
+      const { sessionId } = await seedSession('is-near-full-boundary', { capacity: 10 });
+      for (let i = 0; i < 9; i++) {
+        const { applicationId } = await seedAcceptedApplicant(`is-near-full-boundary-${i}`);
+        await directBooking(applicationId, sessionId);
+      }
 
-    const { data: rows } = await admin.rpc('ops_dashboard_snapshot');
-    const row = await findSnapshotRow(rows, sessionId);
-    expect(row.is_near_full).toBe(true);
-    expect(row.is_full).toBe(false);
-  });
+      const { data: rows } = await admin.rpc('ops_dashboard_snapshot');
+      const row = await findSnapshotRow(rows, sessionId);
+      expect(row.is_near_full).toBe(true);
+      expect(row.is_full).toBe(false);
+    },
+    // 9 sequential seedAcceptedApplicant calls (each its own multi-step
+    // live round-trip) make this test heavier than its siblings -- the
+    // file's default 30s testTimeout is occasionally too tight under
+    // concurrent load from other live test files hitting the same
+    // scratch project at once. Not a bug in the RPC itself (confirmed
+    // passing reliably in isolation); just a slower fixture.
+    60000
+  );
 
   it('does not count a scanner twice when it has both a room-scoped and session-scoped assignment row [bonus coverage of the plan-review-caught double-count fix, not itself a spec req]', async () => {
     const { sessionId, roomId } = await seedSession('scanner-dedupe');
