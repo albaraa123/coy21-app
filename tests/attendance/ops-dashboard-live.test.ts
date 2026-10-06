@@ -51,15 +51,17 @@ const DAY = new Date(Date.UTC(2099, 0, 1) + dayOffset * 86400000).toISOString().
 let conferenceDayId: string;
 let trackId: string;
 let sessionTypeId: string;
-// A dedicated staff profile used by the "staff caller succeeds" path --
-// ops_dashboard_snapshot() itself only gates on is_staff(), so a plain
-// service-role call already satisfies it (service_role bypasses RLS but
-// is_staff() is a plain SQL check against current_user_role(), which a
-// service-role JWT call has no profiles row/session for -- so the admin
-// client's calls below go through the SECURITY DEFINER function body
-// directly without needing a signed-in staff session at all; only the
-// "rejects a non-staff caller" test needs a real signed-in,
-// non-staff-role client to exercise the rejection branch).
+// Why most tests below call ops_dashboard_snapshot() via the plain
+// `admin` (service-role) client with no signed-in staff session: the
+// function's authorization check is `coalesce(is_staff(), false) or
+// auth.role() = 'service_role'` -- the second branch exists specifically
+// so this project's own live test fixtures (and any future server-side
+// admin code) aren't blocked by is_staff()'s is-there-a-profiles-row
+// check, which a service-role JWT call has no profiles row/session to
+// satisfy. Only the "rejects a genuinely unauthenticated caller" and
+// "rejects a non-staff caller" tests need a real client presenting as
+// something other than service_role, to exercise the rejection branch
+// itself (anon-key-no-session, and signed-in-non-staff, respectively).
 
 const roomIds: string[] = [];
 const applicantUserIds: string[] = [];

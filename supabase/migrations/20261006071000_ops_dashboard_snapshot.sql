@@ -130,7 +130,7 @@ begin
   from sessions s
   join rooms r on r.id = s.room_id
   where s.status = 'confirmed'
-  order by s.start_time, r.name_en;
+  order by s.start_time, r.name_en, s.id;
 end;
 $$;
 
