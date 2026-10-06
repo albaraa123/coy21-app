@@ -235,22 +235,38 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await admin.from('scanner_assignments').delete().in('id', scannerAssignmentIds);
+  // Every delete's error is checked and logged (not just awaited) --
+  // found during final branch review that a missing service_role
+  // DELETE grant on scan_attempts (a separate, now-fixed infrastructure
+  // gap, see 20261006100000_fix_remaining_service_role_grants.sql)
+  // caused this cleanup to fail silently on every run, permanently
+  // leaking fixture rows into the live project (148 junk sessions
+  // accumulated before this was caught). A silent failure here is
+  // worse than a loud one -- console.error surfaces it in CI/test
+  // output without turning a cleanup failure into a hard test failure
+  // (afterAll throwing would mask the actual test results above it).
+  const checked = async (label: string, thenable: PromiseLike<{ error: { message: string } | null }>) => {
+    const { error } = await thenable;
+    if (error) console.error(`afterAll cleanup failed for ${label}: ${error.message}`);
+  };
+
+  await checked('scanner_assignments', admin.from('scanner_assignments').delete().in('id', scannerAssignmentIds));
   // scan_attempts has no ON DELETE CASCADE from sessions -- must be
   // deleted before sessions below, or that delete fails with a foreign
   // key violation (same FK-ordering requirement documented in
   // booking-rules-completion-live.test.ts for attendance_records).
-  await admin.from('scan_attempts').delete().in('session_id', sessionIds);
-  await admin.from('attendance_records').delete().in('session_id', sessionIds);
-  await admin.from('session_bookings').delete().in('application_id', applicationIds);
-  await admin.from('sessions').delete().in('id', sessionIds);
-  await admin.from('rooms').delete().in('id', roomIds);
-  await admin.from('session_types').delete().eq('id', sessionTypeId);
-  await admin.from('tracks').delete().eq('id', trackId);
-  await admin.from('conference_days').delete().eq('id', conferenceDayId);
-  await admin.from('applications').delete().in('id', applicationIds);
+  await checked('scan_attempts', admin.from('scan_attempts').delete().in('session_id', sessionIds));
+  await checked('attendance_records', admin.from('attendance_records').delete().in('session_id', sessionIds));
+  await checked('session_bookings', admin.from('session_bookings').delete().in('application_id', applicationIds));
+  await checked('sessions', admin.from('sessions').delete().in('id', sessionIds));
+  await checked('rooms', admin.from('rooms').delete().in('id', roomIds));
+  await checked('session_types', admin.from('session_types').delete().eq('id', sessionTypeId));
+  await checked('tracks', admin.from('tracks').delete().eq('id', trackId));
+  await checked('conference_days', admin.from('conference_days').delete().eq('id', conferenceDayId));
+  await checked('applications', admin.from('applications').delete().in('id', applicationIds));
   for (const id of [...applicantUserIds, ...scannerUserIds]) {
-    await admin.auth.admin.deleteUser(id).catch(() => {});
+    const { error } = await admin.auth.admin.deleteUser(id);
+    if (error) console.error(`afterAll cleanup failed deleting user ${id}: ${error.message}`);
   }
 });
 
