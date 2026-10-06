@@ -154,7 +154,14 @@ begin
     jsonb_build_object('session_id', coalesce(new.session_id, old.session_id)),
     'change',
     'ops-dashboard-events',
-    false
+    true -- private=true is REQUIRED for the realtime.messages RLS policy
+         -- below to apply at all. Found during final branch re-review:
+         -- with private=false (the original value), Realtime's RLS check
+         -- on realtime.messages is skipped entirely for this channel --
+         -- the policy existed but was dead code, and any anon-key client
+         -- with no signed-in user could subscribe to 'ops-dashboard-events'
+         -- and receive every broadcast. Confirmed live before this fix:
+         -- an anon client subscribed and received a test broadcast.
   );
   return new;
 end;
@@ -171,10 +178,19 @@ create trigger scan_attempts_notify_ops_dashboard
 -- REQUIRED (found missing by Task 0's spike): without this policy, the
 -- trigger above inserts into realtime.messages with no SQL error, but
 -- RLS on that table (enabled, zero prior policies) silently blocks
--- every subscribing client from ever receiving the broadcast. `to
--- authenticated` is sufficient -- every real caller of this dashboard
--- is already gated through is_staff(), which requires an authenticated
--- session; there is no need to also admit `anon`.
+-- every subscribing client from ever receiving the broadcast -- but
+-- ONLY for a PRIVATE channel (see notify_ops_dashboard()'s `true`
+-- private flag above). Realtime only checks RLS on realtime.messages
+-- for private channels; a public channel (private=false) bypasses this
+-- policy entirely regardless of what it says. This was found live
+-- during final branch re-review: the trigger originally sent with
+-- private=false while the client subscribed with no private config,
+-- so this policy -- despite being correctly written -- was dead code,
+-- and any anon-key client with no signed-in user could subscribe and
+-- receive every broadcast. `to authenticated` is sufficient -- every
+-- real caller of this dashboard is already gated through is_staff(),
+-- which requires an authenticated session; there is no need to also
+-- admit `anon`.
 --
 -- This exact policy was already applied directly to this live database
 -- during Task 0's spike (to prove the broadcast mechanism end-to-end

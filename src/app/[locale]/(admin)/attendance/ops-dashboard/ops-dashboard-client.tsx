@@ -142,7 +142,15 @@ export default function OpsDashboardClient({ initialRows }: { initialRows: OpsDa
       void fetchSnapshot();
     };
 
-    const channel = supabase.channel('ops-dashboard-events');
+    // private: true is REQUIRED -- Realtime only checks the
+    // realtime.messages RLS policy (topic + is_staff()-scoped, see the
+    // migration) for private channels. Found during final branch
+    // re-review: without this, the policy is silently never consulted
+    // and any anon-key client with no signed-in user can subscribe and
+    // receive every broadcast on this channel, regardless of the
+    // policy's content. Must match notify_ops_dashboard()'s `true`
+    // private flag on the trigger side -- both ends have to agree.
+    const channel = supabase.channel('ops-dashboard-events', { config: { private: true } });
     channel.on('broadcast', { event: 'change' }, () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(triggerFetch, 1500);

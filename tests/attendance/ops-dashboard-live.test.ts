@@ -5,17 +5,20 @@
 // and the notify_ops_dashboard() broadcast trigger it installs on
 // attendance_records/scan_attempts.
 //
-// The 9 tests below cover spec Testing Requirements 1-6
+// Spec Testing Requirements 1-6
 // (docs/superpowers/specs/2026-10-05-ops-dashboard-design.md's Testing
-// Requirements section) -- each `it(...)` is annotated with the
-// requirement number it covers, plus two tests that are bonus coverage
-// of fixes caught during plan review (the count(distinct ...)
-// double-count fix and the room-vs-session staleness scoping fix) but
-// are not themselves numbered spec requirements. Requirement 7 (a
-// Realtime client receiving a broadcast event after a seeded insert) is
-// deliberately NOT automated here -- the spec itself defers it to
-// manual verification, which happens in this plan's Task 3 Step 3, not
-// in this file. This is a documented, spec-sanctioned omission.
+// Requirements section) are each covered by one `it(...)` below,
+// annotated with the requirement number, plus bonus coverage of fixes
+// caught during plan review (the count(distinct ...) double-count fix,
+// the room-vs-session staleness scoping fix) that aren't themselves
+// numbered spec requirements. Requirement 7's HAPPY PATH (a Realtime
+// client receiving a broadcast after a seeded insert) is deliberately
+// NOT automated here -- the spec defers that to manual verification in
+// this plan's Task 3 Step 3. This file DOES, however, automate a
+// security-boundary regression for the same channel (an anon-key
+// client cannot subscribe to it at all) -- found live-exploitable
+// during final branch review, this is a different kind of test than
+// the deferred happy-path one and is not covered by that deferral.
 //
 // Runs against the live scratch Supabase project. Follows the
 // runId-suffixed-fixture, dedicated-room-per-session,
@@ -435,4 +438,53 @@ describe('ops_dashboard_snapshot', () => {
     });
     expect(scanError, `scan_attempts insert error: ${scanError?.message}`).toBeNull();
   });
+
+  it(
+    'an anon-key client with no signed-in user cannot subscribe to the ops-dashboard-events broadcast channel [security regression]',
+    async () => {
+      // NOT deferred to manual verification like the happy-path delivery
+      // test this file's header comment describes (spec Testing
+      // Requirement 7) -- this is a different kind of test: it guards a
+      // security boundary that was found live-exploitable during final
+      // branch review, not the Realtime delivery mechanism itself.
+      // Found: notify_ops_dashboard() originally sent with private=false,
+      // which means Realtime never consults the realtime.messages RLS
+      // policy at all for this channel (that check only applies to
+      // private channels) -- so a correctly-written, staff-scoped policy
+      // was silently never enforced, and any anon-key client with no
+      // signed-in user could subscribe and receive every broadcast.
+      // Fixed by sending with private=true (trigger side) and
+      // subscribing with { config: { private: true } } (client side) --
+      // both ends must agree, or Realtime treats the channel as public.
+      const { sessionId } = await seedSession('private-channel-anon');
+      const scannerId = await seedScannerUser('private-channel-anon');
+
+      const anonClient = createClient<Database>(URL, ANON_KEY);
+      let anonReceived = false;
+      const anonChannel = anonClient.channel('ops-dashboard-events', { config: { private: true } });
+      anonChannel.on('broadcast', { event: 'change' }, () => {
+        anonReceived = true;
+      });
+
+      // RLS on a private channel rejects the subscription itself at the
+      // Realtime/websocket layer (observed live as CHANNEL_ERROR, not a
+      // success status) -- not just individual broadcast messages. The
+      // callback's exact status enum isn't asserted directly here since
+      // what actually matters, and what this test checks below, is that
+      // no broadcast payload ever reaches this client regardless of
+      // which non-SUBSCRIBED status Realtime reports.
+      anonChannel.subscribe();
+
+      await new Promise((r) => setTimeout(r, 1500));
+      await seedScanAttempt(sessionId, scannerId, 'invalid_qr', {
+        created_at: new Date().toISOString(),
+        finalized_at: new Date().toISOString(),
+      });
+      await new Promise((r) => setTimeout(r, 2000));
+
+      expect(anonReceived).toBe(false);
+      await anonClient.removeChannel(anonChannel);
+    },
+    15000
+  );
 });
