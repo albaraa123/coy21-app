@@ -38,9 +38,13 @@
 -- This corrected version grants per-table exactly what each table's own
 -- RLS policies and real src/ call sites need, checked individually via
 -- pg_policy (not just "has nonzero policy count, grant everything"):
---   - Genuinely participant-owned, self-service tables (own-row insert/
---     update/delete policies exist and are used by real app code):
---     application_accommodation, emergency_contacts, travel_legs.
+--   - Genuinely participant-owned, self-service tables with real
+--     own-row insert/update/delete policies used by real app code:
+--     emergency_contacts, travel_legs.
+--   - Same category, but with no delete policy of its own (insert +
+--     select + update only -- granting delete would be a no-op no
+--     policy can ever satisfy, same reasoning as application_notes
+--     below): application_accommodation.
 --   - Staff-only `*_all`/`*_staff_all` policies (already is_staff()-
 --     gated, so full CRUD here adds no new exposure beyond what RLS
 --     already permits for staff accounts): import_batches,
@@ -78,12 +82,13 @@
 -- anonymous one. Granting anon is a separate, larger decision that
 -- should not ride along with this fix.
 grant select, insert, update, delete on table
-  application_accommodation, emergency_contacts, travel_legs,
+  emergency_contacts, travel_legs,
   import_batches, import_column_mappings, import_mapping_templates,
   import_rows, participant_account_provisioning, participant_feature_snapshots,
   participant_invitations, scanner_assignments
 to authenticated;
 
+grant select, insert, update on table application_accommodation to authenticated;
 grant select, insert on table application_notes to authenticated;
 
 grant select on table
@@ -97,3 +102,18 @@ to authenticated;
 -- still restricts WHO can actually update; this grant only makes the
 -- privilege reachable for the role the policy checks against).
 grant update on table conference_settings, email_settings to authenticated;
+
+-- Explicit defense-in-depth revoke, NOT a no-op on every project: this
+-- migration only ever GRANTs on deukwztsmcnxxchrdrfo specifically
+-- because that project's default ACL is broken (see
+-- 20261006080000_fix_missing_service_role_grants.sql's header) and
+-- never gave authenticated/anon any grant at all here to begin with --
+-- so the SELECT-only grant above is already the complete picture on
+-- THIS project. A normally-bootstrapped Supabase project grants
+-- authenticated ALL on every public-schema table by default, which
+-- would leave attendance_records/scan_attempts's dormant
+-- scanner-device insert policy (see this migration's header) reachable
+-- there regardless of anything granted above. This explicit revoke
+-- closes that gap unconditionally, on any project this migration ever
+-- runs against, not just this one.
+revoke insert, update, delete on table attendance_records, scan_attempts from authenticated, anon;
