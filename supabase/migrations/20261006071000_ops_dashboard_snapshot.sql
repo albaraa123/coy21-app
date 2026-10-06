@@ -45,7 +45,7 @@ create or replace function ops_dashboard_snapshot() returns table (
   room_name_ar text,
   capacity int,
   occupied_count int,
-  occupancy_pct numeric,
+  occupancy_pct float8,
   is_full boolean,
   is_near_full boolean,
   scanner_count int,
@@ -66,7 +66,7 @@ begin
     r.name_en, r.name_ar,
     s.capacity,
     session_effective_occupied_count(s.id),
-    round(100.0 * session_effective_occupied_count(s.id) / greatest(s.capacity, 1), 1),
+    round(100.0 * session_effective_occupied_count(s.id) / greatest(s.capacity, 1), 1)::float8,
     session_effective_occupied_count(s.id) >= s.capacity,
     session_effective_occupied_count(s.id) >= (s.capacity * 0.9), -- near-full threshold
     -- count(distinct scanner_user_id), not count(*): a single physical

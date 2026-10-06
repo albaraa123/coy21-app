@@ -16,6 +16,10 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { Database } from '@/types/database';
 
+// row.rejection_breakdown is carried through from the RPC but intentionally
+// unused here -- this view only needs the aggregate rejection_count_30m.
+// It's reserved for a future per-reason breakdown (e.g. a tooltip listing
+// invalid_qr/duplicate/etc. counts), not a gap in this task.
 export type OpsDashboardRow = Database['public']['Functions']['ops_dashboard_snapshot']['Returns'][number];
 
 // "Elevated" rejection rate threshold for the alerts summary. Simple,
