@@ -23,7 +23,7 @@
 // (fetchSnapshot below) so a slow-resolving response from one trigger
 // can never clobber a fresher response already applied by the other --
 // see requestIdRef.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -82,18 +82,33 @@ export default function OpsDashboardClient({ initialRows }: { initialRows: OpsDa
   // response could overwrite fresher data with stale data.
   const requestIdRef = useRef(0);
 
+  // One Supabase browser client for this component's whole lifetime,
+  // shared by fetchSnapshot and the Realtime effect below -- created
+  // once via useState's lazy initializer rather than re-calling
+  // createClient() on every debounced fetch/poll tick. (A plain
+  // useRef(createClient()) would call createClient() on every render
+  // to compute the initial value even though only the first call's
+  // result is kept; the lazy-initializer form here only ever calls it
+  // once, and react-hooks/refs forbids assigning ref.current during
+  // render, which ruled out the if-not-set-then-set-ref pattern too.)
+  const [supabase] = useState(() => createClient());
+
   // Shared fetch helper -- the ONLY place that calls the snapshot RPC
   // and the ONLY place that calls setRows for a live update. Both
-  // useEffects below call this; neither bypasses it.
-  const fetchSnapshot = async () => {
+  // useEffects below call this; neither bypasses it. Wrapped in
+  // useCallback (stable across renders, since its only dependency,
+  // `supabase`, is itself stable) so the effects' dependency arrays can
+  // correctly list it without re-running on every render.
+  const fetchSnapshot = useCallback(async () => {
     requestIdRef.current += 1;
     const thisRequestId = requestIdRef.current;
-    const supabase = createClient();
     const { data, error } = await supabase.rpc('ops_dashboard_snapshot');
     if (error) {
       // Transient failure (e.g. a dropped connection) -- next poll or
       // broadcast will retry. Nothing useful to show the user for a
-      // background refresh failure, so just skip this update.
+      // background refresh failure, so just skip this update, but warn
+      // so a "dashboard looks frozen" report is debuggable in prod logs.
+      console.warn('ops dashboard snapshot refresh failed:', error.message);
       return;
     }
     if (thisRequestId !== requestIdRef.current) {
@@ -102,13 +117,12 @@ export default function OpsDashboardClient({ initialRows }: { initialRows: OpsDa
       return;
     }
     setRows(data ?? []);
-  };
+  }, [supabase]);
 
   // Step 1: Realtime subscription. Opens on mount, debounces bursts of
   // broadcast messages (~1.5s), re-fetches the snapshot through the
   // shared guarded helper above, and unsubscribes on unmount.
   useEffect(() => {
-    const supabase = createClient();
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const channel = supabase.channel('ops-dashboard-events');
@@ -124,7 +138,7 @@ export default function OpsDashboardClient({ initialRows }: { initialRows: OpsDa
       if (debounceTimer) clearTimeout(debounceTimer);
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [supabase, fetchSnapshot]);
 
   // Step 2: fallback polling. Independent of Realtime -- re-fetches
   // every 30s through the SAME shared guarded helper, regardless of
@@ -135,7 +149,7 @@ export default function OpsDashboardClient({ initialRows }: { initialRows: OpsDa
     }, 30000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [fetchSnapshot]);
 
   const t = useTranslations('opsDashboard');
   const locale = useLocale();
