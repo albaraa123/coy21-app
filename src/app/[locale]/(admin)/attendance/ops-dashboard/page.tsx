@@ -34,7 +34,13 @@ export default async function OpsDashboardPage() {
     notFound();
   }
 
-  const { data: rows } = await supabase.rpc('ops_dashboard_snapshot');
+  // A failed RPC call must not silently render as "no confirmed
+  // sessions" (that's a real, meaningful empty state, not an error) --
+  // throwing lets Next.js's nearest error boundary handle it instead.
+  const { data: rows, error } = await supabase.rpc('ops_dashboard_snapshot');
+  if (error) {
+    throw new Error(`ops_dashboard_snapshot failed: ${error.message}`);
+  }
 
   const t = await getTranslations({ locale, namespace: 'opsDashboard' });
 
