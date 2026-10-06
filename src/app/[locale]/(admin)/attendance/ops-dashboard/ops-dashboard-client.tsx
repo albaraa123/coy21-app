@@ -122,20 +122,37 @@ export default function OpsDashboardClient({ initialRows }: { initialRows: OpsDa
   // Step 1: Realtime subscription. Opens on mount, debounces bursts of
   // broadcast messages (~1.5s), re-fetches the snapshot through the
   // shared guarded helper above, and unsubscribes on unmount.
+  //
+  // Trailing-edge debounce ALONE can starve under sustained traffic: if
+  // scanners keep producing a new broadcast every <1.5s (plausible at
+  // peak entry across many sessions on one shared topic), the "quiet
+  // gap" the trailing timer waits for may never arrive, so the dashboard
+  // would silently fall back to the 30s poll exactly when live updates
+  // matter most. maxWaitTimer forces a refresh at least every 5s while
+  // broadcasts keep arriving, regardless of how busy the debounce is.
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const triggerFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (maxWaitTimer) clearTimeout(maxWaitTimer);
+      debounceTimer = null;
+      maxWaitTimer = null;
+      void fetchSnapshot();
+    };
 
     const channel = supabase.channel('ops-dashboard-events');
     channel.on('broadcast', { event: 'change' }, () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        void fetchSnapshot();
-      }, 1500);
+      debounceTimer = setTimeout(triggerFetch, 1500);
+      if (!maxWaitTimer) maxWaitTimer = setTimeout(triggerFetch, 5000);
     });
     channel.subscribe();
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
+      if (maxWaitTimer) clearTimeout(maxWaitTimer);
       void supabase.removeChannel(channel);
     };
   }, [supabase, fetchSnapshot]);
