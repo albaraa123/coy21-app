@@ -49,7 +49,8 @@
       "scanners": "تعيينات الماسحات",
       "admissions": "إدارة القبول",
       "walkIn": "قبول الحضور المباشر",
-      "demand": "الطلب والسعة"
+      "demand": "الطلب والسعة",
+      "opsDashboard": "لوحة متابعة العمليات"
     },
     "reports": "التقارير",
     "localInfo": "Local Info",

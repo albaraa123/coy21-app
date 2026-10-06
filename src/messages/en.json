@@ -49,7 +49,8 @@
       "scanners": "Scanners",
       "admissions": "Admissions",
       "walkIn": "Walk-In Admission",
-      "demand": "Demand & Capacity"
+      "demand": "Demand & Capacity",
+      "opsDashboard": "Ops Dashboard"
     },
     "reports": "Reports",
     "communications": "Communications",

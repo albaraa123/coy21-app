@@ -78,6 +78,7 @@ const ADMIN_VERIFIED_ROUTES = [
   '/attendance/admissions',
   '/attendance/walk-in',
   '/attendance/demand',
+  '/attendance/ops-dashboard',
   '/staff',
   '/staff/assignments',
   '/settings',
@@ -221,10 +222,10 @@ describe('admin nav config', () => {
     ]);
   });
 
-  it('puts /attendance/scanners, /attendance/admissions, /attendance/walk-in, and /attendance/demand under the Attendance group', () => {
+  it('puts /attendance/scanners, /attendance/admissions, /attendance/walk-in, /attendance/demand, and /attendance/ops-dashboard under the Attendance group', () => {
     const attendanceGroup = adminNavGroups.find((g) => g.labelKey === 'nav.groups.attendance');
     expect(attendanceGroup).toBeDefined();
-    expect(collectHrefs(attendanceGroup!.items)).toEqual(['/attendance/scanners', '/attendance/admissions', '/attendance/walk-in', '/attendance/demand']);
+    expect(collectHrefs(attendanceGroup!.items)).toEqual(['/attendance/scanners', '/attendance/admissions', '/attendance/walk-in', '/attendance/demand', '/attendance/ops-dashboard']);
   });
 
   it('puts /applications under the Participants group (detail route /applications/[id] intentionally not rendered)', () => {
