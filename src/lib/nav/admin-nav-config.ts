@@ -39,11 +39,11 @@ export const adminNavGroups: NavGroup[] = [
   {
     labelKey: 'nav.groups.attendance',
     items: [
-      { labelKey: 'nav.attendance.scanners',   href: '/attendance/scanners',    iconKey: 'attendance' },
-      { labelKey: 'nav.attendance.admissions', href: '/attendance/admissions',  iconKey: 'applications' },
-      { labelKey: 'nav.attendance.walkIn',     href: '/attendance/walk-in',     iconKey: 'qr' },
-      { labelKey: 'nav.attendance.demand',     href: '/attendance/demand',      iconKey: 'demand' },
-      { labelKey: 'nav.attendance.opsDashboard', href: '/attendance/ops-dashboard', iconKey: 'dashboard' },
+      { labelKey: 'nav.attendance.scanners',     href: '/attendance/scanners',       iconKey: 'attendance' },
+      { labelKey: 'nav.attendance.admissions',   href: '/attendance/admissions',     iconKey: 'applications' },
+      { labelKey: 'nav.attendance.walkIn',       href: '/attendance/walk-in',        iconKey: 'qr' },
+      { labelKey: 'nav.attendance.demand',       href: '/attendance/demand',         iconKey: 'demand' },
+      { labelKey: 'nav.attendance.opsDashboard', href: '/attendance/ops-dashboard',  iconKey: 'dashboard' },
     ],
   },
   {
