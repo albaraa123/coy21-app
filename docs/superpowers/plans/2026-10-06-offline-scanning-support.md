@@ -31,9 +31,9 @@ This plan went through a review round that found real, serious errors in an earl
 - Create: `src/lib/supabase/upstream-error.ts`
 - Modify: `src/lib/scanner-device/server-helpers.ts`
 - Modify: `src/lib/admission/server-helpers.ts`
-- Test: `src/lib/supabase/upstream-error.test.ts`
-- Test: `src/lib/scanner-device/server-helpers.test.ts` (create if it doesn't exist — check first)
-- Test: `src/lib/admission/server-helpers.test.ts` (create if it doesn't exist — check first)
+- Test: `tests/lib/supabase/upstream-error.test.ts`
+- Test: `tests/lib/scanner-device/server-helpers.test.ts` (create if it doesn't exist — check first)
+- Test: `tests/lib/admission/server-helpers.test.ts` (create if it doesn't exist — check first)
 
 **The real bug, confirmed against the actual files**: both `requireScannerDeviceCaller` (`src/lib/scanner-device/server-helpers.ts:24`) and `requireAdmissionStaffCaller` (`src/lib/admission/server-helpers.ts:37`) do:
 ```typescript
@@ -46,7 +46,7 @@ This conflates "the query itself failed" (transport-shaped — Supabase unreacha
 
 - [ ] **Step 1: Write the failing tests for the shared classification helper**
 
-Create `src/lib/supabase/upstream-error.test.ts` (co-located, following this codebase's established convention — NOT under a top-level `tests/` mirror for this specific module, since `src/lib/` files in this project are tested next to their source; check a couple of existing `src/lib/**/*.test.ts` files to confirm before assuming):
+Create `tests/lib/supabase/upstream-error.test.ts`. **Correction from plan review round 2**: an earlier draft of this task claimed `src/lib/` files in this project are tested co-located next to their source — this is wrong. There are zero `src/lib/**/*.test.ts` files anywhere in this repo; the real, confirmed convention is `tests/lib/<area>/` (e.g. `tests/lib/auth/`, `tests/lib/nav/`, `tests/lib/shell/` all already exist). Only `src/components/scanner/` and `src/app/manifest.ts` use co-located tests — a narrower exception, not the general rule. Follow the `tests/lib/` mirror for every `src/lib/` file this plan touches.
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -85,7 +85,7 @@ describe('isLockContentionError', () => {
 
 - [ ] **Step 2: Run the tests, verify they fail**
 
-Run: `npx vitest run src/lib/supabase/upstream-error.test.ts` — expected: fails, module doesn't exist yet.
+Run: `npx vitest run tests/lib/supabase/upstream-error.test.ts` — expected: fails, module doesn't exist yet.
 
 - [ ] **Step 3: Write `src/lib/supabase/upstream-error.ts`**
 
@@ -135,14 +135,23 @@ export function isLockContentionError(err: ErrorLike | null | undefined): boolea
 
 - [ ] **Step 5: Write the failing tests for `requireScannerDeviceCaller`**
 
-Create `src/lib/scanner-device/server-helpers.test.ts` (check first whether a test file for this helper already exists under a different name; add to it instead of duplicating if so):
+Create `tests/lib/scanner-device/server-helpers.test.ts` (check first whether a test file for this helper already exists under a different name; add to it instead of duplicating if so). **Review confirmed there is no existing `vi.mock('@/lib/supabase/server', ...)` anywhere in this codebase to copy** — this will be the first. Mock the module directly:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-// Mock '@/lib/supabase/server' following this codebase's existing
-// mocking convention for createClient/createServiceRoleClient -- grep
-// tests/ or src/ for an existing vi.mock('@/lib/supabase/server', ...)
-// and match its exact shape.
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn(),
+  createServiceRoleClient: vi.fn(),
+}));
+// In each test, set createClient's resolved value to an object whose
+// .auth.getUser() returns the scenario's { data, error } shape, and
+// createServiceRoleClient's return value to an object whose
+// .from('profiles').select(...).eq(...).single() returns the
+// scenario's { data, error } shape -- a plain mutable mock object per
+// test is simplest; match whatever shape @/lib/supabase/server's real
+// createClient()/createServiceRoleClient() actually expose (read that
+// file first) rather than inventing an unrelated shape.
 
 it('throws UpstreamUnavailableError when the profiles .single() query itself fails with a transport-shaped error (not PGRST116)', async () => {
   // Arrange: getUser() resolves with a real user; the profiles query
@@ -174,9 +183,23 @@ it('throws a non-retryable error (not UpstreamUnavailableError) when getUser() r
 
 it('throws UpstreamUnavailableError when getUser() itself fails with a retryable auth error (isAuthRetryableFetchError)', async () => {
   // Arrange: getUser() resolves with an error for which
-  // isAuthRetryableFetchError(error) from '@supabase/auth-js' returns true
-  // (confirmed this export exists: node_modules/@supabase/auth-js/dist/module/lib/errors.d.ts).
-  // Act + Assert: rejects with UpstreamUnavailableError.
+  // isAuthRetryableFetchError(error) returns true. Import this from
+  // '@supabase/supabase-js' (a direct project dependency that re-exports
+  // it), not '@supabase/auth-js' directly -- the latter is not in this
+  // project's package.json and only resolves today because npm happens
+  // to hoist it; importing from the direct dependency avoids relying on
+  // that incidental hoisting.
+});
+
+it('throws a plain, non-retryable error (not UpstreamUnavailableError) for a genuine permission-denied (42501) on the profiles query', async () => {
+  // Arrange: profiles query resolves with
+  // { data: null, error: { code: '42501', message: 'permission denied for table profiles' } }
+  // -- a REAL, non-transient Postgres error code this project has
+  // actually hit before (see this project's own service_role grants
+  // history). Confirms the fix uses the full isTransportShapedError
+  // table, not a narrower "anything except PGRST116" check that would
+  // wrongly classify this as retryable-forever.
+  // Act + Assert: rejects with a plain Error, NOT UpstreamUnavailableError.
 });
 ```
 
@@ -198,8 +221,8 @@ export class UpstreamUnavailableError extends Error {
 Then in `src/lib/scanner-device/server-helpers.ts`:
 
 ```typescript
-import { isAuthRetryableFetchError } from '@supabase/auth-js';
-import { UpstreamUnavailableError } from '@/lib/supabase/upstream-error';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
+import { UpstreamUnavailableError, isTransportShapedError } from '@/lib/supabase/upstream-error';
 
 export async function requireScannerDeviceCaller(): Promise<{ userId: string; service: ServiceClient }> {
   const supabase = await createClient();
@@ -214,7 +237,14 @@ export async function requireScannerDeviceCaller(): Promise<{ userId: string; se
 
   const service = createServiceRoleClient();
   const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (error && error.code !== 'PGRST116') {
+  // Use the SAME shared classification table as everywhere else in this
+  // sub-project, not a narrower ad hoc check -- an earlier draft of this
+  // step used `error.code !== 'PGRST116'` directly, which would have
+  // classified EVERY other error code (e.g. a genuine 42501 permission-
+  // denied, which this project has hit for real before) as transient
+  // and retryable forever, rather than correctly surfacing it as a real,
+  // non-retryable problem.
+  if (error && isTransportShapedError(error)) {
     throw new UpstreamUnavailableError('profiles lookup failed transiently');
   }
   if (!profile) throw new Error('Profile not found');
@@ -236,14 +266,14 @@ Same bug, same fix, in `src/lib/admission/server-helpers.ts` / its test file. Re
 
 - [ ] **Step 10: Check existing callers aren't broken**
 
-Both helpers have callers beyond this sub-project. Run `grep -rln "requireScannerDeviceCaller\|requireAdmissionStaffCaller" src/` to find every caller, then run each caller's own test file and confirm nothing broke — the `'Profile not found'`/`'Not authenticated'` messages and behavior for a genuine denial must be byte-identical to before for every existing caller.
+Both helpers have callers beyond this sub-project, including some live test files that call them directly (e.g. `tests/attendance/scanner-device-access-live.test.ts`, `tests/auth/staff-roles-live.test.ts` — confirmed via review). Run `grep -rln "requireScannerDeviceCaller\|requireAdmissionStaffCaller" src/ tests/` (both directories, not just `src/`) to find every caller, then run each caller's own test file and confirm nothing broke — the `'Profile not found'`/`'Not authenticated'` messages and behavior for a genuine denial must be byte-identical to before for every existing caller.
 
 - [ ] **Step 11: Typecheck, lint, commit**
 
 ```bash
 npx tsc --noEmit
-npx eslint src/lib/supabase/upstream-error.ts src/lib/scanner-device/server-helpers.ts src/lib/admission/server-helpers.ts src/lib/supabase/upstream-error.test.ts src/lib/scanner-device/server-helpers.test.ts src/lib/admission/server-helpers.test.ts
-git add src/lib/supabase/upstream-error.ts src/lib/supabase/upstream-error.test.ts src/lib/scanner-device/server-helpers.ts src/lib/admission/server-helpers.ts src/lib/scanner-device/server-helpers.test.ts src/lib/admission/server-helpers.test.ts
+npx eslint src/lib/supabase/upstream-error.ts src/lib/scanner-device/server-helpers.ts src/lib/admission/server-helpers.ts tests/lib/supabase/upstream-error.test.ts tests/lib/scanner-device/server-helpers.test.ts tests/lib/admission/server-helpers.test.ts
+git add src/lib/supabase/upstream-error.ts tests/lib/supabase/upstream-error.test.ts src/lib/scanner-device/server-helpers.ts src/lib/admission/server-helpers.ts tests/lib/scanner-device/server-helpers.test.ts tests/lib/admission/server-helpers.test.ts
 git commit -m "fix: distinguish a transport failure from a genuine not-found/not-authenticated in the shared auth helpers"
 ```
 
@@ -349,6 +379,8 @@ alter table scan_attempts add column scan_fingerprint bytea;
 create unique index scan_attempts_idempotency_key_unique on scan_attempts (idempotency_key) where idempotency_key is not null;
 ```
 
+**Before writing `scan_qr_attempt_transactional`'s new version, drop its old 6-argument signature too** — `drop function if exists public.scan_qr_attempt_transactional(bytea, uuid, uuid, text, boolean, uuid);`. Review round 2 caught that an earlier draft of this task only dropped `scan_attempt_transactional`'s old signature and never this one. A bare `create or replace` that adds a new trailing parameter does NOT replace an existing function with a different argument count — it creates a SECOND overload, leaving the original 6-argument version callable too. Any existing caller using named parameters without `p_idempotency_key` (confirmed live: `tests/attendance/scan-qr-attempt-live.test.ts` lines 133-137 and 318-322, and production's own `scan-qr-attempt.ts` until Task 3 updates it) would then match BOTH overloads ambiguously, and Postgres/PostgREST reports this as "function is not unique" (PGRST203) rather than resolving it — breaking every existing caller immediately upon this migration landing, not just the ones this sub-project updates later. Dropping the old signature first is required, matching this exact codebase's own established precedent for the same situation (`20261006050000_walk_in_admission.sql` line 99, dropping `scan_qr_attempt_transactional`'s even-older 5-argument form before that migration's own 6-argument version).
+
 Then copy `scan_qr_attempt_transactional`'s current full body (same file, lines 274+) verbatim, adding:
 - A new trailing `p_idempotency_key uuid default null` parameter, forwarded as the 8th positional argument to `scan_attempt_transactional` (the call currently passes 7 positional arguments — check the exact current call site and add BOTH `p_idempotency_key` and `p_token_hash` as the new 8th/9th arguments; an earlier draft of this plan only mentioned forwarding the key and silently dropped `p_token_hash`, which would make every resolved scan's fingerprint computed from an empty hash, breaking the mismatch check's whole purpose).
 - Its own two unresolved-credential early-return branches (malformed hash, no active credential match) each compute `v_scan_fingerprint` the same way (using whatever `p_token_hash` these branches receive — `null` for the malformed-hash branch) and wrap their own single insert in the same `begin...exception when unique_violation` / `constraint_name` branching pattern as above (no advisory lock needed there, per the spec — each is a single, unconditional insert).
@@ -421,7 +453,7 @@ Copy `admit_walk_in`'s CURRENT full body verbatim from `supabase/migrations/2026
     end if;
   end if;
 ```
-5. The `session_bookings` insert's `exception when unique_violation` handler (currently just `raise exception 'This participant already has a booking for this session';`) must branch three ways on `constraint_name`:
+5. **The `session_bookings` insert currently has NO `unique_violation` handler at all** — the `'This participant already has a booking for this session'` message currently comes entirely from the explicit pre-check at lines 77-82 (`if exists (select 1 from session_bookings where ...) then raise exception ...`), which stays in place UNCHANGED above this insert. This step ADDS a new `begin...exception` wrapper around the insert itself, branching three ways on `constraint_name`, as genuinely new code (not a modification of an existing handler — don't go looking for one to edit, there isn't one):
 ```sql
   begin
     insert into session_bookings (application_id, session_id, source, idempotency_key)
@@ -451,10 +483,11 @@ alter table session_bookings add column idempotency_key uuid;
 create unique index session_bookings_idempotency_key_unique on session_bookings (idempotency_key) where idempotency_key is not null;
 ```
 
-Grant/revoke at the end:
+Grant/revoke at the end — revoke from BOTH `public` AND `anon` explicitly, matching this codebase's own established precedent (`20261006050000_walk_in_admission.sql` line 346's `revoke all ... from public, anon, authenticated` pattern) rather than relying on `from public` alone: Supabase's own default-privilege setup can give `anon` an explicit grant that revoking only `from public` does not remove, since `anon` is a real role with its own ACL entries, not merely a member of `public` for grant-removal purposes:
+
 ```sql
 grant execute on function admit_walk_in(uuid, uuid, uuid) to authenticated;
-revoke execute on function admit_walk_in(uuid, uuid, uuid) from public;
+revoke execute on function admit_walk_in(uuid, uuid, uuid) from public, anon;
 ```
 
 (Double-check the exact current index names for `session_bookings_active_unique` (`20260823020000_session_bookings.sql`) and `attendance_records_no_duplicate_active` (`20260804120000_create_attendance_records_table.sql` or wherever it's actually defined — confirm via `select indexname from pg_indexes where tablename in ('session_bookings', 'attendance_records')` against the live project before finalizing, rather than trusting this plan's citation alone.)
@@ -465,17 +498,20 @@ Same convention as Task 1 Step 2. Verify the security fix specifically: `select 
 
 - [ ] **Step 3: Write the failing tests**
 
-Create `tests/attendance/admit-walk-in-idempotency-live.test.ts`, covering spec Testing Requirements 2, 4, 5 (the walk-in-specific parts), and a SPLIT version of Requirement 7:
-- **7a (revoke)**: an anon-key client (no signed-in user) calling `admit_walk_in` gets a permission-denied error at the grant layer, never reaching the function body — proves the `revoke ... from public` took effect.
-- **7b (coalesce)**: a genuinely signed-in but PROFILE-LESS authenticated user (create the auth user via the admin API, sign in as them, but do NOT create a matching `profiles` row — or delete it after creation) calling `admit_walk_in` gets `'Not authorized'` from inside the function body, not a silent success — this is the only way to actually exercise `coalesce(is_staff(), false)` specifically, since the anon case above never reaches it at all once the grant is fixed.
+Create `tests/attendance/admit-walk-in-idempotency-live.test.ts`, covering spec Testing Requirements 2, 4, 5 (the walk-in-specific parts), and Requirement 7's THREE distinct cases — an earlier draft of this plan only split this into two (dropping the spec's own first case entirely):
+- **7a (ordinary non-staff denial, with a previously-used key)**: a genuinely signed-in, normally-profiled PARTICIPANT (not staff) presents a valid, previously-committed idempotency key from someone else's successful admission — still gets `'Not authorized'`, proving the idempotency check never runs before (or instead of) the `is_staff()` gate, regardless of whether the key itself would have matched.
+- **7b (revoke)**: an anon-key client (no signed-in user) calling `admit_walk_in` gets a permission-denied error at the grant layer, never reaching the function body — proves the `revoke ... from public, anon` took effect.
+- **7c (coalesce)**: a genuinely signed-in but PROFILE-LESS authenticated user (create the auth user via the admin API, sign in as them, but do NOT create a matching `profiles` row — or delete it after creation) calling `admit_walk_in` gets `'Not authorized'` from inside the function body, not a silent success — this is the only way to actually exercise `coalesce(is_staff(), false)` specifically, since the anon case above never reaches it at all once the grant is fixed.
 
 - [ ] **Step 4: Run the tests, verify they pass**
 
 Run: `npx vitest run tests/attendance/admit-walk-in-idempotency-live.test.ts`
 
-- [ ] **Step 5: Regression check, type regen, typecheck, lint, commit**
+- [ ] **Step 5: Regression check**
 
-Same pattern as Task 1 Steps 5-7.
+`admit_walk_in`'s existing, primary live coverage is NOT under `tests/attendance/` — it's the `describe('walk-in admission')` block inside `tests/agenda/booking-rules-completion-live.test.ts` (starting around line 648). Run `npx vitest run tests/agenda/booking-rules-completion-live.test.ts` explicitly (not just `tests/attendance`) to confirm this migration didn't break it. This file is known to have a slow/occasionally-timing-out `afterAll` cleanup against the live project (see this project's own prior notes on this if available) — a cleanup timeout there is a known pre-existing flake, not necessarily a sign this migration broke something, but confirm the actual test assertions themselves still pass before concluding either way.
+
+- [ ] **Step 6: Type regen, typecheck, lint, commit**
 
 ```bash
 git add supabase/migrations/20261006120000_admit_walk_in_idempotency.sql tests/attendance/admit-walk-in-idempotency-live.test.ts src/types/database.ts
@@ -491,21 +527,30 @@ git commit -m "feat: add idempotency key to admit_walk_in, fix is_staff() NULL-b
 - Create: `src/app/api/scanner-health/route.ts`
 - Modify: `src/lib/attendance/scan-qr-attempt.ts` (KEEP `scanQrAttemptConfirmForCaller` as a plain, non-`'use server'` exported function — see below — DO NOT delete it)
 - Modify: `tests/attendance/scan-qr-attempt-server-boundary.test.ts` (update, do not break — see Step 1)
-- Test: `src/app/api/scan-qr-attempt/route.test.ts`
-- Test: `src/app/api/scanner-health/route.test.ts`
+- Test: `tests/api/scan-qr-attempt-route.test.ts`
+- Test: `tests/api/scanner-health-route.test.ts`
 
 Depends on Task 0 (the fixed auth helpers + shared `upstream-error.ts`) and Task 1 (the new RPC parameters).
 
-**Critical correction from plan review, read before starting**: `tests/attendance/scan-qr-attempt-server-boundary.test.ts` is an existing, extensive live test suite (14+ test cases) that imports `scanQrAttemptConfirmForCaller` directly from `src/lib/attendance/scan-qr-attempt.ts` and asserts on its thrown-exception behavior. **Do not delete this function.** Instead:
-- `scanQrAttemptConfirmForCaller` stops being wrapped in `'use server'` (remove that directive if nothing else in the file needs it) and changes its return type from "always resolves with `ScanQrResult` or throws" to the tagged-union `ScanQrOutcome` the spec defines (success/retryable/non-retryable) — it becomes a plain, importable, testable function, not a Server Action.
-- `route.ts`'s `POST` handler becomes a THIN wrapper: parse the request body, call `scanQrAttemptConfirmForCaller`, and translate its `ScanQrOutcome` return value into an HTTP response.
-- `tests/attendance/scan-qr-attempt-server-boundary.test.ts`'s existing `.rejects.toThrow(/Not authorized/)`-style assertions must become assertions against the returned `ScanQrOutcome` object instead (e.g. `expect(result).toEqual({ ok: false, retryable: false, message: expect.stringContaining('Not authorized') })`) — this preserves the file's existing, valuable live coverage of parsing/hashing/the result contract while adapting it to the new non-throwing contract.
+**Critical correction from plan review round 2, read before starting — the real auth architecture, confirmed against the actual file**: `scanQrAttemptConfirmForCaller(params, caller)` does NOT call `requireScannerDeviceCaller()` itself — it takes an already-authenticated `caller: { userId, service }` as an INJECTED parameter. Only the thin `scanQrAttemptConfirm(qrPayload, sessionId, deviceIdentifier)` wrapper (`scan-qr-attempt.ts` lines 112-115) calls `requireScannerDeviceCaller()` and then delegates to `...ForCaller`. This split exists specifically because `...ForCaller` is unit-testable without a request context (confirmed by `tests/attendance/scan-qr-attempt-server-boundary.test.ts`'s own header comment, lines 13-22) — an earlier draft of this task's Step 3 incorrectly told the implementer to move the auth call INSIDE `...ForCaller`, while its Step 7 sketch simultaneously called `...ForCaller` with no caller at all, and its Step 10 deleted the only code (`scanQrAttemptConfirm`) that ever authenticated anything. That combination would have broken auth entirely. **Do not do any of that.** Instead:
+
+- `scanQrAttemptConfirmForCaller`'s signature and injected-caller pattern stay EXACTLY as they are today — only its return type changes, from `Promise<ScanQrResult>`/throwing to `Promise<ScanQrOutcome>` (success/retryable/non-retryable), and it gains a new `idempotencyKey: string` parameter. It remains importable and unit-testable with a hand-constructed `caller` object, exactly as the existing boundary test already does.
+- `scanQrAttemptConfirm` (the thin wrapper that calls `requireScannerDeviceCaller()`) is REMOVED — nothing needs it once `route.ts` takes over that role.
+- `route.ts`'s `POST` handler is the new home for "call `requireScannerDeviceCaller()`, then call `...ForCaller` with the result as `caller`" — i.e., `route.ts` takes over exactly what `scanQrAttemptConfirm` used to do, classifying `requireScannerDeviceCaller()`'s own throw (now potentially an `UpstreamUnavailableError` per Task 0) before ever reaching `...ForCaller`.
+- `tests/attendance/scan-qr-attempt-server-boundary.test.ts`'s existing calls to `...ForCaller` (which already construct their own `caller` object directly, per its header comment) need NO change to how they call it beyond the return-shape adaptation in Step 1 below — they never went through `requireScannerDeviceCaller()` in the first place, so nothing about the auth-relocation affects them.
 
 Also critical: the real `scanQrAttemptConfirmForCaller` passes `p_token_hash: toByteaHexOrNull(tokenHash) as string` to the RPC (`scan-qr-attempt.ts` line 76) — a hex-encoded string via a helper function, NEVER the raw `Buffer` that `hashQrToken` produces. Any rewrite of this function's body must keep using `toByteaHexOrNull`, not pass the raw hash directly.
 
-- [ ] **Step 1: Update `tests/attendance/scan-qr-attempt-server-boundary.test.ts` for the new non-throwing contract**
+**Known temporary build break, accepted deliberately**: between this task's Step 3 (changing `...ForCaller`'s return type) and Task 4 (updating `scanner-client.tsx`'s call site), `scanner-client.tsx` will fail to typecheck/import correctly, since it currently imports the now-removed `scanQrAttemptConfirm` and expects the old throwing contract. This task's own Step 11 `tsc --noEmit` is EXPECTED to show errors in `scanner-client.tsx` specifically (and only that file) — confirm the failure is confined to that one file's stale import, not a sign this task's own files are broken, and note this explicitly in your task report rather than treating it as a regression to chase down within this task. Task 4 resolves it.
 
-Read this file in full first. Convert each `.rejects.toThrow(...)`/`await expect(...).rejects...` assertion to instead `await` the (now non-throwing) call and assert on the returned `ScanQrOutcome`'s `ok`/`retryable`/`message` fields. Keep every existing scenario this file covers (malformed QR, unresolved credential, scope violations, override-escalation-is-impossible, etc.) — this is an adaptation, not a rewrite of what's tested.
+- [ ] **Step 1: Update `tests/attendance/scan-qr-attempt-server-boundary.test.ts` for the new outcome-returning contract**
+
+Read this file in full first (all ~14 test cases, not just the ones using `.rejects.toThrow`). Review found most of this file's assertions read `result.result`, `result.scanAttemptId`, etc. directly on a successful resolution — these need to become `outcome.result.result`, `outcome.result.scanAttemptId` (narrowed through the new `{ ok: true, result: ScanQrResult }` wrapper), not just the `.rejects.toThrow` cases converted to `{ ok: false, retryable, message }` checks. Specific things to get right:
+- Only one case (confirmed: the "Not authorized" scope-violation test) currently uses `.rejects.toThrow` — convert that one to assert `{ ok: false, retryable: false, message: expect.stringContaining('Not authorized') }`.
+- Every other test case currently awaits a direct `ScanQrResult` and reads its fields — these become `const outcome = await scanQrAttemptConfirmForCaller(...); if (!outcome.ok) throw new Error('expected success'); expect(outcome.result.result).toBe(...)` (or equivalent type-narrowing your test style prefers).
+- The test asserting an exact key list on the result object needs its assertion moved to check `outcome.result`'s keys, not `outcome`'s.
+- **Give every distinct test case its OWN fresh `idempotencyKey` via `crypto.randomUUID()`** — do not reuse one key across multiple test cases/calls in this file. A reused key would make a second call replay the first call's cached result instead of re-executing the scenario the second test actually intends to exercise (e.g. a test that calls the function twice to prove a duplicate-scan detection must use two DIFFERENT keys, or the second call will return the first call's original result via the new idempotency check instead of ever reaching the duplicate-detection logic it's testing).
+- The test described in an earlier draft of this plan as "override-escalation" is actually a success-path test (asserting `restricted_denied` behavior) — it needs no `.rejects`-to-outcome conversion at all, only the `result.X` → `outcome.result.X` field-access update like the other success-path tests.
 
 - [ ] **Step 2: Run this test file, verify the now-adapted assertions fail**
 
@@ -513,29 +558,39 @@ Read this file in full first. Convert each `.rejects.toThrow(...)`/`await expect
 
 - [ ] **Step 3: Rewrite `scanQrAttemptConfirmForCaller` in `src/lib/attendance/scan-qr-attempt.ts`**
 
-Change its signature to accept an `idempotencyKey: string` parameter and return `Promise<ScanQrOutcome>` (defined per spec lines 101-105) instead of `Promise<ScanQrResult>`/throwing. Classification, using Task 0's `isTransportShapedError`/`isLockContentionError`/`UpstreamUnavailableError`:
-- `requireScannerDeviceCaller()`'s throw (now potentially an `UpstreamUnavailableError` per Task 0) → catch it; if `instanceof UpstreamUnavailableError`, return `{ ok: false, retryable: true, reason: 'upstream-unreachable' }`; otherwise return `{ ok: false, retryable: false, message: err.message }`.
-- `verifyScannerScope`'s two queries (currently silently ignoring a populated `error` on both the `sessions` read and the `scanner_assignments` count) must each check their OWN `error` first via `isTransportShapedError` before concluding "not found"/"not authorized" — this is the layer-2 fix from spec line 111, and it must be applied here, inline, not left as the existing silent-ignore behavior.
+Keep its existing `(params, caller)` signature; add a third parameter `idempotencyKey: string`. Change its return type to `Promise<ScanQrOutcome>` (success/retryable/non-retryable per spec lines 101-105) instead of `Promise<ScanQrResult>`/throwing. Classification, using Task 0's `isTransportShapedError`/`isLockContentionError`:
+- `verifyScannerScope`'s two queries (currently silently ignoring a populated `error` on both the `sessions` read and the `scanner_assignments` count) must each check their OWN `error` first via `isTransportShapedError` before concluding "not found"/"not authorized" — this is the layer-2 fix from spec line 111, applied here inline, replacing the existing silent-ignore behavior. A transport-shaped error on either query → return `{ ok: false, retryable: true, reason: 'upstream-unreachable' }` immediately.
 - The RPC's own `{ data, error }`: apply `isLockContentionError`/`isTransportShapedError` from Task 0 against `error`, per the classification table (spec lines 112-116) — do not reinvent this table here, import and reuse Task 0's helpers.
 - Keep `toByteaHexOrNull(tokenHash)` unchanged, and keep `getScannerParticipantSummary` unchanged (it already swallows its own errors and returns `null`, so it's safe to carry forward as-is).
 - Pass the new `idempotencyKey` parameter through to the RPC call as `p_idempotency_key`.
+- A successful RPC call returns `{ ok: true, result: { result: data.result, scanAttemptId: data.id, attendanceId: data.resulting_attendance_id, participantSummary } }` — the existing `ScanQrResult` shape, now nested under `result`.
+
+Then write a new, SEPARATE thin function (replacing the deleted `scanQrAttemptConfirm` — this is the Route Handler's job now, see Step 7, so this new function may live directly in `route.ts` rather than back in `scan-qr-attempt.ts`; your choice, note which in your report) that calls `requireScannerDeviceCaller()`, classifies ITS throw the same way (an `UpstreamUnavailableError` → `{ ok: false, retryable: true, reason: 'upstream-unreachable' }`; any other throw → `{ ok: false, retryable: false, message: err.message }`), and on success calls `scanQrAttemptConfirmForCaller(params, caller, idempotencyKey)`.
 
 - [ ] **Step 4: Run the test file, verify it passes**
 
 Run: `npx vitest run tests/attendance/scan-qr-attempt-server-boundary.test.ts`
 
-- [ ] **Step 5: Write the failing tests for the Route Handler itself**
+- [ ] **Step 5: Write the failing tests for `...ForCaller`'s classification logic directly**
 
-Create `src/app/api/scan-qr-attempt/route.test.ts` (co-located, per this codebase's convention for files outside `tests/`). Mock `scanQrAttemptConfirmForCaller` (now a plain importable function) to return each `ScanQrOutcome` variant, and assert the handler's HTTP response: **every** classified outcome (success, retryable, non-retryable) returns HTTP `200` with the outcome as the JSON body — per spec line 184, the retryable/non-retryable distinction lives in the JSON body, never the HTTP status, specifically so the client's "any non-2xx or unparseable body means transport failure" rule (layer 1) never misfires on a deterministic server-side denial. Also test: a malformed request body (bad JSON, missing fields) returns a `200` with `{ ok: false, retryable: false, ... }`, not an uncaught `500` — the whole handler body must be wrapped in a try/catch that converts any unexpected thrown error into this same non-retryable shape, so a code bug never looks like "keep retrying forever" to the client. Also test: a non-uuid `sessionId` or `idempotencyKey` in the request body is rejected with `{ ok: false, retryable: false }` BEFORE any RPC call is attempted (basic shape validation, since these now arrive as untrusted JSON rather than a typed Server Action parameter).
+Create `tests/attendance/scan-qr-attempt-classification.test.ts` (or add to the existing boundary test file — your choice) covering spec Testing Requirements 10 and 11 directly against `scanQrAttemptConfirmForCaller` with a MOCKED `service` client (not a live DB call, since these are pure classification-logic tests): a mocked RPC response `{ data: null, error: { code: 'P0001', message: 'LOCK_CONTENTION: ...' } }` → `{ ok: false, retryable: true, reason: 'lock-contention' }`; a mocked `verifyScannerScope` sessions-query response `{ data: null, error: { code: '' } }` (a transport-shaped failure, not a clean empty result) → `{ ok: false, retryable: true, reason: 'upstream-unreachable' }`. An earlier draft of this plan assigned these two requirements to Task 3's Route Handler test file, which mocks `...ForCaller` itself and therefore can never actually exercise this classification logic — these two requirements need a test that calls the REAL `...ForCaller` with a mocked database layer underneath it, not a test that mocks `...ForCaller` away entirely.
 
-- [ ] **Step 6: Run the tests, verify they fail**
+- [ ] **Step 6: Run the tests, verify they fail, then pass after Step 3's work**
 
-- [ ] **Step 7: Write `src/app/api/scan-qr-attempt/route.ts`**
+- [ ] **Step 7: Write the failing tests for the Route Handler itself**
+
+Create `tests/api/scan-qr-attempt-route.test.ts` — this matches the real, confirmed convention for Route Handler tests in this codebase (`tests/api/resend-webhook.test.ts` is the existing precedent, importing its handler function directly from `@/app/api/...`), NOT co-located under `src/app/api/`. Mock `scanQrAttemptConfirmForCaller` AND `requireScannerDeviceCaller` (both — the route now owns the auth call, per Step 3's design) to return/throw each relevant case, and assert the handler's HTTP response: **every** classified outcome (success, retryable, non-retryable — including an `UpstreamUnavailableError` thrown by the mocked `requireScannerDeviceCaller`) returns HTTP `200` with the outcome as the JSON body — per spec line 184, the retryable/non-retryable distinction lives in the JSON body, never the HTTP status, specifically so the client's "any non-2xx or unparseable body means transport failure" rule (layer 1) never misfires on a deterministic server-side denial. Also test: a malformed request body (bad JSON, missing fields) returns a `200` with `{ ok: false, retryable: false, ... }`, not an uncaught `500` — the whole handler body must be wrapped in a try/catch that converts any unexpected thrown error into this same non-retryable shape. Also test: a non-uuid `sessionId` or `idempotencyKey` in the request body is rejected with `{ ok: false, retryable: false }` BEFORE any auth/RPC call is attempted.
+
+- [ ] **Step 8: Run the tests, verify they fail**
+
+- [ ] **Step 9: Write `src/app/api/scan-qr-attempt/route.ts`**
 
 ```typescript
 // src/app/api/scan-qr-attempt/route.ts
 import { NextResponse } from 'next/server';
 import { scanQrAttemptConfirmForCaller } from '@/lib/attendance/scan-qr-attempt';
+import { requireScannerDeviceCaller } from '@/lib/scanner-device/server-helpers';
+import { UpstreamUnavailableError } from '@/lib/supabase/upstream-error';
 
 function isUuid(v: unknown): v is string {
   return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -548,8 +603,20 @@ export async function POST(request: Request) {
     if (typeof qrPayload !== 'string' || !isUuid(sessionId) || !isUuid(idempotencyKey)) {
       return NextResponse.json({ ok: false, retryable: false, message: 'Invalid request' }, { status: 200 });
     }
+
+    let caller;
+    try {
+      caller = await requireScannerDeviceCaller();
+    } catch (err) {
+      if (err instanceof UpstreamUnavailableError) {
+        return NextResponse.json({ ok: false, retryable: true, reason: 'upstream-unreachable' }, { status: 200 });
+      }
+      return NextResponse.json({ ok: false, retryable: false, message: err instanceof Error ? err.message : 'Not authorized' }, { status: 200 });
+    }
+
     const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload, sessionId, deviceIdentifier: typeof deviceIdentifier === 'string' ? deviceIdentifier : null },
+      caller,
       idempotencyKey
     );
     return NextResponse.json(outcome, { status: 200 });
@@ -561,11 +628,9 @@ export async function POST(request: Request) {
 }
 ```
 
-(Adjust the exact call signature to match whatever Step 3 actually produced — the sketch above assumes `scanQrAttemptConfirmForCaller(params, idempotencyKey)`, but match your own Step 3 implementation's real parameter order.)
+- [ ] **Step 10: Run the tests, verify they pass**
 
-- [ ] **Step 8: Run the tests, verify they pass**
-
-- [ ] **Step 9: Write and implement `src/app/api/scanner-health/route.ts` + its test**
+- [ ] **Step 11: Write and implement `src/app/api/scanner-health/route.ts` + its test**
 
 ```typescript
 // src/app/api/scanner-health/route.ts
@@ -588,13 +653,15 @@ export async function GET() {
 }
 ```
 
-Test (`src/app/api/scanner-health/route.test.ts`, mocking `requireScannerDeviceCaller`): a thrown `UpstreamUnavailableError` → 503; a thrown plain `Error` (genuine auth denial) → 401; a successful caller but a failing `scan_attempts` query → 503; both succeeding → 200.
+Test (`tests/api/scanner-health-route.test.ts`, mocking `requireScannerDeviceCaller`): a thrown `UpstreamUnavailableError` → 503; a thrown plain `Error` (genuine auth denial) → 401; a successful caller but a failing `scan_attempts` query → 503; both succeeding → 200.
 
-- [ ] **Step 10: Check for other callers of the old Server Action export**
+- [ ] **Step 12: Check for other callers of the removed `scanQrAttemptConfirm` wrapper**
 
-`grep -rn "scanQrAttemptConfirm\b" src/` (note: NOT `scanQrAttemptConfirmForCaller`, which Step 3 kept — only the thin `'use server'` wrapper function, if the current file has one distinct from `...ForCaller`, is removed). Update any other call site (Task 4 updates `scanner-client.tsx`'s).
+`grep -rn "scanQrAttemptConfirm\b" src/` (note: NOT `scanQrAttemptConfirmForCaller`, which Step 3 kept with its signature intact). Update any other call site — `scanner-client.tsx`'s import is the known one, deliberately left broken until Task 4 per this task's header note.
 
-- [ ] **Step 11: Typecheck, lint, commit**
+- [ ] **Step 13: Typecheck, lint, commit**
+
+Expect `tsc --noEmit` to show an error in `scanner-client.tsx` specifically (its stale `scanQrAttemptConfirm` import) — this is the documented, accepted temporary break from this task's header, not a sign of a problem in the files this task actually touches. Confirm no OTHER file shows a new error before committing.
 
 ```bash
 npx tsc --noEmit
@@ -618,7 +685,9 @@ Depends on Task 3. Read spec lines 120-186 in full before starting.
 
 - [ ] **Step 1: Write the failing state-machine tests**
 
-In `src/components/scanner/scan-state-machine.test.ts`: fix every existing bare `{ type: 'SUBMIT_START' }` dispatch to supply the new required fields (`idempotencyKey`, `attemptSeq`, `startedAt`). Add new tests for the `retrying` state's transitions (`SUBMIT_TRANSPORT_FAILURE`, `SUBMIT_REJECTED`, `RETRY_ATTEMPT`, `CANCEL_RETRY`) per the type definitions at spec lines 124-138.
+In `src/components/scanner/scan-state-machine.test.ts`: fix every existing bare `{ type: 'SUBMIT_START' }` dispatch to supply the new required fields (`idempotencyKey`, `attemptSeq`, `startedAt`). Add new tests for the `retrying` state's transitions (`SUBMIT_TRANSPORT_FAILURE`, `SUBMIT_REJECTED`, `RETRY_ATTEMPT`, `CANCEL_RETRY`) per the type definitions at spec lines 124-138. Explicitly include, as their own test cases (previously unassigned to any task in an earlier draft of this plan):
+- **Testing Requirement 18**: dispatching `CANCEL_RETRY` from `retrying`, then a fresh `DETECT`/`SUBMIT_START` for the same `qrPayload`, produces a NEW `idempotencyKey` in the resulting `submitting` state — not a reuse of the cancelled attempt's key (this is a property of how the CALLER generates the key before dispatching, so the test asserts that two separately-constructed `SUBMIT_START` actions with independently-generated keys produce two different `idempotencyKey` values in state, confirming the reducer itself does nothing to prevent key reuse — the real guarantee is the caller's own `crypto.randomUUID()` call on every genuinely-new scan event).
+- **Testing Requirement 19**: `DETECT` dispatched while `state.kind === 'retrying'` is a no-op (returns the same `retrying` state unchanged) — the single-flight guarantee extending correctly to the new state, verified directly rather than only asserted as true in prose.
 
 - [ ] **Step 2: Run the tests, verify they fail**
 
@@ -656,17 +725,94 @@ Write `src/components/scanner/use-scan-retry.test.ts` covering both functions di
 
 - [ ] **Step 6: Run the pure-function tests, verify they pass**
 
-- [ ] **Step 7: Implement the stateful part of `use-scan-retry.ts`**
+- [ ] **Step 7: Implement the stateful retry logic as a plain, non-hook factory function first**
 
-This hook owns: the health-check poll (using `nextBackoffDelayMs`, starting at 2000ms), the `online` event listener, the "Try Now" trigger, the submission `fetch()` to `/api/scan-qr-attempt` with its own `AbortController` timeout (~8s), and a guard ref holding `{ idempotencyKey, attemptSeq }` checked via `isStaleAttempt` before dispatching any of `SUBMIT_SUCCESS`/`SUBMIT_REJECTED`/`SUBMIT_TRANSPORT_FAILURE`/`RETRY_ABORTED`.
+**A React hook's internals cannot be called or tested outside a component render** — an earlier draft of this task's Step 8 described testing the hook's exposed functions "directly," which isn't executable (there's no renderer available to produce a live hook instance to call into). The fix: write the actual stateful logic as a plain factory function, and make `use-scan-retry.ts`'s exported hook a thin wrapper around it (a `useRef`/`useEffect` shell that constructs one instance and exposes its methods) — this is standard practice for making hook logic unit-testable without a DOM/renderer, and it's what makes Step 8 below actually work.
 
-**Name the retry trigger explicitly** (spec line 146 flags this as something an implementer must not leave implicit): on a successful health-check poll tick (HTTP 200 from `/api/scanner-health`), the hook must itself: (1) increment `attemptSeq` and update the guard ref, (2) dispatch `RETRY_ATTEMPT` with the new `attemptSeq`, (3) immediately call the same `fetch()`-to-`/api/scan-qr-attempt` logic the original submission used, with the carried-over `qrPayload`/`idempotencyKey`. A health-check `401` dispatches `RETRY_ABORTED` instead of retrying.
+```typescript
+// in use-scan-retry.ts, below the pure functions from Step 5
+export function createScanRetryController(deps: {
+  dispatch: (action: ScanAction) => void;
+  fetchImpl: typeof fetch; // injectable for tests
+}) {
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  let backoffMs = 2000;
+  const guard = { idempotencyKey: '', attemptSeq: -1 };
 
-Expose an interface to `scanner-client.tsx` — e.g. `{ submit(qrPayload, deviceIdentifier), retryNow(), cancel() }` — where `cancel()` clears all timers/`AbortController`s and bumps the guard ref's `attemptSeq` to a sentinel value that can never match a real in-flight response, but does NOT itself call `start()` on the camera (that stays in `scanner-client.tsx`, since the camera control (`useQrScanner`) is a sibling hook this one has no access to — see Step 9).
+  function submit(qrPayload: string, sessionId: string, deviceIdentifier: string | null, idempotencyKey: string, attemptSeq: number) {
+    guard.idempotencyKey = idempotencyKey;
+    guard.attemptSeq = attemptSeq;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    deps.fetchImpl('/api/scan-qr-attempt', {
+      method: 'POST',
+      body: JSON.stringify({ qrPayload, sessionId, deviceIdentifier, idempotencyKey }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        clearTimeout(timeout);
+        if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, attemptSeq)) return;
+        if (!res.ok) { deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' }); return; }
+        const outcome = await res.json().catch(() => null);
+        if (!outcome) { deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' }); return; }
+        if (outcome.ok) deps.dispatch({ type: 'SUBMIT_SUCCESS', result: outcome.result });
+        else if (outcome.retryable) deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
+        else deps.dispatch({ type: 'SUBMIT_REJECTED', message: outcome.message });
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, attemptSeq)) return;
+        deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
+      });
+  }
 
-- [ ] **Step 8: Write the stateful behavior tests**
+  function pollHealthThenRetry(qrPayload: string, sessionId: string, deviceIdentifier: string | null, idempotencyKey: string) {
+    const controller = new AbortController();
+    deps.fetchImpl('/api/scanner-health', { signal: controller.signal, cache: 'no-store' })
+      .then((res) => {
+        if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, guard.attemptSeq)) return;
+        if (res.status === 200) {
+          backoffMs = 2000;
+          const nextSeq = guard.attemptSeq + 1;
+          deps.dispatch({ type: 'RETRY_ATTEMPT', attemptSeq: nextSeq });
+          submit(qrPayload, sessionId, deviceIdentifier, idempotencyKey, nextSeq);
+        } else if (res.status === 401) {
+          deps.dispatch({ type: 'RETRY_ABORTED', message: 'Scanner session expired — please re-authenticate' });
+        } else {
+          backoffMs = nextBackoffDelayMs(backoffMs);
+          timerId = setTimeout(() => pollHealthThenRetry(qrPayload, sessionId, deviceIdentifier, idempotencyKey), backoffMs);
+        }
+      })
+      .catch(() => {
+        backoffMs = nextBackoffDelayMs(backoffMs);
+        timerId = setTimeout(() => pollHealthThenRetry(qrPayload, sessionId, deviceIdentifier, idempotencyKey), backoffMs);
+      });
+    // Store this controller somewhere `cancel()` below can reach, so a
+    // Cancel click can abort an in-flight health-check fetch too --
+    // review's M6 finding: without this, a health check that resolves
+    // 200 AFTER Cancel was clicked would still call submit() again,
+    // since isStaleAttempt alone doesn't stop a health-check-triggered
+    // retry from firing if the guard hasn't been bumped past it yet.
+    // (Implementer: wire this controller into the same cancel() below.)
+  }
 
-Still within `use-scan-retry.test.ts` or a sibling file, test the hook's dispatched-action sequence by calling its exposed functions directly and asserting on a mock `dispatch` — not via a React renderer (no `@testing-library/react` available). Cover: a `fetch()` rejection and a parsed `{ ok: false, retryable: true }` body both leading to the identical `SUBMIT_TRANSPORT_FAILURE` dispatch (Testing Requirement 15); a non-retryable rejection never triggering a health-check poll (Testing Requirement 14).
+  function cancel() {
+    if (timerId) clearTimeout(timerId);
+    guard.attemptSeq = -999; // sentinel that can never match a real attemptSeq
+    // Also abort any in-flight health-check AbortController here (see
+    // the comment inside pollHealthThenRetry above) -- track it in an
+    // outer-scope variable this closure can reach.
+  }
+
+  return { submit, pollHealthThenRetry, cancel };
+}
+```
+
+Then write `use-scan-retry.ts`'s actual exported hook as a thin wrapper: `const controllerRef = useRef<ReturnType<typeof createScanRetryController>>(); if (!controllerRef.current) controllerRef.current = createScanRetryController({ dispatch, fetchImpl: fetch });` and expose `controllerRef.current`'s methods to `scanner-client.tsx`.
+
+- [ ] **Step 8: Write the stateful behavior tests against the plain factory function**
+
+Create or extend `src/components/scanner/use-scan-retry.test.ts`: call `createScanRetryController({ dispatch: vi.fn(), fetchImpl: vi.fn() })` directly (a plain function call — no renderer, no hook, exactly the shape that makes this testable at all) and assert on the mock `dispatch`'s calls and the mock `fetchImpl`'s calls. Cover: a `fetch()` rejection and a parsed `{ ok: false, retryable: true }` body both leading to the identical `SUBMIT_TRANSPORT_FAILURE` dispatch (Testing Requirement 15); a non-retryable rejection never triggering a call to `pollHealthThenRetry`/a second `fetchImpl` call (Testing Requirement 14); `cancel()` followed by a late-resolving mocked `fetchImpl` promise never producing a dispatch (the stale-response guard working end-to-end, including the M6 health-check-after-cancel case specifically).
 
 - [ ] **Step 9: Wire `use-scan-retry` into `scanner-client.tsx`**
 
@@ -702,14 +848,14 @@ git commit -m "feat: add retrying state and auto-retry loop to the scanner clien
 - Create: `src/app/api/admission-staff-health/route.ts`
 - Modify (gut or delete, depending on Step 5's finding): `src/app/[locale]/(admin)/attendance/walk-in/actions.ts`
 - Modify: `src/app/[locale]/(admin)/attendance/walk-in/walk-in-admission-form.tsx`
-- Test: `src/app/api/admit-walk-in/route.test.ts`
-- Test: `src/app/api/admission-staff-health/route.test.ts`
+- Test: `tests/api/admit-walk-in-route.test.ts`
+- Test: `tests/api/admission-staff-health-route.test.ts`
 
 Depends on Task 0, Task 2, AND Task 4 (this task reuses the retry-UI i18n keys Task 4 adds, and ideally the same `nextBackoffDelayMs`/`isStaleAttempt` pure functions from `use-scan-retry.ts` — import and reuse them rather than re-deriving equivalent logic by hand, to avoid the two retry loops silently drifting apart over time).
 
 - [ ] **Step 1: Write the failing Route Handler tests**
 
-Create `src/app/api/admit-walk-in/route.test.ts`, mirroring Task 3 Step 5's structure but for the walk-in shape (`{ ok: true, bookingId } | { ok: false, retryable, message }`), with the same "always HTTP 200, malformed-body safety, uuid validation" requirements.
+Create `tests/api/admit-walk-in-route.test.ts`, mirroring Task 3 Step 5's structure but for the walk-in shape (`{ ok: true, bookingId } | { ok: false, retryable, message }`), with the same "always HTTP 200, malformed-body safety, uuid validation" requirements.
 
 - [ ] **Step 2: Port the identifier-resolution logic into `src/app/api/admit-walk-in/route.ts`**
 
@@ -731,7 +877,7 @@ Same shape as Task 3 Step 9, scoped to `requireAdmissionStaffCaller` instead of 
 
 - [ ] **Step 6: Write the failing form-retry tests**
 
-This form has no existing test file — check whether one should be created co-located (`walk-in-admission-form.test.tsx`) testing extracted pure logic only (same "no testing-library" constraint as Task 4), or whether this page's retry logic is simple enough to cover via the same pure-function extraction pattern (a shared `nextBackoffDelayMs` import from Task 4, reused directly, needs no new test here) plus a thin wrapper with no independently-testable logic of its own worth a dedicated test file. Make this call explicitly and justify it briefly in your report rather than silently deciding.
+This form has no existing test file. Review found this codebase's actual convention for component-involving tests outside `src/components/scanner/`'s own exception: `tests/components/*.test.tsx` exist and use React's `renderToStaticMarkup` (from `react-dom/server`), NOT `@testing-library/react` (confirmed absent) and NOT a co-located path. If this page's retry logic needs any test beyond reusing Task 4's already-tested `nextBackoffDelayMs`/`isStaleAttempt` pure functions directly, create `tests/components/walk-in-admission-form.test.tsx` following that `renderToStaticMarkup` convention — check an existing file under `tests/components/` first for its exact shape. If the only logic specific to this file is a thin wrapper around Task 4's already-tested pure functions with nothing independently worth testing, say so explicitly in your report and skip a dedicated test file rather than inventing one for its own sake.
 
 - [ ] **Step 7: Update `walk-in-admission-form.tsx`**
 
@@ -761,7 +907,7 @@ git commit -m "feat: move walk-in admission to a Route Handler with the same aut
 
 - [ ] **Step 1: Full relevant-suite run**
 
-Run: `npx vitest run tests/attendance src/lib/scanner-device src/lib/admission src/lib/supabase src/components/scanner src/app/api/scan-qr-attempt src/app/api/scanner-health src/app/api/admit-walk-in src/app/api/admission-staff-health` (every area this sub-project touched — note most client/helper tests are co-located under `src/`, not `tests/`).
+Run: `npx vitest run tests/attendance tests/lib/scanner-device tests/lib/admission tests/lib/supabase tests/api/scan-qr-attempt-route.test.ts tests/api/scanner-health-route.test.ts tests/api/admit-walk-in-route.test.ts tests/api/admission-staff-health-route.test.ts src/components/scanner` (every area this sub-project touched — note `src/lib/`/Route Handler tests live under `tests/lib/`/`tests/api/`, while scanner CLIENT-COMPONENT tests are co-located under `src/components/scanner/`, confirmed as this codebase's one real exception to the `tests/` mirror).
 
 - [ ] **Step 2: Full typecheck and lint**
 
