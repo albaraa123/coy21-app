@@ -129,7 +129,8 @@ begin
      ) breakdown)
   from sessions s
   join rooms r on r.id = s.room_id
-  where s.status = 'confirmed';
+  where s.status = 'confirmed'
+  order by s.start_time, r.name_en;
 end;
 $$;
 
