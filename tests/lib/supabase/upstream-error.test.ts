@@ -20,6 +20,10 @@ describe('isTransportShapedError', () => {
   it('returns false for a genuine deterministic rejection (P0001 without the lock-contention prefix)', () => {
     expect(isTransportShapedError({ code: 'P0001', message: 'Not authorized for this session/room' })).toBe(false);
   });
+  it('returns false (never throws) for a non-string code, since a future caller could pass a differently-shaped error-like object', () => {
+    // @ts-expect-error -- deliberately passing a malformed shape to confirm runtime robustness beyond what the type system already prevents
+    expect(isTransportShapedError({ code: 404, message: 'x' })).toBe(false);
+  });
 });
 
 describe('isLockContentionError', () => {
