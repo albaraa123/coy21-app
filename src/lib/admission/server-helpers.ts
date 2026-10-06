@@ -8,8 +8,10 @@
 // is the first shared helper for that role, added here since Phase C's new
 // actions live in their own directory with no natural "local" file to inline
 // into.
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { UpstreamUnavailableError, isTransportShapedError } from '@/lib/supabase/upstream-error';
 import type { Database } from '@/types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -30,12 +32,25 @@ export async function requireAdmissionStaffCaller(): Promise<{ userId: string; s
   const supabase = await createClient();
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
+  if (userError && isAuthRetryableFetchError(userError)) {
+    throw new UpstreamUnavailableError('auth.getUser() failed transiently');
+  }
   if (!user) throw new Error('Not authenticated');
 
   const service = createServiceRoleClient();
   const { data: profile, error } = await service.from('profiles').select('role').eq('id', user.id).single();
-  if (error || !profile) throw new Error('Profile not found');
+  // Use the SAME shared classification table as everywhere else in this
+  // sub-project, not a narrower ad hoc check -- treating every non-
+  // PGRST116 error code as transient and retryable forever would wrongly
+  // make a genuine 42501 permission-denied (which this project has hit
+  // for real before) retry forever instead of correctly surfacing it as a
+  // real, non-retryable problem.
+  if (error && isTransportShapedError(error)) {
+    throw new UpstreamUnavailableError('profiles lookup failed transiently');
+  }
+  if (!profile) throw new Error('Profile not found');
   // Single source of truth for this check is isStaffRole
   // (src/lib/auth/is-staff-role.ts) — update that helper, not this call
   // site, if the allowed role set changes. This helper is exclusively used
