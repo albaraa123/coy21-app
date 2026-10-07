@@ -73,6 +73,14 @@ export function createScanRetryController(deps: ScanRetryDeps) {
   function submit(qrPayload: string, sessionId: string, deviceIdentifier: string | null, idempotencyKey: string, attemptSeq: number) {
     guard.idempotencyKey = idempotencyKey;
     guard.attemptSeq = attemptSeq;
+    // attemptSeq 0 only ever occurs on a genuinely new scan's first
+    // submission (RETRY_ATTEMPT always increments from the guard's
+    // current value, never back to 0) -- resetting backoffMs here, not
+    // just in cancel(), closes the gap where a NEW scan's first retry
+    // would otherwise silently inherit a prior cycle's climbed-up delay
+    // if that prior cycle ended by actually succeeding/being rejected
+    // rather than by an explicit Cancel click.
+    if (attemptSeq === 0) backoffMs = 2000;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     deps
@@ -89,6 +97,15 @@ export function createScanRetryController(deps: ScanRetryDeps) {
           return;
         }
         const outcome = await res.json().catch(() => null);
+        // await res.json() is a second real suspension point -- another
+        // submit() call (e.g. a RETRY_ATTEMPT firing while this response
+        // body was still being parsed) could have already overwritten
+        // `guard` by the time control resumes here. The check above, run
+        // before this await, cannot catch that: it must be repeated now,
+        // immediately before any dispatch that uses `outcome`, or a
+        // stale attempt's result can reach the reducer after a newer
+        // attempt has already taken over 'submitting'.
+        if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, attemptSeq)) return;
         if (!outcome) {
           deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
           return;
@@ -157,6 +174,11 @@ export function createScanRetryController(deps: ScanRetryDeps) {
       healthCheckController = null;
     }
     guard.attemptSeq = -999; // sentinel that can never match a real attemptSeq
+    // Reset explicitly on Cancel too (not just relying on the next scan's
+    // attemptSeq === 0 reset in submit()), so a cancelled cycle never
+    // leaves a climbed-up backoff value sitting in this closure for
+    // longer than necessary -- belt-and-suspenders with the submit() reset.
+    backoffMs = 2000;
   }
 
   return { submit, pollHealthThenRetry, cancel };

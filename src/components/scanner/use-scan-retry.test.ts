@@ -163,4 +163,115 @@ describe('createScanRetryController', () => {
 
     expect(dispatch).not.toHaveBeenCalled();
   });
+
+  it('a response body still being parsed (await res.json()) when a newer attempt takes over the guard is discarded, not dispatched as stale success', async () => {
+    // Regression test for a gap code-quality review found: the guard was
+    // only checked once, immediately after the fetch PROMISE settled, but
+    // before `await res.json()` -- a second real suspension point. If a
+    // newer submit() (e.g. from a RETRY_ATTEMPT) overwrote the guard while
+    // an OLDER attempt's res.json() was still pending, the older attempt's
+    // eventual outcome would be dispatched anyway once its parse finished,
+    // with no re-check. This test holds attempt #0's res.json() open,
+    // drives a real attempt #1 submit() to completion in that window (so
+    // the guard is overwritten by production code, not by poking internals
+    // directly), then resolves attempt #0's parse and asserts its result
+    // never reaches dispatch.
+    const dispatch = vi.fn();
+    let resolveAttempt0Json!: (body: unknown) => void;
+    const attempt0JsonPromise = new Promise((resolve) => {
+      resolveAttempt0Json = resolve;
+    });
+    // A Response whose .json() we control directly, rather than one
+    // backed by a real body string, so we can suspend mid-parse.
+    const attempt0Response = { ok: true, json: () => attempt0JsonPromise } as unknown as Response;
+
+    const fetchImpl = vi.fn();
+    let attempt0FetchResolve!: (res: Response) => void;
+    fetchImpl.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => { attempt0FetchResolve = resolve; })
+    );
+    fetchImpl.mockResolvedValueOnce(
+      jsonResponse({ ok: true, result: { result: 'admitted', scanAttemptId: 'attempt-1-result', attendanceId: 'a1', participantSummary: null } })
+    );
+
+    const controller = createScanRetryController({ dispatch, fetchImpl });
+
+    // Attempt #0 (seq 0): its fetch() resolves now, but its res.json()
+    // deliberately hangs.
+    controller.submit('rcoy:v1:abc', 'session-1', null, 'key-a', 0);
+    attempt0FetchResolve(attempt0Response);
+    // Let the .then() run far enough to pass its pre-await guard check
+    // and start awaiting res.json(), without resolving that await yet.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Attempt #1 (seq 1) now runs to completion for real, overwriting the
+    // guard via production code and dispatching its own, newer result.
+    controller.submit('rcoy:v1:abc', 'session-1', null, 'key-a', 1);
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith({
+      type: 'SUBMIT_SUCCESS',
+      result: { result: 'admitted', scanAttemptId: 'attempt-1-result', attendanceId: 'a1', participantSummary: null },
+    }));
+    dispatch.mockClear();
+
+    // Only now does attempt #0's stale response finish parsing.
+    resolveAttempt0Json({ ok: true, result: { result: 'admitted', scanAttemptId: 'attempt-0-STALE', attendanceId: 'a0', participantSummary: null } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('backoffMs resets to its initial value on a fresh scan (attemptSeq 0), not carried over from a prior retry cycle that climbed higher', async () => {
+    vi.useFakeTimers();
+    try {
+      const dispatch = vi.fn();
+      const failingHealthCheck = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
+      const controller = createScanRetryController({ dispatch, fetchImpl: failingHealthCheck });
+
+      // pollHealthThenRetry's own stale-attempt guard compares against
+      // guard.{idempotencyKey,attemptSeq} -- those start empty/-1, so a
+      // real retry cycle always begins with a submit() call first (which
+      // sets the guard), exactly as production code (RETRY_ATTEMPT ->
+      // submit() -> eventual pollHealthThenRetry) always does.
+      controller.submit('rcoy:v1:abc', 'session-1', null, 'key-a', 0);
+      await vi.advanceTimersByTimeAsync(0);
+      failingHealthCheck.mockClear();
+
+      // Drive the health-check backoff up past its initial 2000ms by
+      // repeatedly failing, without ever calling cancel() -- the exact
+      // "prior cycle ended on its own, not via an explicit Cancel click"
+      // path the review flagged as the one cancel()'s own reset alone
+      // wouldn't cover. Each failure doubles backoffMs BEFORE scheduling
+      // its own next retry, so the first scheduled delay is already 4000ms
+      // (2000 doubled), not 2000ms.
+      controller.pollHealthThenRetry('rcoy:v1:abc', 'session-1', null, 'key-a');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(failingHealthCheck).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(4000); // fires the retry scheduled at the climbed 4000ms
+      expect(failingHealthCheck).toHaveBeenCalledTimes(2);
+
+      // Now a brand-new scan's first submission (attemptSeq 0) resets
+      // backoffMs back to 2000 per the fix. Prove it by driving this same
+      // controller instance into ANOTHER failing retry cycle via
+      // pollHealthThenRetry and confirming its first scheduled retry fires
+      // at the INITIAL 2000ms delay (doubled once, to 4000ms), not a
+      // continuation from the already-climbed 8000/16000ms this cycle
+      // would be at if backoffMs leaked across scans.
+      controller.submit('rcoy:v1:xyz', 'session-2', null, 'key-b', 0);
+      await vi.advanceTimersByTimeAsync(0);
+      failingHealthCheck.mockClear();
+
+      controller.pollHealthThenRetry('rcoy:v1:xyz', 'session-2', null, 'key-b');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(failingHealthCheck).toHaveBeenCalledTimes(1);
+      // If the old (unfixed) backoffMs had kept climbing from the first
+      // cycle's 4000/8000ms instead of resetting, this scheduled delay
+      // would be 8000/16000ms -- advancing by only 4000ms would NOT yet
+      // trigger the next poll in that broken case.
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(failingHealthCheck).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
