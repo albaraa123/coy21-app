@@ -102,7 +102,15 @@ begin
     end if;
   end if;
 
-  v_scan_fingerprint := extensions.digest(coalesce(p_token_hash, ''::bytea) || uuid_send(p_session_id), 'sha256');
+  -- application_id is folded in (not just token_hash + session_id) because
+  -- this function is also called directly with p_token_hash = null from the
+  -- non-QR scanner-confirm and override-admit paths (scan-attempt.ts,
+  -- admission-management.ts), where application_id is the only thing that
+  -- actually varies between two different applicants scanned in the same
+  -- session — without it, a key reused across two applicants would hash
+  -- identically and the second call would silently replay the first
+  -- applicant's row instead of raising the mismatch error below.
+  v_scan_fingerprint := extensions.digest(coalesce(p_token_hash, ''::bytea) || uuid_send(p_session_id) || uuid_send(p_application_id), 'sha256');
 
   if p_idempotency_key is not null then
     select * into v_existing from scan_attempts where idempotency_key = p_idempotency_key;
@@ -337,7 +345,7 @@ end;
 $$;
 
 comment on function public.scan_attempt_transactional(uuid, uuid, uuid, text, text, boolean, uuid, uuid, bytea) is
-  'Sole write authority for attendance_records/scan_attempts. p_scanner_user_id (optional) re-verifies scanner_assignments scope inside this function''s own advisory-locked transaction, closing the TOCTOU window between scan-attempt.ts''s pre-call verifyScannerScope and this RPC. Pass null from non-scope-limited callers (the admission-review override path). booking_id (Task 6) is populated best-effort from a matching active session_bookings row and is normally NULL for admissions with no prior self-service booking. p_idempotency_key/p_token_hash (offline-scanning-support Task 1) make a retried call with the same key replay the original committed scan_attempts row instead of risking a second write; p_token_hash is folded into scan_fingerprint purely to detect a reused key presented with different scan data, and is not itself persisted.';
+  'Sole write authority for attendance_records/scan_attempts. p_scanner_user_id (optional) re-verifies scanner_assignments scope inside this function''s own advisory-locked transaction, closing the TOCTOU window between scan-attempt.ts''s pre-call verifyScannerScope and this RPC. Pass null from non-scope-limited callers (the admission-review override path). booking_id (Task 6) is populated best-effort from a matching active session_bookings row and is normally NULL for admissions with no prior self-service booking. p_idempotency_key/p_token_hash (offline-scanning-support Task 1) make a retried call with the same key replay the original committed scan_attempts row instead of risking a second write; scan_fingerprint is derived from p_token_hash, p_session_id, and p_application_id together (not persisting p_token_hash itself) specifically so a reused key presented with different scan data is detected even on this function''s non-QR call sites, where p_token_hash is always null and application_id is the only thing that varies between two different applicants.';
 
 comment on function public.scan_qr_attempt_transactional(bytea, uuid, uuid, text, boolean, uuid, uuid) is
   'Phase 7A scanner bridge. p_scanner_user_id (optional) is forwarded to scan_attempt_transactional for the same in-transaction scope re-check; see that function''s comment. p_idempotency_key (offline-scanning-support Task 1) is forwarded to scan_attempt_transactional for resolved scans, and used directly by this function''s own two unresolved-credential early-return branches so a retried malformed/unknown-token scan also replays rather than double-inserting.';

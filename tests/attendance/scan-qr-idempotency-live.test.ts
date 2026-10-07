@@ -322,6 +322,27 @@ describe('scan_attempt_transactional / scan_qr_attempt_transactional — idempot
     expect(second.error!.message).toContain('Idempotency key reused with different scan data');
   });
 
+  // Same idempotency key, same session_id, null token_hash on both sides
+  // (the direct scanner-confirm/override-admit path) but a DIFFERENT
+  // application_id -- the scan_fingerprint must fold in application_id, not
+  // just token_hash + session_id, or this would silently replay applicant
+  // A's row for applicant B's retried scan instead of raising the mismatch
+  // error. Caught in code-quality review of this task.
+  it('[Req 4] the same idempotency key with a different application_id (same session, null token_hash) raises the mismatch error, not another applicant\'s row', async () => {
+    const sessionId = await createSession({ session_code: `req4-app-${runId}` });
+    await assignScannerToSession(sessionId);
+    const { applicationId: applicationIdA } = await createApplicant('req4-app-a');
+    const { applicationId: applicationIdB } = await createApplicant('req4-app-b');
+    const idempotencyKey = randomUUID();
+
+    const first = await callScanAttempt({ applicationId: applicationIdA, sessionId, idempotencyKey });
+    expect(first.error).toBeNull();
+
+    const second = await callScanAttempt({ applicationId: applicationIdB, sessionId, idempotencyKey });
+    expect(second.error).not.toBeNull();
+    expect(second.error!.message).toContain('Idempotency key reused with different scan data');
+  });
+
   // Requirement 6: idempotent replay changes the outcome correctly and
   // concretely -- without idempotency, a naive second call of the same
   // scan would compute 'duplicate' (the first call's own admission is now
