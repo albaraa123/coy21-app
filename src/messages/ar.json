@@ -1669,7 +1669,14 @@
     "identifierRequiredError": "أدخل رقم الطلب أو اسم المشارك",
     "admitAction": "قبول",
     "admitSuccess": "تم القبول — تم إنشاء الحجز.",
-    "admitError": "فشل القبول"
+    "admitError": "فشل القبول",
+    "reauthenticateError": "انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى",
+    "retrying": {
+      "message": "انقطع الاتصال — تتم إعادة المحاولة…",
+      "persistentMessage": "لا تزال هناك مشكلة في الاتصال. يمكنك الانتظار، أو المحاولة الآن، أو الإلغاء.",
+      "tryNow": "حاول الآن",
+      "cancel": "إلغاء"
+    }
   },
   "attendanceDemand": {
     "title": "الطلب والسعة",

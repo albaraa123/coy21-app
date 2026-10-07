@@ -9,9 +9,9 @@
 // profiles-RLS reasoning as those pages' own comments), then hands static
 // reference data (confirmed sessions, for the session picker) down to a
 // client component. Unlike admissions/page.tsx, there is no search console
-// here — the applicant identifier is resolved server-side inside
-// actions.ts's admitWalkIn, since this page has exactly one action to
-// perform.
+// here — the applicant identifier is resolved server-side inside the
+// /api/admit-walk-in Route Handler, since this page has exactly one
+// action to perform.
 import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';

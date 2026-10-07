@@ -1669,7 +1669,14 @@
     "identifierRequiredError": "Enter an application number or applicant name",
     "admitAction": "Admit",
     "admitSuccess": "Admitted — booking created.",
-    "admitError": "Admission failed"
+    "admitError": "Admission failed",
+    "reauthenticateError": "Session expired — please sign in again",
+    "retrying": {
+      "message": "Connection lost — retrying…",
+      "persistentMessage": "Still having trouble connecting. You can keep waiting, try again now, or cancel.",
+      "tryNow": "Try Now",
+      "cancel": "Cancel"
+    }
   },
   "attendanceDemand": {
     "title": "Demand & Capacity",
