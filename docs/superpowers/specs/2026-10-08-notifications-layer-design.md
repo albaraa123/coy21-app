@@ -70,7 +70,9 @@ create index notifications_application_feed_idx on notifications (application_id
 
 **`title`/`body` are pre-rendered, not computed at read time.** Each producer (the RPC/trigger that inserts the row) resolves the recipient's `preferred_language` at insert time and writes the final display string directly — mirrors how `resend.ts`'s existing email functions already branch per-locale. This keeps the bell's read query a plain `select *`, with no join-time i18n logic.
 
-RLS: `enable row level security`, with exactly two `select` policies, no `insert`/`update`/`delete` policy (all writes go through `security definer` RPCs, same GRANT-discipline pattern as `session_notification_outbox`):
+**`email_status` tracks only the email channel's delivery outcome and must never gate the bell.** The bell's unread/read state is driven entirely by `read_at`/`notification_broadcast_reads` and by Realtime row-insertion events (see Architecture — Realtime below) — it is fully independent of `email_status`'s value or timing. A row can show in the bell seconds after insert while `email_status` is still `pending` (the email cron runs on its own 1-minute cycle); this is expected, not a bug. Do not write any bell-side logic that checks `email_status`.
+
+RLS: `enable row level security`, with exactly two `select` policies, no `insert`/`update`/`delete` policy (all writes go through the `security definer` `create_notification`/`create_announcement` RPCs — see Writer RPCs below for exactly which functions are and aren't `security definer` — same GRANT-discipline pattern as `session_notification_outbox`):
 
 ```sql
 create policy notifications_own_select on notifications
@@ -101,11 +103,16 @@ RLS: one `select`/`insert` policy restricted to the caller's own `application_id
 
 ### Writer RPCs
 
-All inserts happen through `security definer` functions, never direct client-side `insert`:
+`create_notification(...)` itself must be `security definer` (so it can write to `notifications` regardless of its caller's own privileges), never called directly by a client — this is the sole write path, enforced by GRANT discipline, not RLS. Its callers are NOT all `security definer` themselves, and don't need to be: Postgres runs a `security definer` function with the definer's rights no matter what context calls it, so a plain (non-`security definer`) trigger function, or a different `security definer` function, can both call it safely. Specifically:
 
-- `create_notification(...)` — internal helper (not directly granted to `authenticated`), called from other RPCs/triggers to insert one personal row. Takes `p_application_id`, `p_channel`, `p_title`, `p_body`, `p_link_path`, `p_session_id default null`, `p_old_start_time default null`, `p_new_start_time default null`.
-- `create_announcement(p_title text, p_body text)` — staff-only (`coalesce(is_staff(), false)` check, following the `ops_dashboard_snapshot()` precedent for the NULL-vs-false anon bypass), inserts exactly one `is_broadcast = true` row.
+- `create_notification(...)` — internal helper (not directly granted to `authenticated`), `security definer`, called from other RPCs/triggers to insert one personal row. Takes `p_application_id`, `p_channel`, `p_title`, `p_body`, `p_link_path`, `p_session_id default null`, `p_old_start_time default null`, `p_new_start_time default null`.
+- `create_announcement(p_title text, p_body text)` — staff-only (`coalesce(is_staff(), false)` check, following the `ops_dashboard_snapshot()` precedent for the NULL-vs-false anon bypass), inserts exactly one `is_broadcast = true` row. **Decision needed in the implementation plan**: `ops_dashboard_snapshot()` additionally allows `or auth.role() = 'service_role'` alongside its `coalesce(is_staff(), false)` check, since a service-role caller (e.g. this codebase's own live test fixtures) also has a NULL `auth.uid()` and would otherwise be rejected. If `create_announcement` is ever called from a live test or any other service-role context, it needs the same carve-out; if it's genuinely only ever called from a real staff session, it can stay as the narrower check. The plan should make this choice explicitly rather than copy the precedent blindly.
 - `mark_notification_read(p_notification_id uuid)` — verifies the row belongs to the caller (via `applications.applicant_id = auth.uid()`) for personal rows, or inserts into `notification_broadcast_reads` for broadcast rows; rejects otherwise.
+
+**Callers of `create_notification`, by trust boundary (verified against current code, not assumed):**
+- `book_session` (`supabase/migrations/20261003000000_book_session_respects_allocation.sql`) IS itself `security definer` — a `security definer` function calling another `security definer` function, which Postgres handles without issue.
+- `enforce_session_lifecycle_booking_sync()` (the session-lifecycle trigger) and `promote_next_waitlist_candidate()` (the waitlist-promotion helper) are BOTH plain `language plpgsql set search_path = public, pg_temp` functions today — neither is `security definer`. This is fine and does not need to change: `create_notification`'s own `security definer` is what grants it write access, independent of whether its caller is elevated. Do not "fix" these two functions to add `security definer` during implementation — that would be an unnecessary, unrelated privilege escalation; they already have whatever rights they need (they already write `session_notification_outbox` today without it).
+- `updateApplicationStatusForCaller` (TS, `src/app/[locale]/(admin)/applications/[id]/actions.ts`) is not a SQL caller at all — it's a Server Action already running with an injected service-role client, a different trust boundary entirely, and calls `create_notification` as an ordinary RPC the same way it calls `accept_application_and_issue_number` today.
 
 ### Event wiring (where each channel is produced)
 
@@ -164,6 +171,8 @@ create policy notifications_personal_channel_select on realtime.messages
   );
 ```
 
+The `limit 1` subquery is only correct because `applications` has a unique index enforcing at most one row per `applicant_id` (`applications_one_per_applicant`, `supabase/migrations/20260721202027_applications_table.sql`) — this policy's correctness is architecturally load-bearing on that constraint remaining in place. If that uniqueness is ever relaxed, this policy would silently start picking an arbitrary one of several applications rather than erroring.
+
 **Client side**: a new Client Component (e.g. `src/components/shell/notification-bell.tsx`) imported into `Topbar` (`src/components/shell/topbar.tsx`, inserted into the existing `gap-3` flex div alongside `<UserMenu>`, line ~65-67 — the established pattern for adding client-interactive elements there, per `UserMenu`'s own precedent). Subscribes to both the caller's personal channel and the shared broadcast channel (two `supabase.channel(...)` subscriptions, `{ config: { private: true } }`), debounced refetch on broadcast (mirroring ops-dashboard's 1.5s debounce / 5s max-wait pattern), plus a 30-second fallback poll — same two-layer resilience as 5a.
 
 On load and on refetch: a single query joining personal + broadcast rows, read-state resolved client-side by checking `read_at` (personal) or presence in a fetched set of the user's own `notification_broadcast_reads` rows (broadcast) — or, more simply, one `get_my_notifications()` RPC that does this join server-side and returns a unified, already-read-flagged list. (Left as an implementation-plan decision: RPC vs. two-query client join — functionally equivalent, RPC avoids exposing `notification_broadcast_reads` to direct client select.)
@@ -174,7 +183,7 @@ On load and on refetch: a single query joining personal + broadcast rows, read-s
 
 Per pending row (batch size TBD in the plan, following the existing `BATCH_SIZE = 25` precedent):
 - `is_broadcast = false`: look up the application's profile email/locale, dispatch to the matching email function (new or existing in `src/lib/email/resend.ts`), update `email_status`.
-- `is_broadcast = true`: query all `applications where status = 'accepted'`, send in batches via `Promise.all` (mirroring `travel-reminders`' existing 10-at-a-time batching to avoid serverless timeout), then mark the single row `sent` with an `error_message` summary if any batch member failed (no per-recipient retry).
+- `is_broadcast = true`: query all `applications where status = 'accepted'` **at send time** (not at `create_announcement`'s insert time — an applicant whose status changes away from `accepted` in the narrow window between announcement creation and the cron picking it up is silently excluded; this is accepted as an edge case given the 1-minute cron interval, not separately handled), send in batches via `Promise.all` (mirroring `travel-reminders`' existing 10-at-a-time batching to avoid serverless timeout), then mark the single row `sent` with an `error_message` summary if any batch member failed (no per-recipient retry). Note `sent` here is overloaded to mean "batch dispatch attempted, possibly with partial failures recorded in `error_message`" rather than "delivered successfully" — a 3-way value (e.g. adding `partial`) would be more honest than reusing the single-send `sent`/`failed` enum for a batch outcome, but is left as a judgment call for the implementation plan rather than forced here, since `error_message` already preserves the detail losslessly.
 
 Every email dispatch still goes through `sendEmailGuarded`/`fetchEmailSettings` unchanged — the sandbox-mode kill switch applies to every new notification email exactly as it does today.
 
@@ -193,12 +202,12 @@ A new, minimal admin page (route TBD in the plan, e.g. `src/app/[locale]/(admin)
 
 ## Testing Requirements
 
-1. Each of the 6 personal-event producers (`application_accepted`, `application_rejected`, `booking_confirmed`, `session_cancelled`, `session_rescheduled`, `waitlist_promoted`) inserts exactly one `notifications` row with the correct `channel`/`application_id`/`title`.
+1. Each of the 6 personal-event producers (`application_accepted`, `application_rejected`, `booking_confirmed`, `session_cancelled`, `session_rescheduled`, `waitlist_promoted`) inserts exactly one `notifications` row with the correct `channel`/`application_id`/`title`, AND the correct locale: an applicant with `preferred_language = 'ar'` gets an Arabic `title` (not just a non-empty one), matching the per-producer locale-resolution logic each one independently implements.
 2. `create_announcement` inserts exactly one row with `is_broadcast = true`, `application_id = null`.
 3. RLS: a user cannot `select` another user's personal rows; every authenticated user can `select` broadcast rows.
 4. `mark_notification_read` rejects marking another user's personal notification as read; broadcast reads correctly insert into `notification_broadcast_reads` keyed to the caller.
 5. The unified email cron: pending rows only, correct status transitions (`pending → sent`/`failed`), respects `sendEmailGuarded` sandbox mode (a sandboxed send never reaches the real recipient).
-6. Broadcast email dispatch: sends to every `accepted` application, batches correctly, marks the single row `sent` after the batch completes even if some individual sends failed (captured in `error_message`).
+6. Broadcast email dispatch: sends to every `accepted` application AS OF THE CRON'S SEND TIME (not creation time — verify an application that transitions away from `accepted` after `create_announcement` but before the cron runs is correctly excluded, confirming the lazy-evaluation timing documented in Architecture — Email cron), batches correctly, marks the single row `sent` after the batch completes even if some individual sends failed (captured in `error_message`).
 7. The bell: loads the full personal+broadcast feed on mount; receives a Realtime broadcast and refetches within the debounce window; the 30s fallback poll independently catches an update if the broadcast channel is silently missed.
 8. `session-reminders`/`travel-reminders` crons, after modification, still correctly identify the same recipients on the same time windows as before (25–35 min / no travel_legs row, 2026-11-05 cutoff) — only the dispatch mechanism changes (row insert vs. direct send).
 9. `is_staff()` NULL-vs-false gate is correctly applied (`coalesce(...)`) on both `create_announcement` and the admin page's own data-loading path — an anonymous or service-role caller must not bypass the staff check.
