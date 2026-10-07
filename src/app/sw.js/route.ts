@@ -20,7 +20,7 @@
 //     would let a logged-out/deauthorized/reassigned device keep
 //     showing a stale "authorized" scanner UI, which is exactly what
 //     section 18/19 forbid.
-//   - NEVER cache scanQrAttemptConfirm's Server Action requests, any
+//   - NEVER cache the scan-qr-attempt Route Handler's requests, any
 //     Supabase/API response, or anything containing a QR payload or
 //     participant summary.
 //   - On activate, delete every cache whose name doesn't match the
