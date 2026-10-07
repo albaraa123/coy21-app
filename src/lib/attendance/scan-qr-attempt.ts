@@ -4,40 +4,78 @@
 // completes Phase 7A by wiring scan_qr_attempt_transactional (the
 // database bridge, migration 20260814100000) behind the same
 // authorization/scope discipline scan-attempt.ts already applies to the
-// applicationId-based path. Mirrors that file's exact shape
-// (verifyScannerScope, requireScannerDeviceCaller, ForCaller/plain split)
+// applicationId-based path. Mirrors that file's verifyScannerScope shape
 // deliberately — no parallel authorization architecture.
-'use server';
-
+//
+// scanQrAttemptConfirmForCaller takes an already-authenticated
+// `caller: {userId, service}` as an injected parameter and does NOT call
+// requireScannerDeviceCaller() itself — that call now lives in
+// src/app/api/scan-qr-attempt/route.ts's POST handler, which is the
+// trusted boundary's actual entry point since Server Actions were
+// replaced by a Route Handler (see sub-project 5b's Task 3). This keeps
+// ...ForCaller unit-testable without a request context, exactly as
+// tests/attendance/scan-qr-attempt-server-boundary.test.ts's own header
+// comment describes.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
-import { requireScannerDeviceCaller } from '@/lib/scanner-device/server-helpers';
 import { parseCanonicalQrPayload, hashQrToken } from './qr-token-crypto';
 import { getScannerParticipantSummary, type ScannerParticipantSummary } from './participant-summary';
+import { isTransportShapedError, isLockContentionError } from '@/lib/supabase/upstream-error';
 
 type ServiceClient = SupabaseClient<Database>;
-
-// Identical to scan-attempt.ts's own verifyScannerScope — not
-// re-exported/shared across files in this codebase's existing
-// convention (scan-attempt.ts keeps its copy module-private too), so
-// this is a deliberate one-for-one mirror, not an accidental duplicate.
-async function verifyScannerScope(service: ServiceClient, userId: string, sessionId: string): Promise<void> {
-  const { data: session } = await service.from('sessions').select('id, room_id').eq('id', sessionId).single();
-  if (!session) throw new Error('Session not found');
-  const { count } = await service
-    .from('scanner_assignments')
-    .select('*', { count: 'exact', head: true })
-    .eq('scanner_user_id', userId)
-    .eq('is_active', true)
-    .or(`session_id.eq.${sessionId},room_id.eq.${session.room_id}`);
-  if (!count || count === 0) throw new Error('Not authorized for this session/room');
-}
 
 export interface ScanQrResult {
   result: string;
   scanAttemptId: string;
   attendanceId: string | null;
   participantSummary: ScannerParticipantSummary | null;
+}
+
+// Per spec lines 101-105 (docs/superpowers/specs/2026-10-06-offline-
+// scanning-support-design.md) — the Route Handler's JSON response body.
+// The retryable/non-retryable distinction lives in this body, never the
+// HTTP status, so the client's "any non-2xx or unparseable body means
+// transport failure" rule (layer 1) never misfires on a deterministic
+// server-side denial.
+export type ScanQrOutcome =
+  | { ok: true; result: ScanQrResult }
+  | { ok: false; retryable: true; reason: 'lock-contention' | 'upstream-unreachable' }
+  | { ok: false; retryable: false; message: string };
+
+// Identical to scan-attempt.ts's own verifyScannerScope — not
+// re-exported/shared across files in this codebase's existing
+// convention (scan-attempt.ts keeps its copy module-private too), so
+// this is a deliberate one-for-one mirror, not an accidental duplicate.
+//
+// Returns a ScanQrOutcome directly (rather than throwing) for a
+// transport-shaped failure on either query, per spec line 111 (layer 2):
+// a query that itself failed (populated `error`) must never be read as a
+// confident "not found"/"not authorized" denial — only a clean,
+// error-free, genuinely-empty result is a real, non-retryable denial.
+async function verifyScannerScope(
+  service: ServiceClient,
+  userId: string,
+  sessionId: string
+): Promise<{ ok: true } | { ok: false; outcome: ScanQrOutcome }> {
+  const { data: session, error: sessionError } = await service.from('sessions').select('id, room_id').eq('id', sessionId).single();
+  if (sessionError && isTransportShapedError(sessionError)) {
+    return { ok: false, outcome: { ok: false, retryable: true, reason: 'upstream-unreachable' } };
+  }
+  if (!session) return { ok: false, outcome: { ok: false, retryable: false, message: 'Session not found' } };
+
+  const { count, error: countError } = await service
+    .from('scanner_assignments')
+    .select('*', { count: 'exact', head: true })
+    .eq('scanner_user_id', userId)
+    .eq('is_active', true)
+    .or(`session_id.eq.${sessionId},room_id.eq.${session.room_id}`);
+  if (countError && isTransportShapedError(countError)) {
+    return { ok: false, outcome: { ok: false, retryable: true, reason: 'upstream-unreachable' } };
+  }
+  if (!count || count === 0) {
+    return { ok: false, outcome: { ok: false, retryable: false, message: 'Not authorized for this session/room' } };
+  }
+  return { ok: true };
 }
 
 function toByteaHexOrNull(buf: Buffer | null): string | null {
@@ -62,10 +100,12 @@ function toByteaHexOrNull(buf: Buffer | null): string | null {
  */
 export async function scanQrAttemptConfirmForCaller(
   params: { qrPayload: string; sessionId: string; deviceIdentifier: string | null },
-  caller: { userId: string; service: ServiceClient }
-): Promise<ScanQrResult> {
+  caller: { userId: string; service: ServiceClient },
+  idempotencyKey: string
+): Promise<ScanQrOutcome> {
   const { service, userId } = caller;
-  await verifyScannerScope(service, userId, params.sessionId);
+  const scope = await verifyScannerScope(service, userId, params.sessionId);
+  if (!scope.ok) return scope.outcome;
 
   const parsed = parseCanonicalQrPayload(params.qrPayload);
   const tokenHash = parsed.ok ? hashQrToken(parsed.rawToken) : null;
@@ -95,21 +135,24 @@ export async function scanQrAttemptConfirmForCaller(
     // own transaction (reached via scan_qr_attempt_transactional's
     // delegation below), after its advisory lock is held.
     p_scanner_user_id: userId,
+    p_idempotency_key: idempotencyKey,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isLockContentionError(error)) return { ok: false, retryable: true, reason: 'lock-contention' };
+    if (isTransportShapedError(error)) return { ok: false, retryable: true, reason: 'upstream-unreachable' };
+    return { ok: false, retryable: false, message: error.message };
+  }
 
   const applicationId = data.application_id;
   const participantSummary = applicationId ? await getScannerParticipantSummary(service, applicationId) : null;
 
   return {
-    result: data.result,
-    scanAttemptId: data.id,
-    attendanceId: data.resulting_attendance_id,
-    participantSummary,
+    ok: true,
+    result: {
+      result: data.result,
+      scanAttemptId: data.id,
+      attendanceId: data.resulting_attendance_id,
+      participantSummary,
+    },
   };
-}
-
-export async function scanQrAttemptConfirm(qrPayload: string, sessionId: string, deviceIdentifier: string | null): Promise<ScanQrResult> {
-  const caller = await requireScannerDeviceCaller();
-  return scanQrAttemptConfirmForCaller({ qrPayload, sessionId, deviceIdentifier }, caller);
 }

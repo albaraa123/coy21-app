@@ -60,9 +60,14 @@ let roomCounter = 0;
 
 async function createRoom(): Promise<string> {
   roomCounter += 1;
+  // A fixed, non-randomized code here previously collided across reruns
+  // against the disposable Cloud project (see
+  // live_test_fixture_leaks_deukwztsmcnxxchrdrfo.md) whenever a prior run
+  // didn't reach its own afterAll cleanup; a per-run UUID suffix makes
+  // this collision-proof without changing anything this suite asserts on.
   const { data, error } = await admin
     .from('rooms')
-    .insert({ code: `SCAN-QR-BOUNDARY-ROOM-${roomCounter}`, name_ar: 'قاعة', name_en: `Room ${roomCounter}`, capacity: 100 })
+    .insert({ code: `SCAN-QR-BOUNDARY-ROOM-${roomCounter}-${randomUUID()}`, name_ar: 'قاعة', name_en: `Room ${roomCounter}`, capacity: 100 })
     .select('id')
     .single();
   if (error || !data) throw new Error(`Failed to create room: ${error?.message}`);
@@ -173,34 +178,38 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     const issued = await issueMyQrCredential(fx.client, admin, randomUUID());
     expect(issued.outcome).toBe('issued');
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: issued.qrPayload!, sessionId: sharedSessionId, deviceIdentifier: 'boundary-device-1' },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
 
-    expect(result.result).toBe('flexible_admitted');
-    expect(result.scanAttemptId).toBeTruthy();
-    expect(result.attendanceId).toBeTruthy();
-    expect(result.participantSummary).toEqual({ fullName: 'Boundary Test Participant', country: 'Oman', nationality: 'Omani' });
+    if (!outcome.ok) throw new Error('expected success');
+    expect(outcome.result.result).toBe('flexible_admitted');
+    expect(outcome.result.scanAttemptId).toBeTruthy();
+    expect(outcome.result.attendanceId).toBeTruthy();
+    expect(outcome.result.participantSummary).toEqual({ fullName: 'Boundary Test Participant', country: 'Oman', nationality: 'Omani' });
 
     // 13. exact ScanQrResult response shape — no extra/leaked keys.
-    expect(Object.keys(result).sort()).toEqual(['attendanceId', 'participantSummary', 'result', 'scanAttemptId'].sort());
+    expect(Object.keys(outcome.result).sort()).toEqual(['attendanceId', 'participantSummary', 'result', 'scanAttemptId'].sort());
   });
 
   it('2. a malformed QR payload produces a controlled invalid_qr result AND exactly one scan_attempts row (audit trail preserved even though parsing failed at the trusted boundary)', async () => {
     const sessionId = await createSession({ session_code: 'boundary-malformed' });
     await assignScannerToSession(sessionId);
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: 'not-a-real-qr-payload', sessionId, deviceIdentifier: 'boundary-device-malformed' },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
 
-    expect(result.result).toBe('invalid_qr');
-    expect(result.attendanceId).toBeNull();
-    expect(result.participantSummary).toBeNull();
+    if (!outcome.ok) throw new Error('expected success');
+    expect(outcome.result.result).toBe('invalid_qr');
+    expect(outcome.result.attendanceId).toBeNull();
+    expect(outcome.result.participantSummary).toBeNull();
 
-    const { data: attempts, error } = await admin.from('scan_attempts').select('id, application_id').eq('id', result.scanAttemptId);
+    const { data: attempts, error } = await admin.from('scan_attempts').select('id, application_id').eq('id', outcome.result.scanAttemptId);
     expect(error).toBeNull();
     expect(attempts).toHaveLength(1);
     expect(attempts![0].application_id).toBeNull();
@@ -211,9 +220,10 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     await assignScannerToSession(sessionId);
     const fakePayload = 'rcoy:v1:' + 'A'.repeat(43);
 
-    const result = await scanQrAttemptConfirmForCaller({ qrPayload: fakePayload, sessionId, deviceIdentifier: null }, scannerCaller());
-    expect(result.result).toBe('invalid_qr');
-    expect(result.participantSummary).toBeNull();
+    const outcome = await scanQrAttemptConfirmForCaller({ qrPayload: fakePayload, sessionId, deviceIdentifier: null }, scannerCaller(), randomUUID());
+    if (!outcome.ok) throw new Error('expected success');
+    expect(outcome.result.result).toBe('invalid_qr');
+    expect(outcome.result.participantSummary).toBeNull();
   });
 
   it('4. a replaced (old) QR resolves to invalid_qr through the trusted boundary', async () => {
@@ -231,11 +241,13 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     });
     expect(reissued.outcome).toBe('reissued');
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: original.qrPayload!, sessionId, deviceIdentifier: 'boundary-old-token' },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
-    expect(result.result).toBe('invalid_qr');
+    if (!outcome.ok) throw new Error('expected success');
+    expect(outcome.result.result).toBe('invalid_qr');
   });
 
   it('5. the NEW reissued QR is accepted through the trusted boundary (the same reissue as test 4)', async () => {
@@ -252,11 +264,13 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     });
     expect(reissued.outcome).toBe('reissued');
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: reissued.qrPayload!, sessionId, deviceIdentifier: 'boundary-new-token' },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
-    expect(result.result).toBe('flexible_admitted');
+    if (!outcome.ok) throw new Error('expected success');
+    expect(outcome.result.result).toBe('flexible_admitted');
   });
 
   it('6. a participant-role caller is not authorized to invoke scanner operations (role-boundary check, same established pattern as scanner-device-access-live.test.ts)', async () => {
@@ -269,16 +283,18 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     const fx = await createParticipantWithSession();
     const issued = await issueMyQrCredential(fx.client, admin, randomUUID());
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: issued.qrPayload!, sessionId: sharedSessionId, deviceIdentifier: 'boundary-correct-scope' },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
     // The shared session may already hold other participants from
     // earlier tests, so the specific admission outcome isn't the point
     // here — a real, non-throwing terminal result proves the scope check
     // passed (an out-of-scope call throws before ever reaching this).
-    expect(typeof result.result).toBe('string');
-    expect(result.scanAttemptId).toBeTruthy();
+    if (!outcome.ok) throw new Error('expected success');
+    expect(typeof outcome.result.result).toBe('string');
+    expect(outcome.result.scanAttemptId).toBeTruthy();
   });
 
   it('8. a scanner_device caller WITHOUT a matching scanner_assignments row for the target session is rejected before any scan executes', async () => {
@@ -287,12 +303,12 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     // A session the shared scanner fixture was never assigned to.
     const outOfScopeSessionId = await createSession({ session_code: 'boundary-out-of-scope' });
 
-    await expect(
-      scanQrAttemptConfirmForCaller(
-        { qrPayload: issued.qrPayload!, sessionId: outOfScopeSessionId, deviceIdentifier: 'boundary-wrong-scope' },
-        scannerCaller()
-      )
-    ).rejects.toThrow(/Not authorized/);
+    const outcome = await scanQrAttemptConfirmForCaller(
+      { qrPayload: issued.qrPayload!, sessionId: outOfScopeSessionId, deviceIdentifier: 'boundary-wrong-scope' },
+      scannerCaller(),
+      randomUUID()
+    );
+    expect(outcome).toEqual({ ok: false, retryable: false, message: expect.stringContaining('Not authorized') });
 
     const { data: attempts } = await admin.from('scan_attempts').select('id').eq('session_id', outOfScopeSessionId);
     expect(attempts).toHaveLength(0);
@@ -304,11 +320,13 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     const sessionId = await createSession({ session_code: 'boundary-scanned-by' });
     await assignScannerToSession(sessionId);
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: issued.qrPayload!, sessionId, deviceIdentifier: null },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
-    const { data: row } = await admin.from('scan_attempts').select('scanned_by').eq('id', result.scanAttemptId).single();
+    if (!outcome.ok) throw new Error('expected success');
+    const { data: row } = await admin.from('scan_attempts').select('scanned_by').eq('id', outcome.result.scanAttemptId).single();
     expect(row!.scanned_by).toBe(scannerId); // the caller's own id, not anything client-supplied (params has no such field to supply)
   });
 
@@ -324,12 +342,14 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     const restrictedSessionId = await createSession({ session_code: 'boundary-no-override', admission_policy: 'restricted' });
     await assignScannerToSession(restrictedSessionId);
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: issued.qrPayload!, sessionId: restrictedSessionId, deviceIdentifier: null },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
-    expect(result.result).toBe('restricted_denied');
-    expect(result.result).not.toBe('override_admitted');
+    if (!outcome.ok) throw new Error('expected success');
+    expect(outcome.result.result).toBe('restricted_denied');
+    expect(outcome.result.result).not.toBe('override_admitted');
   });
 
   it('11-12. no service-role secret, token, hash, or ciphertext ever appears in the returned ScanQrResult', async () => {
@@ -338,11 +358,12 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     const sessionId = await createSession({ session_code: 'boundary-no-leak' });
     await assignScannerToSession(sessionId);
 
-    const result = await scanQrAttemptConfirmForCaller(
+    const outcome = await scanQrAttemptConfirmForCaller(
       { qrPayload: issued.qrPayload!, sessionId, deviceIdentifier: 'boundary-leak-check' },
-      scannerCaller()
+      scannerCaller(),
+      randomUUID()
     );
-    const serialized = JSON.stringify(result);
+    const serialized = JSON.stringify(outcome);
     expect(serialized).not.toContain(issued.qrPayload!.slice(8)); // the token portion
     expect(serialized).not.toContain(SERVICE_KEY);
     expect(serialized).not.toMatch(/token_hash|token_ciphertext|application_id/);
@@ -354,11 +375,13 @@ describe('scanQrAttemptConfirmForCaller — trusted server boundary', () => {
     const sessionId = await createSession({ session_code: 'boundary-duplicate' });
     await assignScannerToSession(sessionId);
 
-    const first = await scanQrAttemptConfirmForCaller({ qrPayload: issued.qrPayload!, sessionId, deviceIdentifier: 'd1' }, scannerCaller());
-    expect(first.result).toBe('flexible_admitted');
+    const first = await scanQrAttemptConfirmForCaller({ qrPayload: issued.qrPayload!, sessionId, deviceIdentifier: 'd1' }, scannerCaller(), randomUUID());
+    if (!first.ok) throw new Error('expected success');
+    expect(first.result.result).toBe('flexible_admitted');
 
-    const second = await scanQrAttemptConfirmForCaller({ qrPayload: issued.qrPayload!, sessionId, deviceIdentifier: 'd2' }, scannerCaller());
-    expect(second.result).toBe('duplicate');
-    expect(second.attendanceId).toBeNull();
+    const second = await scanQrAttemptConfirmForCaller({ qrPayload: issued.qrPayload!, sessionId, deviceIdentifier: 'd2' }, scannerCaller(), randomUUID());
+    if (!second.ok) throw new Error('expected success');
+    expect(second.result.result).toBe('duplicate');
+    expect(second.result.attendanceId).toBeNull();
   });
 });
