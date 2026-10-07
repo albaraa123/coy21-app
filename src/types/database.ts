@@ -2860,6 +2860,7 @@ export type Database = {
           cancelled_at: string | null
           created_at: string
           id: string
+          idempotency_key: string | null
           session_id: string
           source: string
           status: Database["public"]["Enums"]["booking_status"]
@@ -2871,6 +2872,7 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           session_id: string
           source?: string
           status?: Database["public"]["Enums"]["booking_status"]
@@ -2882,6 +2884,7 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           session_id?: string
           source?: string
           status?: Database["public"]["Enums"]["booking_status"]
@@ -3558,7 +3561,11 @@ export type Database = {
         Returns: string
       }
       admit_walk_in: {
-        Args: { p_application_id: string; p_session_id: string }
+        Args: {
+          p_application_id: string
+          p_idempotency_key?: string
+          p_session_id: string
+        }
         Returns: string
       }
       apply_import_row_transactional: {
