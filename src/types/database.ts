@@ -2469,9 +2469,11 @@ export type Database = {
           expires_at: string | null
           finalized_at: string | null
           id: string
+          idempotency_key: string | null
           metadata: Json | null
           result: string
           resulting_attendance_id: string | null
+          scan_fingerprint: string | null
           scanned_by: string
           session_id: string | null
         }
@@ -2482,9 +2484,11 @@ export type Database = {
           expires_at?: string | null
           finalized_at?: string | null
           id?: string
+          idempotency_key?: string | null
           metadata?: Json | null
           result: string
           resulting_attendance_id?: string | null
+          scan_fingerprint?: string | null
           scanned_by: string
           session_id?: string | null
         }
@@ -2495,9 +2499,11 @@ export type Database = {
           expires_at?: string | null
           finalized_at?: string | null
           id?: string
+          idempotency_key?: string | null
           metadata?: Json | null
           result?: string
           resulting_attendance_id?: string | null
+          scan_fingerprint?: string | null
           scanned_by?: string
           session_id?: string | null
         }
@@ -4055,11 +4061,13 @@ export type Database = {
         Args: {
           p_application_id: string
           p_device_identifier: string
+          p_idempotency_key?: string
           p_is_override_caller?: boolean
           p_scanned_by: string
           p_scanner_user_id?: string
           p_session_id: string
           p_time_slot_group_key: string
+          p_token_hash?: string
         }
         Returns: {
           application_id: string | null
@@ -4068,9 +4076,11 @@ export type Database = {
           expires_at: string | null
           finalized_at: string | null
           id: string
+          idempotency_key: string | null
           metadata: Json | null
           result: string
           resulting_attendance_id: string | null
+          scan_fingerprint: string | null
           scanned_by: string
           session_id: string | null
         }
@@ -4084,6 +4094,7 @@ export type Database = {
       scan_qr_attempt_transactional: {
         Args: {
           p_device_identifier: string
+          p_idempotency_key?: string
           p_is_override_caller?: boolean
           p_scanned_by: string
           p_scanner_user_id?: string
@@ -4097,9 +4108,11 @@ export type Database = {
           expires_at: string | null
           finalized_at: string | null
           id: string
+          idempotency_key: string | null
           metadata: Json | null
           result: string
           resulting_attendance_id: string | null
+          scan_fingerprint: string | null
           scanned_by: string
           session_id: string | null
         }
