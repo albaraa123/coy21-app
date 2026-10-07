@@ -29,7 +29,7 @@
 // the scanner's use-scan-retry.ts rather than re-derived, so the two
 // retry loops' backoff/staleness semantics can never silently drift
 // apart.
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { nextBackoffDelayMs, isStaleAttempt } from '@/components/scanner/use-scan-retry';
 import { Card } from '@/components/ui/card';
@@ -62,12 +62,25 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
   // discarded via isStaleAttempt even though it may share the same
   // idempotencyKey as the current attempt.
   const guardRef = useRef({ idempotencyKey: '', attemptSeq: -1 });
+  // Mirrors the `retrying` state's boolean, but readable synchronously
+  // from enterRetrying's own body without waiting for a re-render --
+  // see enterRetrying's comment for why this (not setRetrying's updater
+  // function) is where the "first transition into retrying" side effects
+  // belong.
+  const retryingRef = useRef(false);
   const startedAtRef = useRef(0);
   const backoffMsRef = useRef(2000);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistentMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const healthCheckControllerRef = useRef<AbortController | null>(null);
-  const currentSessionIdRef = useRef('');
+  // Tracks the in-flight SUBMISSION fetch's own AbortController (distinct
+  // from healthCheckControllerRef above) -- code-quality review found
+  // that without this, Cancel only stopped the health-check poll, not a
+  // resubmission already in flight after a successful health check. The
+  // admit_walk_in RPC would keep running server-side and could still
+  // silently admit the participant even after the operator clicked
+  // Cancel, with no UI indication either way.
+  const submitControllerRef = useRef<AbortController | null>(null);
   const currentApplicationLookupRef = useRef({ identifier: '', sessionId: '' });
 
   const clearPollTimer = useCallback(() => {
@@ -88,6 +101,7 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
     (identifierValue: string, sessionIdValue: string, idempotencyKey: string, attemptSeq: number) => {
       guardRef.current = { idempotencyKey, attemptSeq };
       const controller = new AbortController();
+      submitControllerRef.current = controller;
       const timeout = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
 
       fetch('/api/admit-walk-in', {
@@ -98,6 +112,7 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
       })
         .then(async (res) => {
           clearTimeout(timeout);
+          if (submitControllerRef.current === controller) submitControllerRef.current = null;
           if (isStaleAttempt(guardRef.current.idempotencyKey, guardRef.current.attemptSeq, idempotencyKey, attemptSeq)) return;
           if (!res.ok) {
             enterRetrying(identifierValue, sessionIdValue, idempotencyKey);
@@ -128,6 +143,7 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
         })
         .catch(() => {
           clearTimeout(timeout);
+          if (submitControllerRef.current === controller) submitControllerRef.current = null;
           if (isStaleAttempt(guardRef.current.idempotencyKey, guardRef.current.attemptSeq, idempotencyKey, attemptSeq)) return;
           enterRetrying(identifierValue, sessionIdValue, idempotencyKey);
         });
@@ -142,14 +158,21 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
   // seconds. Mirrors the scanner's client retry loop (use-scan-retry.ts
   // + scanner-client.tsx) but as plain local state, not a reducer.
   function enterRetrying(identifierValue: string, sessionIdValue: string, idempotencyKey: string) {
-    setRetrying((already) => {
-      if (!already) {
-        startedAtRef.current = Date.now();
-        backoffMsRef.current = 2000;
-        persistentMessageTimerRef.current = setTimeout(() => setShowPersistentRetryMessage(true), RETRY_MESSAGE_THRESHOLD_MS);
-      }
-      return true;
-    });
+    // enterRetrying is only ever invoked from fetch callbacks (never
+    // during render), so this guard runs exactly once per transition into
+    // 'retrying' regardless of Strict Mode -- unlike putting the same
+    // side-effecting code inside setRetrying's updater function, which
+    // React's dev-only Strict Mode double-invokes specifically to catch
+    // impure updaters, and would silently leak the first-scheduled
+    // persistentMessageTimer (only the second invocation's timer ID would
+    // survive in the ref, with the first never cleared).
+    if (!retryingRef.current) {
+      retryingRef.current = true;
+      startedAtRef.current = Date.now();
+      backoffMsRef.current = 2000;
+      persistentMessageTimerRef.current = setTimeout(() => setShowPersistentRetryMessage(true), RETRY_MESSAGE_THRESHOLD_MS);
+    }
+    setRetrying(true);
     pollHealthThenRetry(identifierValue, sessionIdValue, idempotencyKey);
   }
 
@@ -160,6 +183,16 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
       healthCheckControllerRef.current.abort();
       healthCheckControllerRef.current = null;
     }
+    // Abort a resubmission that may already be in flight (a health check
+    // can succeed and trigger submitAttempt again before the operator's
+    // Cancel click is handled) -- without this, the admit_walk_in RPC
+    // would keep running server-side after Cancel, with no UI ever
+    // observing whether it succeeded.
+    if (submitControllerRef.current) {
+      submitControllerRef.current.abort();
+      submitControllerRef.current = null;
+    }
+    retryingRef.current = false;
     setRetrying(false);
     setShowPersistentRetryMessage(false);
     backoffMsRef.current = 2000;
@@ -204,6 +237,21 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
       });
   }
 
+  // On unmount (operator navigates away mid-retry-cycle), stop everything
+  // that could otherwise keep running and silently mutate server state
+  // with no UI left to observe the result: clears both pending timers and
+  // aborts both in-flight fetches, mirroring finishRetrying()'s own
+  // cleanup rather than duplicating it ad hoc.
+  useEffect(() => {
+    return () => {
+      clearPollTimer();
+      clearPersistentMessageTimer();
+      healthCheckControllerRef.current?.abort();
+      submitControllerRef.current?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleTryNow = useCallback(() => {
     if (!retrying) return;
     const { identifier: identifierValue, sessionId: sessionIdValue } = currentApplicationLookupRef.current;
@@ -232,7 +280,6 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
       return;
     }
 
-    currentSessionIdRef.current = sessionId;
     currentApplicationLookupRef.current = { identifier, sessionId };
     setSubmitting(true);
     const idempotencyKey = crypto.randomUUID();

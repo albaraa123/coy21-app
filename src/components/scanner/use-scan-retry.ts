@@ -69,6 +69,17 @@ export function createScanRetryController(deps: ScanRetryDeps) {
   // running far enough to call submit() in the first place. Aborting the
   // fetch itself makes it reject before that callback ever runs.
   let healthCheckController: AbortController | null = null;
+  // Tracks the in-flight SUBMISSION fetch's own AbortController, distinct
+  // from healthCheckController above — code-quality review of the walk-in
+  // form's near-identical retry loop (Task 5) found that without this,
+  // cancel() only stopped the health-check poll, not a resubmission
+  // already in flight after a successful health check (pollHealthThenRetry
+  // calls submit() again directly, before any state transition out of
+  // 'retrying' happens). The scan RPC would keep running server-side and
+  // could still admit/reject a scan after the operator clicked Cancel,
+  // with isStaleAttempt only hiding the RESULTING dispatch, not stopping
+  // the request itself.
+  let submitController: AbortController | null = null;
 
   function submit(qrPayload: string, sessionId: string, deviceIdentifier: string | null, idempotencyKey: string, attemptSeq: number) {
     guard.idempotencyKey = idempotencyKey;
@@ -82,6 +93,7 @@ export function createScanRetryController(deps: ScanRetryDeps) {
     // rather than by an explicit Cancel click.
     if (attemptSeq === 0) backoffMs = 2000;
     const controller = new AbortController();
+    submitController = controller;
     const timeout = setTimeout(() => controller.abort(), 8000);
     deps
       .fetchImpl('/api/scan-qr-attempt', {
@@ -91,6 +103,7 @@ export function createScanRetryController(deps: ScanRetryDeps) {
       })
       .then(async (res) => {
         clearTimeout(timeout);
+        if (submitController === controller) submitController = null;
         if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, attemptSeq)) return;
         if (!res.ok) {
           deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
@@ -116,6 +129,7 @@ export function createScanRetryController(deps: ScanRetryDeps) {
       })
       .catch(() => {
         clearTimeout(timeout);
+        if (submitController === controller) submitController = null;
         if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, attemptSeq)) return;
         deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
       });
@@ -172,6 +186,13 @@ export function createScanRetryController(deps: ScanRetryDeps) {
     if (healthCheckController) {
       healthCheckController.abort();
       healthCheckController = null;
+    }
+    // Abort a resubmission that may already be in flight (a health check
+    // can succeed and call submit() again before cancel() runs) -- see
+    // the header comment on submitController above.
+    if (submitController) {
+      submitController.abort();
+      submitController = null;
     }
     guard.attemptSeq = -999; // sentinel that can never match a real attemptSeq
     // Reset explicitly on Cancel too (not just relying on the next scan's
