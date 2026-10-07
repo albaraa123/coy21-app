@@ -14,6 +14,10 @@ drop function if exists admit_walk_in(uuid, uuid);
 
 -- 20261006052000_admit_walk_in_shared_advisory_lock.sql
 --
+-- (Unchanged from that migration -- reproduced here only because
+-- `create or replace function` requires the full body, not a diff. The
+-- advisory-lock fix below is NOT new in this commit.)
+--
 -- Code-quality review of Task 6 (walk-in admission) found a genuine race:
 -- admit_walk_in serialized against OTHER admit_walk_in/book_session/
 -- join_waitlist calls via `select ... for update` on sessions, but
@@ -77,6 +81,12 @@ begin
   -- they guard the same attendance_records-based capacity invariant.
   perform pg_advisory_xact_lock(hashtext(p_session_id::text));
 
+  -- This check must run before the "already has a booking" / "already
+  -- admitted" / capacity checks below -- a retried call with a previously-
+  -- committed key has to replay here and return early, never reaching
+  -- those checks, or a retry would be rejected as a duplicate instead of
+  -- returning the original successful result. Do not hoist any of the
+  -- checks below this point above this block.
   if p_idempotency_key is not null then
     select * into v_existing from session_bookings where idempotency_key = p_idempotency_key;
     if v_existing.id is not null then
@@ -116,6 +126,11 @@ begin
     raise exception 'This participant has already been admitted to this session';
   end if;
 
+  -- Each begin...exception block below scopes to its own single insert --
+  -- PL/pgSQL exception handling is statement-block-local, so a
+  -- unique_violation on the session_bookings insert can only be caught by
+  -- this block, never by the attendance_records block further down (and
+  -- vice versa). No cross-contamination between the two is possible.
   begin
     insert into session_bookings (application_id, session_id, source, idempotency_key)
     values (p_application_id, p_session_id, 'walk_in', p_idempotency_key)
@@ -136,6 +151,14 @@ begin
     end if;
   end;
 
+  -- Unlike the block above, this one does not branch on constraint_name --
+  -- attendance_records_no_duplicate_active (application_id, session_id,
+  -- where status = 'admitted') is the table's only unique constraint today
+  -- (supabase/migrations/20260804120000_create_attendance_records_table.sql),
+  -- so any unique_violation here is unambiguously a duplicate admission. If
+  -- a future migration adds another unique constraint to attendance_records,
+  -- add the same get stacked diagnostics / constraint_name dispatch used
+  -- above before trusting this bare message again.
   begin
     insert into attendance_records (application_id, session_id, time_slot_group_key, entry_type, scanned_by, booking_id)
     values (p_application_id, p_session_id, compute_time_slot_group_key_for_session(p_session_id), 'walk_in', auth.uid(), v_booking_id);
@@ -149,3 +172,12 @@ $$;
 
 grant execute on function admit_walk_in(uuid, uuid, uuid) to authenticated;
 revoke execute on function admit_walk_in(uuid, uuid, uuid) from public, anon;
+
+-- service_role retains EXECUTE here via this project's blanket
+-- `alter default privileges ... grant execute on functions to service_role`
+-- (20261006080000_fix_missing_service_role_grants.sql) and the broader
+-- catch-all grant (20261006100000_fix_remaining_service_role_grants.sql),
+-- which this migration does not revoke. That's intentional: service_role
+-- calls are trusted, server-side-only, and bypass is_staff() by design
+-- (same as every other function in this project that service_role can
+-- reach) -- not an oversight to close.
