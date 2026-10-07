@@ -11,16 +11,20 @@
 // passes only sessionId in as a prop — this component never re-derives
 // or trusts anything about the caller's identity/scope itself, since
 // that would duplicate server-side authorization in the browser. Every
-// submission still goes through scanQrAttemptConfirm, which re-runs
+// submission (original AND retry) goes through a fetch() to
+// /api/scan-qr-attempt (see use-scan-retry.ts), which re-runs
 // requireScannerDeviceCaller + verifyScannerScope on the server for
 // every single call, regardless of what this component thinks its own
-// state is.
+// state is. Sub-project 5b (offline scanning support) moved this off
+// the former Server Action (scanQrAttemptConfirm) onto a Route Handler
+// specifically so a retry's fetch() never queues behind a hung original
+// request the way Next.js serializes same-client Server Action calls.
 'use client';
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { scanQrAttemptConfirm } from '@/lib/attendance/scan-qr-attempt';
 import { scanStateReducer, INITIAL_SCAN_STATE } from './scan-state-machine';
+import { useScanRetry } from './use-scan-retry';
 import { useQrScanner } from './use-qr-scanner';
 import { getOrCreateDeviceIdentifier } from './device-identifier';
 import { getResultPresentation, type ResultSeverity } from './result-presentation';
@@ -33,48 +37,97 @@ import { InstallGuidance } from './install-guidance';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/states/error-state';
 
-// The submission call (scanQrAttemptConfirm) throwing is ALWAYS a
-// network/auth/server failure (bad connection, session expired, scope
-// revoked mid-shift, unexpected RPC error) — never a scan outcome.
-// 'invalid_qr' is a normal, successful ScanQrResult with
-// result: 'invalid_qr'; it goes through the exact same
-// getResultPresentation() path as every other live result below. These
-// two failure modes must never be visually/textually merged: this
-// synthetic severity+copy pair is what the submitFailure branch
-// renders below, entirely independent of getResultPresentation.
+// A non-'result' failure outcome is ALWAYS a network/auth/server
+// failure (bad connection, session expired, scope revoked mid-shift,
+// unexpected RPC error) — never a scan outcome. 'invalid_qr' is a
+// normal, successful ScanQrResult with result: 'invalid_qr'; it goes
+// through the exact same getResultPresentation() path as every other
+// live result below. These two failure modes must never be
+// visually/textually merged: this synthetic severity+copy pair is what
+// the submitFailure/lastRejection branches render below, entirely
+// independent of getResultPresentation.
 const NETWORK_ERROR_SEVERITY: ResultSeverity = 'denied';
 
-// Phase 7E — the scanner is online-only by design (see
-// use-network-status.ts). Three distinct submission-failure shapes are
-// tracked separately because they carry different operator meaning:
-//   'offline-blocked'  browser was definitely offline BEFORE the call
-//                       even started -> we never attempted the network
-//                       request, so it certainly did not reach the
-//                       server. Safe to say "not admitted."
-//   'uncertain'        the call was attempted while the browser
-//                       reported online, then failed. A generic
-//                       fetch-layer error cannot distinguish "never
-//                       left the device" from "reached the server but
-//                       the response was lost" — so this NEVER claims
-//                       an outcome, only asks the operator to verify
-//                       before re-scanning (re-scanning is safe: the
-//                       existing duplicate/idempotent result already
-//                       covers a scan that actually went through).
-//   'server'           kept for the original Phase 7D case: a request
-//                       that completed but the server itself rejected
-//                       (auth/scope/RPC error) — also never claims an
-//                       outcome, same fixed copy as before.
-type SubmitFailureKind = 'offline-blocked' | 'uncertain' | 'server';
+// Phase 7E — the scanner is online-only by design for the definite-
+// offline case (see use-network-status.ts). Sub-project 5b (offline
+// scanning support) replaces the old ad-hoc 'uncertain'/'server'
+// classification with the state machine's own 'retrying' state plus a
+// dedicated lastRejection message: a transport-shaped failure now
+// enters 'retrying' and auto-retries via use-scan-retry.ts instead of
+// immediately bouncing back to 'ready' with a generic "uncertain"
+// message, and a genuine non-retryable server rejection surfaces its
+// real message via lastRejection rather than a fixed 'server' copy. The
+// only submission-failure shape still handled here as a one-shot,
+// non-retrying overlay is the definite-offline short-circuit, which
+// never attempted a network call at all and is therefore certain
+// ("not admitted"), unlike every other failure mode above.
+type SubmitFailureKind = 'offline-blocked';
 
 export function ScannerClient({ sessionId }: { sessionId: string }) {
   const t = useTranslations('scanner');
   const [state, dispatch] = useReducer(scanStateReducer, INITIAL_SCAN_STATE);
   const [submitFailure, setSubmitFailure] = useState<SubmitFailureKind | null>(null);
+  // Sibling (not inside the reducer's own state) piece of state, per the
+  // design spec's own instruction: SUBMIT_REJECTED's and RETRY_ABORTED's
+  // message must be surfaced somewhere the 'ready' state can render it,
+  // since 'ready' itself carries no data. Cleared on the next DETECT.
+  const [lastRejection, setLastRejection] = useState<string | null>(null);
   const [manualValue, setManualValue] = useState('');
   const [muted, setMuted] = useState(false);
   const deviceIdentifierRef = useRef<string | null>(null);
   const feedbackFiredRef = useRef(false);
   const networkStatus = useNetworkStatus();
+  // Wraps the raw reducer dispatch so SUBMIT_REJECTED/RETRY_ABORTED —
+  // both dispatched from inside use-scan-retry.ts, never directly from
+  // this component — also synchronously set lastRejection in the same
+  // tick as the real state transition, since the reducer itself never
+  // stores the message (see scan-state-machine.ts's header comment on
+  // where lastRejection lives). useCallback with an empty dep array:
+  // dispatch from useReducer is referentially stable across renders, so
+  // this wrapper is created once and `retry`'s single controller
+  // instance always calls the latest logic without needing to be
+  // recreated.
+  const dispatchWithRejectionTracking = useCallback(
+    (action: Parameters<typeof dispatch>[0]) => {
+      if (action.type === 'SUBMIT_REJECTED' || action.type === 'RETRY_ABORTED') {
+        setLastRejection(action.message);
+      }
+      dispatch(action);
+    },
+    [dispatch]
+  );
+  const retry = useScanRetry(dispatchWithRejectionTracking);
+  // setInterval tick (not a render-time Date.now() check): calling
+  // Date.now() directly during render is an impure call React's own
+  // lint rule (react-hooks/purity) flags, since it can produce
+  // unstable results that update unpredictably when the component
+  // happens to re-render for an unrelated reason. A ticking interval
+  // that re-evaluates and setState()s only when the 30-second threshold
+  // is actually crossed keeps the check itself inside an effect/event
+  // callback instead, where impure calls are allowed.
+  // Records the startedAt of whichever retry cycle most recently
+  // crossed the 30-second threshold — compared against the CURRENT
+  // state's own startedAt below, rather than a plain boolean, so a
+  // brand-new retry cycle (new startedAt, from a fresh scan) never
+  // inherits "already past 30s" from a previous cycle that happened to
+  // leave this set.
+  const [retryThresholdCrossedAt, setRetryThresholdCrossedAt] = useState<number | null>(null);
+  // Derived at render time from plain state (no impure Date.now() read
+  // here) — false the instant state.kind leaves 'retrying' or a new
+  // cycle's startedAt no longer matches, with no separate "reset"
+  // setState call needed in the effect below.
+  const showRetryPersistentMessage =
+    state.kind === 'retrying' && retryThresholdCrossedAt !== null && retryThresholdCrossedAt === state.startedAt;
+  useEffect(() => {
+    if (state.kind !== 'retrying') return;
+    const startedAt = state.startedAt;
+    const tick = () => {
+      if (Date.now() - startedAt >= 30_000) setRetryThresholdCrossedAt(startedAt);
+    };
+    tick(); // covers re-entering retrying after already having waited 30s+ this cycle (startedAt survives the round-trip)
+    const intervalId = setInterval(tick, 1000);
+    return () => clearInterval(intervalId);
+  }, [state]);
 
   useEffect(() => {
     deviceIdentifierRef.current = getOrCreateDeviceIdentifier();
@@ -84,6 +137,13 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
   useServiceWorker();
 
   const onDecode = useCallback((payload: string) => {
+    // Cleared here (not inside the detect-effect below) so this stays
+    // outside any effect body — React's react-hooks/set-state-in-effect
+    // rule flags a setState() call synchronously inside an effect, but
+    // onDecode runs from qr-scanner's own decode-loop callback, not from
+    // render/an effect, so this is an ordinary event-callback-driven
+    // state update.
+    setLastRejection(null);
     dispatch({ type: 'DETECT', qrPayload: payload });
   }, []);
 
@@ -131,55 +191,79 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
     // even tried, so this request never reached the server — safe to
     // say plainly that scanning is unavailable, no ambiguity. This is
     // the ONLY case allowed to skip the network call entirely; every
-    // other failure below still genuinely attempts the submission.
+    // other failure below still genuinely attempts the submission. A
+    // dedicated OFFLINE_BLOCKED action (ready/detected -> ready) is used
+    // instead of SUBMIT_START/SUBMIT_ERROR — this was never a real
+    // submission attempt, so it needs no idempotencyKey/attemptSeq.
     if (networkStatus === 'offline') {
-      dispatch({ type: 'SUBMIT_START' });
       setSubmitFailure('offline-blocked');
       playScanFeedbackSound('denied');
       triggerScanFeedbackHaptic('denied');
-      dispatch({ type: 'SUBMIT_ERROR' });
+      dispatch({ type: 'OFFLINE_BLOCKED' });
       return;
     }
 
-    dispatch({ type: 'SUBMIT_START' });
+    setSubmitFailure(null);
+    const idempotencyKey = crypto.randomUUID();
+    const attemptSeq = 0;
+    const startedAt = Date.now();
+    dispatch({ type: 'SUBMIT_START', idempotencyKey, attemptSeq, startedAt });
     stop(); // pause decoding while a submission is in flight
-    const wasOnlineAtSubmitTime = networkStatus === 'online';
+    retry.submit(qrPayload, sessionId, deviceIdentifierRef.current, idempotencyKey, attemptSeq);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
-    scanQrAttemptConfirm(qrPayload, sessionId, deviceIdentifierRef.current)
-      .then((result) => {
-        setSubmitFailure(null);
-        dispatch({ type: 'SUBMIT_SUCCESS', result });
-      })
-      .catch((err) => {
-        // Client-side console only — never sends the raw QR payload
-        // itself, only the error the server action threw (e.g. an
-        // authorization/scope message), matching the "no QR logging"
-        // security requirement. The operator-facing side never sees
-        // this message — see the submitFailure render branch below,
-        // which uses only fixed i18n copy, never err.message or any
-        // Supabase/SQLSTATE/RPC detail.
-        console.error('scan submission failed', err);
-        // A generic fetch-layer failure cannot distinguish "request
-        // never left the device" from "reached the server but the
-        // response was lost" — so unless the browser is offline RIGHT
-        // NOW (checked live, not the value captured at submit time,
-        // since connectivity can drop mid-request), this is treated as
-        // uncertain and never claims "not admitted."
-        const isOfflineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
-        const kind: SubmitFailureKind = isOfflineNow ? 'offline-blocked' : wasOnlineAtSubmitTime ? 'uncertain' : 'server';
-        setSubmitFailure(kind);
-        playScanFeedbackSound('denied');
-        triggerScanFeedbackHaptic('denied');
-        dispatch({ type: 'SUBMIT_ERROR' });
-        start();
-      });
+  // Every scan submission (original AND retry) goes through
+  // retry.submit/retry.pollHealthThenRetry — which dispatch directly,
+  // never throw into this component — so there is no .then()/.catch()
+  // here to drive SUBMIT_SUCCESS/SUBMIT_TRANSPORT_FAILURE/
+  // SUBMIT_REJECTED; this effect only reacts to the resulting state to
+  // drive UI-only side effects (feedback sound/haptic, camera
+  // stop/resume, lastRejection) that must run regardless of which
+  // dispatch path produced them.
+  useEffect(() => {
+    if (state.kind === 'retrying' && !feedbackFiredRef.current) {
+      feedbackFiredRef.current = true;
+      playScanFeedbackSound('denied');
+      triggerScanFeedbackHaptic('denied');
+    }
+  }, [state]);
+
+  // What actually triggers the retry call after RETRY_ATTEMPT: the
+  // effect above only fires on entry into 'detected' (a brand-new scan),
+  // never on 'retrying' -> 'submitting' via RETRY_ATTEMPT. This second
+  // effect is the new wiring the reducer transition alone does not
+  // provide — see design spec line 146. It starts the health-check poll
+  // loop as soon as the state machine enters 'retrying' (whether from
+  // the very first SUBMIT_TRANSPORT_FAILURE or a later one in the same
+  // cycle), and the actual RETRY_ATTEMPT -> submitting fetch() is issued
+  // from inside retry.pollHealthThenRetry itself (see use-scan-retry.ts),
+  // not from this effect.
+  useEffect(() => {
+    if (state.kind !== 'retrying') return;
+    const { qrPayload, idempotencyKey } = state;
+    retry.pollHealthThenRetry(qrPayload, sessionId, deviceIdentifierRef.current, idempotencyKey);
+
+    // Listen for the browser's own 'online' event while in 'retrying':
+    // on fire, immediately run one health-check attempt out-of-cycle
+    // (don't wait for the next poll tick). pollHealthThenRetry itself
+    // schedules its own next tick on failure, so calling it again here
+    // on 'online' is safe — it will simply race with (and, on success,
+    // short-circuit) whatever the existing backoff timer was waiting on,
+    // since RETRY_ATTEMPT firing twice for the same cycle is itself
+    // guarded by the reducer only accepting it from 'retrying'.
+    const handleOnline = () => retry.pollHealthThenRetry(qrPayload, sessionId, deviceIdentifierRef.current, idempotencyKey);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   // Fire sound/haptic feedback exactly once per result, as a render-time
   // side effect keyed on the result identity (scanAttemptId) rather than
-  // inside the .then() above — keeps feedback bound to what's actually
-  // on screen and immune to double-firing on re-render.
+  // inside a .then() — keeps feedback bound to what's actually on
+  // screen and immune to double-firing on re-render.
   useEffect(() => {
     if (state.kind !== 'result') return;
     if (feedbackFiredRef.current) return;
@@ -190,6 +274,26 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
     triggerScanFeedbackHaptic(severity);
   }, [state]);
 
+  // Resumes the camera whenever the state machine lands back in 'ready'
+  // coming from a non-ready state (submitting/retrying/detected) rather
+  // than from 'result' (which uses its own explicit handleScanNext
+  // button, not an automatic resume) — covers SUBMIT_REJECTED,
+  // RETRY_ABORTED, and the OFFLINE_BLOCKED short-circuit alike, all of
+  // which land in 'ready' without the user having clicked anything.
+  // Also surfaces SUBMIT_REJECTED's/RETRY_ABORTED's message via
+  // lastRejection, set synchronously by the dispatch wrapper below
+  // rather than here, so this effect only needs to resume the camera.
+  const previousStateKindRef = useRef(state.kind);
+  useEffect(() => {
+    const previousKind = previousStateKindRef.current;
+    previousStateKindRef.current = state.kind;
+    if (state.kind !== 'ready') return;
+    if (previousKind === 'submitting' || previousKind === 'retrying' || previousKind === 'detected') {
+      start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.kind]);
+
   // Synchronous, inside the real click handler — no intervening
   // useEffect/render — so qr-scanner's internal video.play() call stays
   // within the user-gesture window Safari requires. The <video> element
@@ -197,10 +301,38 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
   // non-null here.
   const handleScanNext = useCallback(() => {
     setSubmitFailure(null);
+    setLastRejection(null);
     setManualValue('');
     dispatch({ type: 'RESET' });
     start();
   }, [start]);
+
+  // Cancel button: must, SYNCHRONOUSLY within this same click handler
+  // (no intervening await/useEffect), call retry.cancel(), then
+  // dispatch CANCEL_RETRY, then start() — in exactly that order, per
+  // the design spec's iOS-Safari user-gesture requirement (video.play()
+  // is only permitted inside a direct user-gesture callback, never a
+  // later .then() or state-effect callback). retry.cancel() first so
+  // the stale-response guard is updated before CANCEL_RETRY changes
+  // state (not that order matters for correctness here, since cancel()
+  // and the reducer update independent pieces of state, but this
+  // ordering matches the plan's own step-by-step description exactly).
+  const handleCancelRetry = useCallback(() => {
+    retry.cancel();
+    dispatch({ type: 'CANCEL_RETRY' });
+    start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start]);
+
+  // "Try Now": active throughout 'retrying', triggers the same
+  // immediate health-check-then-retry path the background poll loop
+  // uses — not a separate code path, just an out-of-cycle invocation of
+  // the same pollHealthThenRetry the poll timer already calls.
+  const handleTryNow = useCallback(() => {
+    if (state.kind !== 'retrying') return;
+    retry.pollHealthThenRetry(state.qrPayload, sessionId, deviceIdentifierRef.current, state.idempotencyKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, sessionId]);
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
@@ -211,7 +343,7 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
   }, []);
 
   // Manual entry reuses the EXACT same DETECT action / state machine /
-  // scanQrAttemptConfirm call the camera path uses — no second admission
+  // retry.submit() call the camera path uses — no second admission
   // workflow, no separate validation, no separate result UX. Only
   // reachable while 'ready' (the reducer's own no-op-from-non-ready
   // invariant already blocks a second dispatch while
@@ -224,6 +356,7 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
     // effect as the camera path (see the effect above), so it inherits
     // the same offline short-circuit automatically — no separate check
     // needed here beyond that shared path.
+    setLastRejection(null);
     dispatch({ type: 'DETECT', qrPayload: trimmed });
     setManualValue('');
   }, [manualValue]);
@@ -293,6 +426,34 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
           </div>
         )}
 
+        {/* 'retrying' overlay — the auto-retry loop is running
+            (background health-check poll, 2s doubling to a 10s ceiling).
+            "Try Now" and "Cancel" are visible throughout the whole
+            retrying state, not just after the 30-second threshold; the
+            persistent message below is additive, purely informational,
+            and never pauses/alters the background poll loop itself —
+            continuing to retry silently was the original problem being
+            fixed, not something to preserve. */}
+        {state.kind === 'retrying' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/95 p-4 text-center dark:bg-gray-900/95">
+            <ResultIcon severity={NETWORK_ERROR_SEVERITY} />
+            <p role="status" aria-live="polite" className="text-sm font-medium text-charcoal dark:text-gray-100">
+              {t('retrying.message')}
+            </p>
+            {showRetryPersistentMessage && (
+              <p className="text-xs text-charcoal/70 dark:text-gray-400">{t('retrying.persistentMessage')}</p>
+            )}
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleTryNow}>
+                {t('retrying.tryNow')}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={handleCancelRetry}>
+                {t('retrying.cancel')}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {isResult && severity && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white p-4 text-center dark:bg-gray-900">
             <ResultIcon severity={severity} />
@@ -318,17 +479,13 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
           </div>
         )}
 
-        {/* Submission-failure overlay — a distinct, non-result failure
-            mode from any live scan outcome (including invalid_qr, which
-            is a normal successful result rendered via the branch
-            above). Shares the same visual language (icon + headline +
-            instruction) for a consistent operator experience, but only
-            ever shows fixed i18n copy per SubmitFailureKind — never
-            err.message or any backend detail. Critically, 'uncertain'
-            and 'server' never claim "not admitted" — only
-            'offline-blocked' does, because that is the one case we are
-            actually certain the request never reached the server.
-            state returns to 'ready' for every case (see SUBMIT_ERROR in
+        {/* Submission-failure overlay — the definite-offline
+            short-circuit only (every other failure mode now goes
+            through the 'retrying' overlay above, or lastRejection
+            below). Shares the same visual language (icon + headline)
+            for a consistent operator experience, but only ever shows
+            fixed i18n copy — never err.message or any backend detail.
+            state returns to 'ready' (see OFFLINE_BLOCKED in
             scan-state-machine.ts), so camera/manual entry are
             immediately available again; no Scan Next button needed
             here. */}
@@ -336,13 +493,29 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white p-4 text-center dark:bg-gray-900">
             <ResultIcon severity={NETWORK_ERROR_SEVERITY} />
             <h2 role="alert" className="text-lg font-semibold text-charcoal dark:text-gray-100">
-              {submitFailure === 'offline-blocked' ? t('network.offlineBlocked') : t(`${submitFailure === 'uncertain' ? 'uncertainResult' : 'networkError'}.headline`)}
+              {t('network.offlineBlocked')}
             </h2>
-            {submitFailure !== 'offline-blocked' && (
-              <p className="text-sm text-charcoal/80 dark:text-gray-300">
-                {t(`${submitFailure === 'uncertain' ? 'uncertainResult' : 'networkError'}.instruction`)}
-              </p>
-            )}
+          </div>
+        )}
+
+        {/* lastRejection overlay — surfaces SUBMIT_REJECTED's (a
+            deterministic, non-retryable server denial — auth/scope/RPC
+            error) or RETRY_ABORTED's (the health check's own 401:
+            "re-authenticate") message. Both land the state machine back
+            in 'ready' with no data of their own, which is exactly why
+            lastRejection exists as a sibling piece of state (see this
+            component's top-level comment). Mutually exclusive with the
+            offline-blocked overlay above in practice (lastRejection is
+            only ever set from a dispatch that implies a request really
+            was attempted), but guarded by !submitFailure anyway so the
+            two overlays can never stack. */}
+        {lastRejection && !submitFailure && state.kind === 'ready' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white p-4 text-center dark:bg-gray-900">
+            <ResultIcon severity={NETWORK_ERROR_SEVERITY} />
+            <h2 role="alert" className="text-lg font-semibold text-charcoal dark:text-gray-100">
+              {t('networkError.headline')}
+            </h2>
+            <p className="text-sm text-charcoal/80 dark:text-gray-300">{lastRejection}</p>
           </div>
         )}
       </div>
@@ -376,10 +549,10 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
           {/* Secondary/collapsible fallback — camera scanning remains the
               primary workflow. Reuses the exact same submission path as
               camera detection (see submitManualValue above): identical
-              state machine, identical scanQrAttemptConfirm call,
-              identical result/sound/haptic UX, and the same online-only
-              rule (disabled while definitely offline, not just while
-              not 'ready') so it can never fire a second, concurrent
+              state machine, identical retry.submit() call, identical
+              result/sound/haptic UX, and the same online-only rule
+              (disabled while definitely offline, not just while not
+              'ready') so it can never fire a second, concurrent
               submission alongside an in-flight camera-triggered one. */}
           <details className="w-full">
             <summary className="cursor-pointer text-center text-xs font-medium text-charcoal/60 dark:text-gray-400">

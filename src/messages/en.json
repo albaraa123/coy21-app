@@ -1889,9 +1889,11 @@
       "headline": "Connection Problem",
       "instruction": "We couldn't complete this scan. Please try again."
     },
-    "uncertainResult": {
-      "headline": "Connection Interrupted",
-      "instruction": "Verify before scanning again."
+    "retrying": {
+      "message": "Connection lost — retrying…",
+      "persistentMessage": "Still having trouble connecting. You can keep waiting, try again now, or cancel and resume scanning.",
+      "tryNow": "Try Now",
+      "cancel": "Cancel"
     },
     "network": {
       "online": "Online",
