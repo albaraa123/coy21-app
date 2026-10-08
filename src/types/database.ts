@@ -1764,6 +1764,108 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_broadcast_reads: {
+        Row: {
+          application_id: string
+          notification_id: string
+          read_at: string
+        }
+        Insert: {
+          application_id: string
+          notification_id: string
+          read_at?: string
+        }
+        Update: {
+          application_id?: string
+          notification_id?: string
+          read_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_broadcast_reads_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_broadcast_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          application_id: string | null
+          body: string | null
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          email_status: Database["public"]["Enums"]["notification_status"]
+          error_message: string | null
+          id: string
+          is_broadcast: boolean
+          link_path: string | null
+          new_start_time: string | null
+          old_start_time: string | null
+          read_at: string | null
+          sent_at: string | null
+          session_id: string | null
+          title: string
+        }
+        Insert: {
+          application_id?: string | null
+          body?: string | null
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          email_status?: Database["public"]["Enums"]["notification_status"]
+          error_message?: string | null
+          id?: string
+          is_broadcast?: boolean
+          link_path?: string | null
+          new_start_time?: string | null
+          old_start_time?: string | null
+          read_at?: string | null
+          sent_at?: string | null
+          session_id?: string | null
+          title: string
+        }
+        Update: {
+          application_id?: string | null
+          body?: string | null
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          email_status?: Database["public"]["Enums"]["notification_status"]
+          error_message?: string | null
+          id?: string
+          is_broadcast?: boolean
+          link_path?: string | null
+          new_start_time?: string | null
+          old_start_time?: string | null
+          read_at?: string | null
+          sent_at?: string | null
+          session_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participant_account_provisioning: {
         Row: {
           account_created_at: string | null
@@ -4348,6 +4450,17 @@ export type Database = {
       audit_actor_type: "admin" | "system"
       booking_status: "active" | "cancelled" | "session_cancelled" | "no_show"
       funding_type: "self_funded" | "partially_funded" | "fully_funded"
+      notification_channel:
+        | "application_accepted"
+        | "application_rejected"
+        | "booking_confirmed"
+        | "session_cancelled"
+        | "session_rescheduled"
+        | "waitlist_promoted"
+        | "session_reminder"
+        | "travel_reminder"
+        | "announcement"
+      notification_status: "pending" | "sent" | "failed"
       participant_type:
         | "delegate"
         | "volunteer"
@@ -4569,6 +4682,18 @@ export const Constants = {
       audit_actor_type: ["admin", "system"],
       booking_status: ["active", "cancelled", "session_cancelled", "no_show"],
       funding_type: ["self_funded", "partially_funded", "fully_funded"],
+      notification_channel: [
+        "application_accepted",
+        "application_rejected",
+        "booking_confirmed",
+        "session_cancelled",
+        "session_rescheduled",
+        "waitlist_promoted",
+        "session_reminder",
+        "travel_reminder",
+        "announcement",
+      ],
+      notification_status: ["pending", "sent", "failed"],
       participant_type: [
         "delegate",
         "volunteer",
