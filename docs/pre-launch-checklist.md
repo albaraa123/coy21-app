@@ -21,12 +21,21 @@ This tracks mandatory items that must be verified/completed before the platform 
 
 ## Deployment
 
-- [ ] _(to be filled in)_
+- [x] Deployed to Vercel (`coy21-app.vercel.app`), connected to GitHub (`albaraa123/coy21-app`), confirmed live and connected to the real COY21 Supabase project (`vfwcbkjvinbtcntwjrzq`) via an actual login test as `albaraak2002@gmail.com` (participant role).
+- [x] `vercel.json` trimmed to 1 cron (`travel-reminders`, daily) to fit the Vercel Hobby plan's 2-cron/once-daily limit. The other 4 cron routes (`process-notifications`, `session-reminders`, `process-session-notifications`, `process-session-no-shows`) keep their existing Route Handlers deployed but are no longer auto-triggered by Vercel.
+- [ ] **Set up the 4 external cron jobs** (e.g. via cron-job.org, free tier) to call the routes above at their original cadence, each with an `Authorization: Bearer <CRON_SECRET>` header matching the `CRON_SECRET` value set in Vercel:
+  - `/api/cron/process-notifications` — every 1 minute
+  - `/api/cron/session-reminders` — every 5 minutes
+  - `/api/cron/process-session-notifications` — every 5 minutes (until removed per the Notifications section above)
+  - `/api/cron/process-session-no-shows` — every 5 minutes
+- [ ] Add a custom domain (if/when one is available) under Vercel → Domains, and update `NEXT_PUBLIC_SITE_URL` to match.
+- [ ] **Self-registration form (`/register`) is functionally complete but has zero visual styling** (plain unstyled HTML inputs, no layout, fields visually indistinguishable) — confirmed unusable in its current state during a live test. Deliberately deprioritized: participant import is the primary onboarding path for the real conference, this form is a secondary/fallback path. Needs a real design pass before being pointed at by anyone outside the team, but is not a blocker for the primary launch flow.
 
 ## Resend configuration
 
-- [ ] _(to be filled in)_
+- [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are still unset in Vercel's environment variables — no real email can send yet (sandbox mode being on doesn't change this; an unset Resend config fails outright with "Resend not configured").
+- [ ] _(remaining items to be filled in during the Resend setup pass)_
 
 ## Test data cleanup (COY21 production project)
 
-- [ ] _(to be filled in)_
+- [x] Done 2026-10-08. Full backup taken first (`C:\Users\albar\.claude\backups\coy21\coy21-backup-20261008-pre-test-data-cleanup\`, outside the repo). All test fixture data purged (`applications`, `sessions`, `rooms`, `session_types`, `conference_days`, `tracks`, `qr_credentials`, `attendance_records`, etc. — all confirmed at 0 rows after cleanup) and all non-kept `auth.users` rows deleted (462 → 4). Settings tables (`conference_settings`, `email_settings`, `qr_encryption_key_registry`) and real content (`local_info_*`) were left untouched. The 4 kept accounts (`albaraak2002@gmail.com` participant, `albaraa.coy21@gmail.com` super_admin, `albaraaalbadwi@gmail.com` staff, `albaraa.scale.om@gmail.com` scanner_device) were confirmed working via a real login test post-deploy.
