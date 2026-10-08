@@ -34,7 +34,8 @@ This tracks mandatory items that must be verified/completed before the platform 
 ## Resend configuration
 
 - [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are still unset in Vercel's environment variables — no real email can send yet (sandbox mode being on doesn't change this; an unset Resend config fails outright with "Resend not configured").
-- [ ] _(remaining items to be filled in during the Resend setup pass)_
+- [ ] **No verified domain available yet** — plan is to use Resend's free `onboarding@resend.dev` sender for now. Confirmed via Resend's own docs: that address can only send to the Resend account owner's own email address (any other recipient gets a 403, "You can only send testing emails to your own email address"). This is sufficient for the full sandbox-mode verification pass below (sandbox redirects everything to one address anyway, so set it to the account owner's email) but is a hard blocker for real launch — no email can reach any of the ~500 real participants until a real domain is verified with Resend.
+- [ ] **Before real launch: verify a real domain with Resend** (resend.com/domains) and point `RESEND_FROM_EMAIL` at an address on it. A cheap purchased domain or an existing subdomain both work — does not need to be `climatecoy.com` specifically, just something DNS-verifiable before go-live.
 
 ## Live admin walkthrough findings (2026-10-09)
 
