@@ -10,12 +10,15 @@ type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 // The service-role client bypasses RLS entirely, so this role check — not
 // RLS — is the actual authorization gate for every write in this file. Every
 // exported action must call this before any service-role read/write, and
-// must not contain an early return that skips it. Byte-for-byte copy of
-// requireStaffCaller() in
-// src/app/[locale]/(admin)/applications/[id]/actions.ts (that file's own
-// helper is not exported, so this is a deliberate replica, not a shared
-// import, matching this codebase's established per-file pattern for this
-// check), with one addition: this helper also returns `session` — the
+// must not contain an early return that skips it. Replica (not a shared
+// import — src/app/[locale]/(admin)/applications/[id]/actions.ts's own
+// requireStaffCaller() is not exported, matching this codebase's established
+// per-file pattern for this check) of the SAME SHAPE requireAdmissionStaffCaller
+// (src/lib/admission/server-helpers.ts) and
+// changeClassificationForSelectedForCaller
+// (src/app/[locale]/(admin)/participants/accounts/actions.ts) already use —
+// NOT a byte-for-byte copy of applications/[id]/actions.ts's own version,
+// which has no `session` field. This one also returns `session` — the
 // caller's own cookie-backed, auth.uid()-carrying client — because
 // create_announcement is SECURITY DEFINER and derives the caller from
 // auth.uid() internally via coalesce(is_staff(), false), with deliberately
@@ -24,10 +27,7 @@ type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 // comment on create_announcement). The service-role client has no
 // auth.uid() context, so calling the RPC through `service` would make
 // is_staff() always see NULL and always reject, for staff and non-staff
-// callers alike. Same `session` field and same reasoning as
-// requireAdmissionStaffCaller (src/lib/admission/server-helpers.ts) and
-// changeClassificationForSelectedForCaller
-// (src/app/[locale]/(admin)/participants/accounts/actions.ts).
+// callers alike.
 async function requireStaffCaller(): Promise<{ userId: string; session: SupabaseClient<Database>; service: ServiceClient }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -69,11 +69,23 @@ export async function createAnnouncementForCaller(
   body: string | undefined,
   caller: { userId: string; session: SupabaseClient<Database>; service: ServiceClient }
 ) {
+  const trimmedTitle = title.trim();
+  if (trimmedTitle === '') {
+    throw new Error('Title is required');
+  }
   const { session } = caller;
 
+  // p_body is left undefined (never an empty string) for a blank body
+  // field. supabase-js's rpc() JSON.stringifies the args object, and
+  // JSON.stringify drops undefined-valued keys entirely -- so an omitted
+  // p_body falls through to create_announcement's own `p_body text
+  // default null` (supabase/migrations/20261008020000_notification_writer_rpcs.sql),
+  // landing as SQL NULL. This depends on that RPC default staying in
+  // place; if create_announcement's signature ever drops `default null`,
+  // this call site would need an explicit null instead.
   const { data, error } = await session.rpc('create_announcement', {
-    p_title: title,
-    p_body: body ?? undefined,
+    p_title: trimmedTitle,
+    p_body: body,
   });
   if (error) {
     throw error;

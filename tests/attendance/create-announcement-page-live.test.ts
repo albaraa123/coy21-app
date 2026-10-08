@@ -106,4 +106,22 @@ describe('createAnnouncementForCaller', () => {
     for (const r of rows ?? []) notificationIds.push(r.id);
     expect(rows ?? []).toHaveLength(0);
   });
+
+  it('a whitespace-only title is rejected before the RPC call, not inserted as a blank row', async () => {
+    const caller = await createStaffCaller('whitespace-title');
+
+    await expect(createAnnouncementForCaller('   ', undefined, caller)).rejects.toThrow('Title is required');
+
+    // Confirm this was rejected client-side (before any session.rpc(...)
+    // call), not by the RPC after an insert attempt -- a whitespace-only
+    // title has no unique marker to filter by, so instead confirm no
+    // all-whitespace-titled row exists anywhere in the table at all,
+    // which would only be possible if the guard above had been bypassed.
+    const { data: rows } = await admin
+      .from('notifications')
+      .select('id, title')
+      .eq('channel', 'announcement');
+    const whitespaceOnlyRows = (rows ?? []).filter((r) => r.title.trim() === '');
+    expect(whitespaceOnlyRows).toHaveLength(0);
+  });
 });

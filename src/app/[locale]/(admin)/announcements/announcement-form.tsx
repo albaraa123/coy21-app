@@ -27,7 +27,13 @@ export default function AnnouncementForm() {
     setSuccess(false);
     setBusy(true);
     try {
-      await createAnnouncement(title, body.trim() === '' ? undefined : body);
+      // Trim here too, not just in the disabled-button condition below --
+      // the Server Action (createAnnouncementForCaller) also trims/guards
+      // against a whitespace-only title as a backstop, but this form
+      // shouldn't rely solely on that: if the button's disabled condition
+      // is ever changed independently of this call, a whitespace-only
+      // title should still never reach the server untrimmed.
+      await createAnnouncement(title.trim(), body.trim() === '' ? undefined : body);
       setTitle('');
       setBody('');
       setSuccess(true);
