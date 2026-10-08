@@ -272,6 +272,157 @@ export async function sendWaitlistPromotionNotificationEmail(params: {
   });
 }
 
+export async function sendApplicationAcceptedEmail(params: {
+  to: string;
+  fullName: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const loginUrl = `${config.appUrl}/log-in`;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تم قبول طلبك في COY21 Türkiye 2026`
+      : `Your application to COY21 Türkiye 2026 has been accepted`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nيسعدنا إبلاغك بأن طلبك للمشاركة في COY21 Türkiye 2026 قد تم قبوله.\n\nيمكنك تسجيل الدخول إلى حسابك من هنا: ${loginUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nWe're pleased to let you know that your application to COY21 Türkiye 2026 has been accepted.\n\nYou can log in to your account here: ${loginUrl}\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendApplicationRejectedEmail(params: {
+  to: string;
+  fullName: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تحديث بشأن طلبك في COY21 Türkiye 2026`
+      : `An update on your COY21 Türkiye 2026 application`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nنأسف لإبلاغك بأنه لم يتم قبول طلبك للمشاركة في COY21 Türkiye 2026 هذه المرة.\n\nنشكرك على اهتمامك ووقتك، ونتمنى لك التوفيق في مشاركاتك القادمة.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nWe're sorry to let you know that your application to COY21 Türkiye 2026 was not accepted this time.\n\nThank you for your interest and your time -- we wish you the best with your future engagements.\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendBookingConfirmedEmail(params: {
+  to: string;
+  fullName: string;
+  sessionTitle: string;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  // Links to /my-agenda, matching sendWaitlistPromotionNotificationEmail's
+  // reasoning above: this email's whole point is a new confirmed booking
+  // the participant now has -- send them straight to see it.
+  const agendaUrl = `${config.appUrl}/my-agenda`;
+
+  const subject =
+    params.locale === 'ar'
+      ? `تم تأكيد حجزك: ${params.sessionTitle}`
+      : `Your booking is confirmed: ${params.sessionTitle}`;
+
+  const body =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\nتم تأكيد حجزك في الجلسة "${params.sessionTitle}".\n\nيمكنك مراجعة برنامجك من هنا: ${agendaUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\nYour booking for "${params.sessionTitle}" has been confirmed.\n\nYou can review your agenda here: ${agendaUrl}\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: body,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendAnnouncementEmail(params: {
+  to: string;
+  fullName: string;
+  title: string;
+  body: string | null;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+
+  const subject =
+    params.locale === 'ar'
+      ? `إعلان من COY21 Türkiye 2026: ${params.title}`
+      : `Announcement from COY21 Türkiye 2026: ${params.title}`;
+
+  // params.body is the free-text announcement body (optional -- a staff
+  // announcement can be title-only), distinct from this function's own
+  // outer `body` variable name used by every other export in this file;
+  // named bodyText here to avoid shadowing confusion while still matching
+  // the established subject/body-ternary shape.
+  const bodyText =
+    params.locale === 'ar'
+      ? `مرحباً ${params.fullName}،\n\n${params.title}${params.body ? `\n\n${params.body}` : ''}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
+      : `Hello ${params.fullName},\n\n${params.title}${params.body ? `\n\n${params.body}` : ''}\n\nIf you have any questions, please contact us.`;
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text: bodyText,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
 // Escapes the handful of characters that matter for safe HTML text-node
 // interpolation. Every interpolated value here is either a participant's
 // own name/email (never expected to contain markup, but escaped
