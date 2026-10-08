@@ -38,6 +38,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/shell/app-shell';
+import { NotificationBell } from '@/components/shell/notification-bell';
 import { participantNavItems } from '@/lib/nav/participant-nav-config';
 import { buildNavTranslations } from '@/lib/nav/build-nav-translations';
 import { roleLabelKey } from '@/lib/shell/role-label';
@@ -73,6 +74,18 @@ export default async function ParticipantShellLayout({ children }: { children: R
     .from('profiles')
     .select('role, full_name, must_change_password')
     .eq('id', user.id)
+    .maybeSingle();
+
+  // Sub-project 6, Task 7: the caller's own application_id, for the
+  // notification bell's personal Realtime channel
+  // (notifications-${applicationId}) and its get_my_notifications() feed.
+  // Same client/pattern as the profiles query above (service-role,
+  // maybeSingle -- null is a legitimate, non-error outcome handled by
+  // NotificationBell's own defensive applicationId: string | null prop).
+  const { data: application } = await service
+    .from('applications')
+    .select('id')
+    .eq('applicant_id', user.id)
     .maybeSingle();
 
   // Phase C (design doc section 14.9): server-side first-login password-
@@ -114,6 +127,7 @@ export default async function ParticipantShellLayout({ children }: { children: R
       navTranslations={navTranslations}
       bottomTabItems={primaryTabItems}
       moreLabel={t('moreLabel')}
+      notificationBell={<NotificationBell applicationId={application?.id ?? null} />}
     >
       {children}
     </AppShell>

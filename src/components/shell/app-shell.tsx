@@ -58,6 +58,15 @@
  *    The participant-facing shell ((participant)/(shell)/layout.tsx)
  *    never passes this prop, so its output is byte-for-byte unaffected by
  *    this addition.
+ *  - notificationBell (optional, sub-project 6 Task 7): a pre-rendered
+ *    <NotificationBell applicationId={...} /> ReactNode, forwarded
+ *    straight into <Topbar notificationBell={...} />. Inverse precedent
+ *    of sandboxBanner above: ONLY the participant shell
+ *    ((participant)/(shell)/layout.tsx) ever passes this prop; the admin
+ *    shell ((admin)/layout.tsx) never does, so its output stays
+ *    byte-for-byte unaffected by this addition. AppShell performs no data
+ *    fetching of its own here either — the caller resolves applicationId
+ *    server-side and instantiates the Client Component itself.
  *
  * Composition (rewritten to fix a real RSC boundary violation — see the
  * bug-fix commit this replaced): AppShell renders Topbar (server)
@@ -105,6 +114,8 @@ export interface AppShellProps {
   moreLabel?: string;
   /** Pre-rendered banner shown full-width below Topbar and above the sidebar/<main> row. Omitted entirely when undefined. */
   sandboxBanner?: React.ReactNode;
+  /** Pre-rendered <NotificationBell /> slot, forwarded into Topbar. Omitted entirely when undefined. */
+  notificationBell?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -121,6 +132,7 @@ export function AppShell({
   bottomTabItems,
   moreLabel,
   sandboxBanner,
+  notificationBell,
   children,
 }: AppShellProps) {
   return (
@@ -132,6 +144,7 @@ export function AppShell({
           userDisplay={userDisplay}
           logoutLabel={logoutLabel}
           mobileDrawerTrigger={<MobileDrawerTrigger ariaLabel={triggerAriaLabel} />}
+          notificationBell={notificationBell}
         />
         {sandboxBanner}
         <MobileDrawer

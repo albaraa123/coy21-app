@@ -1802,6 +1802,7 @@ export type Database = {
           application_id: string | null
           body: string | null
           channel: Database["public"]["Enums"]["notification_channel"]
+          claimed_at: string | null
           created_at: string
           email_status: Database["public"]["Enums"]["notification_status"]
           error_message: string | null
@@ -1819,6 +1820,7 @@ export type Database = {
           application_id?: string | null
           body?: string | null
           channel: Database["public"]["Enums"]["notification_channel"]
+          claimed_at?: string | null
           created_at?: string
           email_status?: Database["public"]["Enums"]["notification_status"]
           error_message?: string | null
@@ -1836,6 +1838,7 @@ export type Database = {
           application_id?: string | null
           body?: string | null
           channel?: Database["public"]["Enums"]["notification_channel"]
+          claimed_at?: string | null
           created_at?: string
           email_status?: Database["public"]["Enums"]["notification_status"]
           error_message?: string | null
@@ -3811,6 +3814,7 @@ export type Database = {
           application_id: string | null
           body: string | null
           channel: Database["public"]["Enums"]["notification_channel"]
+          claimed_at: string | null
           created_at: string
           email_status: Database["public"]["Enums"]["notification_status"]
           error_message: string | null
@@ -3846,6 +3850,7 @@ export type Database = {
           application_id: string | null
           body: string | null
           channel: Database["public"]["Enums"]["notification_channel"]
+          claimed_at: string | null
           created_at: string
           email_status: Database["public"]["Enums"]["notification_status"]
           error_message: string | null
@@ -3930,6 +3935,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      get_my_notifications: {
+        Args: never
+        Returns: {
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          id: string
+          is_broadcast: boolean
+          is_read: boolean
+          link_path: string
+          title: string
+        }[]
       }
       is_encryption_key_version_active: {
         Args: { p_key_version: number }
@@ -4525,7 +4543,7 @@ export type Database = {
         | "session_reminder"
         | "travel_reminder"
         | "announcement"
-      notification_status: "pending" | "sent" | "failed"
+      notification_status: "pending" | "sent" | "failed" | "processing"
       participant_type:
         | "delegate"
         | "volunteer"
@@ -4758,7 +4776,7 @@ export const Constants = {
         "travel_reminder",
         "announcement",
       ],
-      notification_status: ["pending", "sent", "failed"],
+      notification_status: ["pending", "sent", "failed", "processing"],
       participant_type: [
         "delegate",
         "volunteer",
