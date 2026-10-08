@@ -47,9 +47,9 @@
  * time) — that was the original Task 12 bug this fixes.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from '@/i18n/routing';
-import { isGroupActive, isItemActive } from '@/lib/nav/route-matching';
+import { isItemActive, defaultExpandedGroups, groupsToForceExpandOnNavigation } from '@/lib/nav/route-matching';
 import type { NavGroup, NavItem } from '@/lib/nav/nav-types';
 import { ICON_MAP } from '@/lib/nav/icon-map';
 import { Link } from '@/i18n/routing';
@@ -70,10 +70,6 @@ function resolveLabel(navTranslations: Record<string, string>, labelKey: string)
 /** True when navGroups is really a flat list smuggled in as one unlabeled group. */
 function isUngroupedList(navGroups: NavGroup[]): boolean {
   return navGroups.length === 1 && navGroups[0].labelKey === '';
-}
-
-function defaultExpandedGroups(navGroups: NavGroup[], pathname: string): string[] {
-  return navGroups.filter((group) => isGroupActive(group, pathname)).map((group) => group.labelKey);
 }
 
 function NavLink({
@@ -144,21 +140,19 @@ export function SidebarNav({ navGroups, storageKey, navTranslations }: SidebarNa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, ungrouped]);
 
-  // Force-expands the group containing the active route on every
-  // navigation, overriding stored/collapsed state, per the task brief.
-  // Guarded so it's a no-op (no setState call at all) once the active
-  // group is already expanded, rather than looping on itself.
-  const activeGroupKeys = ungrouped ? [] : defaultExpandedGroups(navGroups, pathname);
-  const activeGroupsAlreadyExpanded = activeGroupKeys.every((key) => expandedGroups.includes(key));
+  // Force-expands the group containing the active route, but ONLY on an
+  // actual navigation (pathname change) -- see groupsToForceExpandOnNavigation's
+  // doc comment for the bug this fixes. prevPathnameRef tracks the last
+  // pathname this effect actually reacted to.
+  const prevPathnameRef = useRef<string | null>(null);
   useEffect(() => {
-    if (ungrouped || activeGroupsAlreadyExpanded || activeGroupKeys.length === 0) return;
-    // Force-expanding the active-route group on navigation (overriding
-    // collapsed state) is an explicit task requirement and is guarded
-    // above so it only fires when the active group is not yet expanded.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setExpandedGroups((current) => Array.from(new Set([...current, ...activeGroupKeys])));
+    if (ungrouped) return;
+    const toForceExpand = groupsToForceExpandOnNavigation(navGroups, prevPathnameRef.current, pathname);
+    prevPathnameRef.current = pathname;
+    if (!toForceExpand) return;
+    setExpandedGroups((current) => Array.from(new Set([...current, ...toForceExpand])));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, ungrouped, activeGroupsAlreadyExpanded]);
+  }, [pathname, ungrouped]);
 
   function toggleGroup(labelKey: string) {
     setExpandedGroups((current) => {

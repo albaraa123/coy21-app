@@ -104,3 +104,45 @@ export function isItemActive(item: NavItem, pathname: string): boolean {
 export function isGroupActive(group: NavGroup, pathname: string): boolean {
   return group.items.some((item) => isItemActive(item, pathname));
 }
+
+/** Every group's labelKey whose items match `pathname` (see isGroupActive). */
+export function defaultExpandedGroups(navGroups: NavGroup[], pathname: string): string[] {
+  return navGroups.filter((group) => isGroupActive(group, pathname)).map((group) => group.labelKey);
+}
+
+/**
+ * Pure decision function behind sidebar-nav.tsx's "force-expand the active
+ * group on navigation" effect. Returns the group keys that should be
+ * force-added to expandedGroups, or `null` when nothing should change.
+ *
+ * Lives here (not in sidebar-nav.tsx itself) so it can be unit-tested
+ * directly without pulling in sidebar-nav.tsx's 'use client' imports
+ * (@/i18n/routing's Link/usePathname, which transitively import
+ * next/navigation -- unresolvable outside a real Next.js runtime, the same
+ * problem notification-bell-logic.ts was split out to avoid). This
+ * codebase has no @testing-library/react-style interactive-render setup,
+ * so a timing bug like the one this function encodes a fix for is
+ * otherwise invisible to the renderToStaticMarkup-based tests already in
+ * sidebar-nav.test.tsx (SSR-only, no useEffect, no click simulation).
+ *
+ * The bug this fixes: the original implementation decided whether to fire
+ * based on whether the active group was CURRENTLY expanded (a value
+ * derived from expandedGroups itself), not on whether a real navigation
+ * had occurred. That meant collapsing the active-route group via a manual
+ * toggle click flipped that derived value, which the effect's own
+ * dependency array picked up, re-firing the effect and silently
+ * re-expanding the very group the user had just clicked to collapse --
+ * manual collapse of the active-route group was effectively impossible
+ * while staying on that route. Keying this purely off "did pathname
+ * change since the last time we decided this" fixes it: a toggle click
+ * doesn't change pathname, so it's left alone.
+ */
+export function groupsToForceExpandOnNavigation(
+  navGroups: NavGroup[],
+  previousPathname: string | null,
+  currentPathname: string
+): string[] | null {
+  if (previousPathname === currentPathname) return null;
+  const activeGroupKeys = defaultExpandedGroups(navGroups, currentPathname);
+  return activeGroupKeys.length === 0 ? null : activeGroupKeys;
+}
