@@ -8,12 +8,22 @@ import type { Database } from '@/types/database';
 
 const DISABLE_CONFIRMATION_PHRASE = 'DISABLE';
 
-// revalidatePath target matches this codebase's established convention
-// for (admin) Server Actions (see local-info-hub/actions.ts,
-// content/local-info/actions.ts, communications/local-info-actions.ts,
-// reports/local-info/actions.ts): a concrete locale-prefixed path, not
-// the route-group/layout form.
-const SETTINGS_PATH = '/en/admin/settings';
+// Live deployment check (2026-10-09) found this path was wrong: '(admin)'
+// is a Next.js route GROUP (parenthesized segment), which is stripped from
+// the actual URL entirely -- confirmed live, /en/admin/settings is a 404
+// and /en/settings is the real page. revalidatePath('/en/admin/settings')
+// was therefore invalidating a path that doesn't exist, silently a no-op
+// for every other user/tab's cached view of this page (masked for the
+// person who just saved, since settings-form.tsx also calls
+// router.refresh() after every successful save, which re-fetches fresh
+// data independent of revalidatePath's own cache). The sibling files this
+// comment used to cite as "established convention"
+// (local-info-hub/actions.ts, content/local-info/actions.ts,
+// communications/local-info-actions.ts, reports/local-info/actions.ts) all
+// have the exact same bug -- confirmed live, /en/admin/local-info-hub is
+// also a 404, /en/local-info-hub is the real page. See pre-launch
+// checklist for the fuller fix tracking that applies to those 4 files too.
+const SETTINGS_PATH = '/en/settings';
 
 type EmailSettingsPatch = Partial<
   Pick<Database['public']['Tables']['email_settings']['Update'], 'sandbox_enabled' | 'sandbox_recipient_email'>

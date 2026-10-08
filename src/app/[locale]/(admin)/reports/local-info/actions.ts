@@ -49,7 +49,7 @@ export async function createSection(formData: FormData) {
   });
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -67,7 +67,7 @@ export async function updateSection(id: string, formData: FormData) {
     .eq('id', id);
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -79,7 +79,7 @@ export async function deleteSection(id: string) {
   const { error } = await service.from('local_info_sections').delete().eq('id', id);
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -94,7 +94,7 @@ export async function toggleSectionActive(id: string, isActive: boolean) {
     .eq('id', id);
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -132,7 +132,7 @@ export async function createItem(formData: FormData) {
   });
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -153,7 +153,7 @@ export async function updateItem(id: string, formData: FormData) {
   const { error } = await service.from('local_info_items').update(parsed.data).eq('id', id);
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -165,7 +165,7 @@ export async function deleteItem(id: string) {
   const { error } = await service.from('local_info_items').delete().eq('id', id);
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -188,7 +188,7 @@ export async function deleteImage(id: string) {
 
   const { error } = await service.from('local_info_images').delete().eq('id', id);
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
 
@@ -230,6 +230,6 @@ export async function uploadImage(formData: FormData) {
   });
 
   if (error) return { error: error.message };
-  revalidatePath('/en/admin/reports/local-info');
+  revalidatePath('/en/reports/local-info');
   return { error: null };
 }
