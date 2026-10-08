@@ -200,3 +200,80 @@ describe('book_session() dual-writes a booking_confirmed notification', () => {
     expect(firstNotifRows ?? []).toHaveLength(1);
   });
 });
+
+// Final whole-branch review of sub-project 6 found that
+// session-reminders/route.ts's 10-minute match window overlapping its
+// 5-minute cron cadence meant the SAME participant/session pair could be
+// reminded 2-3 times by consecutive invocations, with no guard against
+// it. Fixed via notifications_session_reminder_dedupe_idx (migration
+// 20261008090000), a unique partial index on
+// (application_id, session_id, channel) for channel='session_reminder'.
+// This suite exercises the REAL live index (not a mocked route, which
+// tests/attendance/session-reminders-dedupe.test.ts already covers for
+// the route's own 23505-handling logic) -- i.e. that create_notification
+// itself genuinely cannot insert a second session_reminder row for the
+// same application_id/session_id, and that the constraint is correctly
+// scoped to ONLY that channel (a different channel for the same
+// application_id/session_id must remain unaffected).
+describe('notifications_session_reminder_dedupe_idx', () => {
+  it('rejects a second session_reminder insert for the same application_id/session_id with a 23505 unique-violation', async () => {
+    const { applicationId } = await seedAcceptedApplicant('dedupe-reminder');
+    const sessionId = await seedSession('dedupe-reminder');
+
+    const { data: first, error: firstError } = await admin.rpc('create_notification' as never, {
+      p_application_id: applicationId,
+      p_channel: 'session_reminder',
+      p_title: 'Reminder: "Test Session" starts in 30 minutes',
+      p_session_id: sessionId,
+    } as never);
+    expect(firstError).toBeNull();
+    const firstRow = first as unknown as { id: string };
+    notificationIds.push(firstRow.id);
+
+    const { data: second, error: secondError } = await admin.rpc('create_notification' as never, {
+      p_application_id: applicationId,
+      p_channel: 'session_reminder',
+      p_title: 'Reminder: "Test Session" starts in 30 minutes',
+      p_session_id: sessionId,
+    } as never);
+    expect(second).toBeNull();
+    expect(secondError).not.toBeNull();
+    expect(secondError?.code).toBe('23505');
+
+    const { data: rows } = await admin
+      .from('notifications')
+      .select('id')
+      .eq('application_id', applicationId)
+      .eq('session_id', sessionId)
+      .eq('channel', 'session_reminder');
+    for (const r of rows ?? []) notificationIds.push(r.id);
+    expect(rows ?? []).toHaveLength(1);
+  });
+
+  it('does not affect a different channel for the same application_id/session_id', async () => {
+    const { applicationId } = await seedAcceptedApplicant('dedupe-other-channel');
+    const sessionId = await seedSession('dedupe-other-channel');
+
+    const { data: reminder, error: reminderError } = await admin.rpc('create_notification' as never, {
+      p_application_id: applicationId,
+      p_channel: 'session_reminder',
+      p_title: 'Reminder: "Test Session" starts in 30 minutes',
+      p_session_id: sessionId,
+    } as never);
+    expect(reminderError).toBeNull();
+    notificationIds.push((reminder as unknown as { id: string }).id);
+
+    // Same application_id/session_id, different channel -- must succeed,
+    // proving the unique index's WHERE clause correctly scopes it to
+    // channel='session_reminder' only, not to the (application_id,
+    // session_id) pair in general.
+    const { data: cancelled, error: cancelledError } = await admin.rpc('create_notification' as never, {
+      p_application_id: applicationId,
+      p_channel: 'session_cancelled',
+      p_title: '"Test Session" has been cancelled',
+      p_session_id: sessionId,
+    } as never);
+    expect(cancelledError).toBeNull();
+    notificationIds.push((cancelled as unknown as { id: string }).id);
+  });
+});

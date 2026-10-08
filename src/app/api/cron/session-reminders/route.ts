@@ -11,6 +11,17 @@
 // from before Task 6; only the dispatch mechanism at the bottom of the
 // loop changed (direct sendEmailGuarded call -> create_notification RPC).
 //
+// Dedup (final whole-branch review finding): this cron runs every 5
+// minutes against a 10-minute match window, so the SAME upcoming session
+// is matched by 2-3 consecutive invocations -- without a guard, each one
+// would insert its own session_reminder row for the same participant,
+// surfacing as 2-3 duplicate reminders in the bell (and duplicate emails).
+// notifications_session_reminder_dedupe_idx (a unique partial index on
+// (application_id, session_id, channel) for this channel) makes the
+// second/third insert fail with a unique-violation (SQLSTATE 23505) --
+// caught below and treated as "already reminded, not a failure", not
+// surfaced as an error.
+//
 // Invoke every 5 minutes from any cron service, e.g.:
 //   Vercel Cron:  vercel.json -> { "crons": [{ "path": "/api/cron/session-reminders", "schedule": "*/5 * * * *" }] }
 //   External:     GET https://your-domain.com/api/cron/session-reminders
@@ -68,6 +79,7 @@ export async function GET(req: NextRequest) {
 
   let sent = 0;
   let failed = 0;
+  let alreadyReminded = 0;
 
   for (const session of sessions) {
     // Get active bookings for this session
@@ -124,13 +136,22 @@ export async function GET(req: NextRequest) {
       } as never);
 
       if (error) {
-        console.error('session-reminders: create_notification failed', { applicationId: app.id, sessionId: session.id, error });
-        failed++;
+        // 23505 = unique_violation on notifications_session_reminder_dedupe_idx
+        // (20261008090000) -- a previous invocation, within the last couple
+        // of 5-minute cron ticks, already reminded this participant about
+        // this exact session. Expected and harmless under this route's
+        // 10-minute-window/5-minute-cadence overlap, not a real failure.
+        if (error.code === '23505') {
+          alreadyReminded++;
+        } else {
+          console.error('session-reminders: create_notification failed', { applicationId: app.id, sessionId: session.id, error });
+          failed++;
+        }
       } else {
         sent++;
       }
     }
   }
 
-  return NextResponse.json({ sent, failed, sessions: sessions.length });
+  return NextResponse.json({ sent, failed, alreadyReminded, sessions: sessions.length });
 }
