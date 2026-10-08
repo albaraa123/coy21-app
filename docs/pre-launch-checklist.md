@@ -36,6 +36,16 @@ This tracks mandatory items that must be verified/completed before the platform 
 - [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are still unset in Vercel's environment variables — no real email can send yet (sandbox mode being on doesn't change this; an unset Resend config fails outright with "Resend not configured").
 - [ ] _(remaining items to be filled in during the Resend setup pass)_
 
+## Live admin walkthrough findings (2026-10-09)
+
+Found by clicking through the entire admin sidebar as `super_admin` and `participant` on the real deployed site after test-data cleanup.
+
+- [x] Fixed: sidebar group collapse was fought by a re-expand effect (committed `473c776`) — clicking a group header to collapse it while on a route inside that group silently re-expanded it on the next render.
+- [x] Fixed: `/register` 404'd because `ENABLE_SELF_REGISTRATION` wasn't set in Vercel — now set to `true`.
+- [x] A required `tracks` row now exists (`GENERAL` / `عام`) — `sessions.track_id` is `NOT NULL` and the session-creation form requires selecting one, so at least one track must exist before any real session can be created. Tracks as a *feature* (multiple tracks, track-based filtering) is not needed for this conference — always select "General" when creating sessions; no further action needed here unless multi-track filtering becomes useful later.
+- [ ] **Minor, not launch-blocking:** the "New track" form (and likely other similar admin create-forms using plain HTML forms rather than the styled components) fails silently when submitted with empty required fields — no validation error shown, the request is just dropped. Confirmed by reproducing it live: an empty submit produced no track row and no visible error; a filled-in submit worked correctly. Low priority since staff will naturally fill in required fields, but worth a validation-message pass if time allows before the conference.
+- [x] All other admin sections walked and confirmed working with correct styling: Participants (Applications, Accounts, Import CSV, Care & Needs, Travel & Logistics, Arrivals, Status & Funding), Agenda (Sessions, Days, Rooms, People), Allocation (Runs, Schedules), Attendance (Scanners, Admissions, Walk-In Admission, Demand & Capacity, Ops Dashboard), Reporting (Reports, Communications).
+
 ## Test data cleanup (COY21 production project)
 
 - [x] Done 2026-10-08. Full backup taken first (`C:\Users\albar\.claude\backups\coy21\coy21-backup-20261008-pre-test-data-cleanup\`, outside the repo). All test fixture data purged (`applications`, `sessions`, `rooms`, `session_types`, `conference_days`, `tracks`, `qr_credentials`, `attendance_records`, etc. — all confirmed at 0 rows after cleanup) and all non-kept `auth.users` rows deleted (462 → 4). Settings tables (`conference_settings`, `email_settings`, `qr_encryption_key_registry`) and real content (`local_info_*`) were left untouched. The 4 kept accounts (`albaraak2002@gmail.com` participant, `albaraa.coy21@gmail.com` super_admin, `albaraaalbadwi@gmail.com` staff, `albaraa.scale.om@gmail.com` scanner_device) were confirmed working via a real login test post-deploy.
