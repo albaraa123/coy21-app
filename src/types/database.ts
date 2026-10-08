@@ -3805,6 +3805,67 @@ export type Database = {
         }
       }
       count_distinct_travellers: { Args: never; Returns: number }
+      create_announcement: {
+        Args: { p_body?: string; p_title: string }
+        Returns: {
+          application_id: string | null
+          body: string | null
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          email_status: Database["public"]["Enums"]["notification_status"]
+          error_message: string | null
+          id: string
+          is_broadcast: boolean
+          link_path: string | null
+          new_start_time: string | null
+          old_start_time: string | null
+          read_at: string | null
+          sent_at: string | null
+          session_id: string | null
+          title: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "notifications"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_notification: {
+        Args: {
+          p_application_id: string
+          p_body?: string
+          p_channel: Database["public"]["Enums"]["notification_channel"]
+          p_link_path?: string
+          p_new_start_time?: string
+          p_old_start_time?: string
+          p_session_id?: string
+          p_title: string
+        }
+        Returns: {
+          application_id: string | null
+          body: string | null
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          email_status: Database["public"]["Enums"]["notification_status"]
+          error_message: string | null
+          id: string
+          is_broadcast: boolean
+          link_path: string | null
+          new_start_time: string | null
+          old_start_time: string | null
+          read_at: string | null
+          sent_at: string | null
+          session_id: string | null
+          title: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "notifications"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_qr_bulk_operation_batch_for_server: {
         Args: {
           p_intended_operation_type: string
@@ -3885,6 +3946,10 @@ export type Database = {
       }
       leave_waitlist: {
         Args: { p_application_id: string; p_session_id: string }
+        Returns: undefined
+      }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
         Returns: undefined
       }
       next_application_number: {
