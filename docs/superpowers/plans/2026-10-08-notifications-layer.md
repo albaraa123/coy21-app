@@ -743,34 +743,85 @@ Depends on Task 1 (`create_notification` must exist).
 
 - [ ] **Step 1: Decide and document — dual-write, not cutover, for the 3 existing event types**
 
-Re-read `docs/superpowers/specs/2026-10-08-notifications-layer-design.md`'s Event Wiring table: it says `session_cancelled`/`session_rescheduled`/`waitlist_promoted` producers should insert into `notifications` "instead of" `session_notification_outbox`. **Before implementing this as a hard cutover, verify `process-session-notifications`'s replacement (Task 6) is ready and deployed in the SAME release** — if the old cron (`process-session-notifications`, draining `session_notification_outbox`) is removed/repointed before these triggers stop writing to `session_notification_outbox`, nothing breaks (the old table just stops being written to, is read by nothing, fine). But if these triggers switch to ONLY writing `notifications` before the NEW unified cron (Task 6) exists and is deployed, emails for these 3 types silently stop sending with no error, for however long the gap lasts. Given this is pre-conference and cannot tolerate even a short silent gap in cancellation/reschedule/waitlist-promotion emails: **this step and Task 6 must be deployed together, not independently** — note this explicitly in the task's own commit message and flag it to whoever executes Task 6.
+The spec's Event Wiring table says these 3 producers should insert into `notifications` "instead of" `session_notification_outbox`. **This plan deliberately deviates from a literal reading of that and implements a DUAL-write instead** (Step 3's SQL keeps every existing `session_notification_outbox` insert completely unchanged and adds a `notifications` insert alongside it) — specifically because this project's actual migration-apply workflow is a manual, human-triggered `supabase db query --linked --file ...` step, decoupled from the Vercel app-code deploy that ships Task 6's new cron (no CI/CD pipeline exists in this repo to make "deploy together" an atomic, enforceable unit — confirmed: no `.github/workflows/`, no deployment-gating config). A hard cutover would create a real window, of unpredictable length, where cancellation/reschedule/waitlist-promotion emails silently stop if these two tasks' manual steps land out of order — unacceptable this close to the conference. The dual-write makes the actual failure mode benign regardless of ordering: `process-session-notifications` (old cron, draining `session_notification_outbox`) keeps working exactly as it does today for as long as it exists, so these 3 email types never stop sending no matter when Task 6 lands. **The one genuinely risky moment is Task 6 Step 6 (deleting `process-session-notifications/route.ts`)** — do not perform that specific deletion until the new unified cron (Task 6 Step 3) has been confirmed live and actually processing rows (Task 6 Step 8's test passing is necessary but not sufficient — also confirm via a live check, e.g. query `notifications` for recently-`sent` rows, that the new cron has successfully run at least once in production before deleting the old one).
 
 - [ ] **Step 2: `book_session` — add `booking_confirmed` notification**
 
-Read the CURRENT full body of `book_session` directly from the live database (not from the original migration file, in case any later migration silently changed it further — confirm via `select pg_get_functiondef(oid) from pg_proc where proname = 'book_session'` against the live DB) before writing this migration. Using the version confirmed during plan-writing (`20261003000000_book_session_respects_allocation.sql`), the change is: insert `create_notification(...)` call immediately after `insert into session_bookings ... returning id into v_booking_id` and before `return v_booking_id`.
+The body below was fetched directly from the live database via `pg_get_functiondef(oid)` against the real COY21 project (`vfwcbkjvinbtcntwjrzq`) while writing this plan — it is the actual, current, complete function body, not a reconstruction from the original migration file. **Before applying this migration, re-run the same `pg_get_functiondef` query yourself and diff it against the body below** — if anything has changed since this plan was written, use the live version as ground truth and update this migration accordingly, don't trust this plan's copy blindly either.
 
 ```sql
 -- supabase/migrations/20261008040000_wire_booking_confirmed_notification.sql
+--
+-- Body below is book_session's full current definition, fetched live via
+-- pg_get_functiondef against vfwcbkjvinbtcntwjrzq during plan-writing
+-- (2026-10-08) -- everything up to and including the session_bookings
+-- insert is UNCHANGED from the current live function; the only addition
+-- is the booking_confirmed notification block immediately after it.
 drop function if exists book_session(uuid, uuid);
 
-create or replace function book_session(
-  p_application_id uuid,
-  p_session_id     uuid
-) returns uuid
+create or replace function book_session(p_application_id uuid, p_session_id uuid)
+returns uuid
 language plpgsql security definer set search_path = public, pg_temp as $$
--- [[COPY THE ENTIRE CURRENT BODY VERBATIM FROM THE LIVE DATABASE HERE --
---   confirm via pg_get_functiondef against vfwcbkjvinbtcntwjrzq during
---   implementation, do not trust this plan's prose description alone]]
 declare
-  v_session sessions%rowtype;
-  v_booking_id uuid;
-  v_session_title text;
+  v_session       sessions%rowtype;
+  v_booking_id    uuid;
+  v_count         int;
+  v_deadline      timestamptz;
   v_preferred_language text;
-  -- [[... all other existing declared variables, copied verbatim ...]]
+  v_session_title text;
 begin
-  -- [[... all existing checks: ownership, row lock, deadline, capacity,
-  --     time-conflict (session_bookings), time-conflict (allocation_assignments)
-  --     -- copied verbatim, UNCHANGED ...]]
+  -- Caller must own this application
+  if not exists (
+    select 1 from applications
+    where id = p_application_id and applicant_id = auth.uid()
+  ) then
+    raise exception 'Not authorized';
+  end if;
+
+  -- Lock the session row to prevent race on capacity
+  select * into v_session from sessions where id = p_session_id for update;
+  if v_session.id is null then
+    raise exception 'Session not found';
+  end if;
+  if v_session.status not in ('published', 'confirmed') then
+    raise exception 'Session is not open for booking';
+  end if;
+
+  v_deadline := session_effective_deadline(v_session);
+  if now() > v_deadline then
+    raise exception 'Booking deadline has passed';
+  end if;
+
+  -- Capacity check (combined: session_bookings + confirmed allocation_assignments)
+  v_count := session_effective_occupied_count(p_session_id);
+  if v_count >= v_session.capacity then
+    raise exception 'Session is full';
+  end if;
+
+  -- Conflict check: any active booking for this participant that overlaps?
+  if exists (
+    select 1
+    from session_bookings sb
+    join sessions s on s.id = sb.session_id
+    where sb.application_id = p_application_id
+      and sb.status = 'active'
+      and tstzrange(s.start_time, s.end_time, '[)') &&
+          tstzrange(v_session.start_time, v_session.end_time, '[)')
+  ) then
+    raise exception 'Time conflict with an existing booking';
+  end if;
+
+  if exists (
+    select 1
+    from allocation_assignments aa
+    join sessions s on s.id = aa.session_id
+    where aa.application_id = p_application_id
+      and aa.status = 'confirmed'
+      and tstzrange(s.start_time, s.end_time, '[)') &&
+          tstzrange(v_session.start_time, v_session.end_time, '[)')
+  ) then
+    raise exception 'Time conflict with an assigned session';
+  end if;
 
   insert into session_bookings (application_id, session_id)
   values (p_application_id, p_session_id)
@@ -802,25 +853,192 @@ $$;
 grant execute on function book_session(uuid, uuid) to authenticated;
 ```
 
-**Important:** confirm the exact current declared-variables list and every existing check by reading the live function definition — the plan's placeholder comments above (`[[...]]`) are explicitly NOT something to implement literally; they mark where you must paste the real, current body.
-
 - [ ] **Step 3: `enforce_session_lifecycle_booking_sync()` and `promote_next_waitlist_candidate()` — dual-write to `notifications`**
 
-Same verbatim-copy-then-modify approach: read each function's CURRENT live definition via `pg_get_functiondef`, copy verbatim, add a `perform create_notification(...)` call immediately alongside (not replacing) each existing `insert into session_notification_outbox` statement, using the same locale-resolution convention as Step 2. Both functions are confirmed NOT `security definer` today (per plan-writing research) — do not add `security definer` to either; `create_notification`'s own `security definer` is sufficient (see Task 1's migration comment).
+Same principle as Step 2: both bodies below were fetched live via `pg_get_functiondef` during plan-writing (2026-10-08) — re-confirm against the live database before applying, in case either changed since. Both are confirmed NOT `security definer` (plain `language plpgsql set search_path = public, pg_temp`) — do not add `security definer` to either; `create_notification`'s own `security definer` is sufficient (see Task 1's migration comment). Each function's existing `session_notification_outbox` insert(s) are left completely unchanged; a `perform create_notification(...)` call is added immediately alongside each one.
 
 ```sql
 -- supabase/migrations/20261008050000_wire_session_lifecycle_notifications.sql
--- [[create or replace function enforce_session_lifecycle_booking_sync() --
---    copy current body verbatim via pg_get_functiondef, add a
---    perform create_notification(...) call for each of the
---    session_cancelled and session_rescheduled branches, immediately
---    after each existing session_notification_outbox insert]]
+--
+-- Both bodies below are the full current definitions, fetched live via
+-- pg_get_functiondef during plan-writing (2026-10-08). Every existing
+-- statement is unchanged; only the new perform create_notification(...)
+-- calls are additions.
 
--- [[create or replace function promote_next_waitlist_candidate(uuid) --
---    copy current body verbatim, add a perform create_notification(...)
---    call immediately after its existing session_notification_outbox
---    insert, channel => 'waitlist_promoted']]
+create or replace function enforce_session_lifecycle_booking_sync() returns trigger
+language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_candidate record;
+begin
+  if new.status = 'cancelled' and old.status is distinct from 'cancelled' then
+    -- Session was just cancelled: mark every active booking as
+    -- session_cancelled (distinct from participant-voluntary 'cancelled')
+    -- and queue one notification per affected booking. Uses a writable CTE
+    -- (UPDATE ... RETURNING feeding INSERT ... SELECT) to capture exactly
+    -- the rows this statement updated, rather than a second lookup query
+    -- that would need some other way to identify "the rows I just
+    -- touched" (e.g. re-matching on cancelled_at = now() -- correct since
+    -- now() is stable within one statement/transaction, but an indirect,
+    -- easier-to-get-wrong way to express the same thing; the CTE form
+    -- below is the one to actually implement, not an alternative to
+    -- consider).
+    with just_cancelled as (
+      update session_bookings
+      set status = 'session_cancelled', cancelled_at = now()
+      where session_id = new.id and status = 'active'
+      returning id, application_id, session_id
+    )
+    insert into session_notification_outbox (booking_id, application_id, session_id, notification_type)
+    select id, application_id, session_id, 'session_cancelled' from just_cancelled;
+
+    -- NEW: dual-write into the unified notifications table too. Loop
+    -- rather than a set-based insert, since create_notification resolves
+    -- locale/title per application individually (consistent with every
+    -- other producer in this sub-project) and is a security definer RPC
+    -- call, not a plain insert that a set-based approach could batch.
+    for v_candidate in
+      select sb.application_id, s.title_ar, s.title_en, a.preferred_language
+      from session_bookings sb
+      join sessions s on s.id = sb.session_id
+      join applications a on a.id = sb.application_id
+      where sb.session_id = new.id and sb.status = 'session_cancelled' and sb.cancelled_at = (
+        select max(cancelled_at) from session_bookings where session_id = new.id and status = 'session_cancelled'
+      )
+    loop
+      perform create_notification(
+        p_application_id => v_candidate.application_id,
+        p_channel => 'session_cancelled',
+        p_title => case when coalesce(v_candidate.preferred_language, 'en') = 'ar'
+          then 'تم إلغاء الجلسة: ' || coalesce(v_candidate.title_ar, v_candidate.title_en, '')
+          else 'Session cancelled: ' || coalesce(v_candidate.title_en, v_candidate.title_ar, '') end,
+        p_link_path => '/my-agenda/browse',
+        p_session_id => new.id
+      );
+    end loop;
+
+  elsif (new.start_time is distinct from old.start_time or new.end_time is distinct from old.end_time)
+        and new.status <> 'cancelled' then
+    -- Session's time changed (not a cancellation): bookings stay valid,
+    -- queue one reschedule notification per active booking. This SELECT
+    -- reads session_bookings without locking it (only the sessions row is
+    -- locked for this UPDATE's duration) -- a concurrent book_session()
+    -- landing a new active booking right now is correctly swept up (it's
+    -- genuinely active at commit), and a concurrent cancel_booking() takes
+    -- its own row-level FOR UPDATE lock on that specific booking, so the
+    -- worst case is a benign notification-timing race (an extra reschedule
+    -- email for a booking cancelled a moment later), never incorrect
+    -- session_bookings state.
+    insert into session_notification_outbox (booking_id, application_id, session_id, notification_type, old_start_time, new_start_time)
+    select id, application_id, session_id, 'session_rescheduled', old.start_time, new.start_time
+    from session_bookings
+    where session_id = new.id and status = 'active';
+
+    -- NEW: dual-write into notifications.
+    for v_candidate in
+      select sb.application_id, s.title_ar, s.title_en, a.preferred_language
+      from session_bookings sb
+      join sessions s on s.id = sb.session_id
+      join applications a on a.id = sb.application_id
+      where sb.session_id = new.id and sb.status = 'active'
+    loop
+      perform create_notification(
+        p_application_id => v_candidate.application_id,
+        p_channel => 'session_rescheduled',
+        p_title => case when coalesce(v_candidate.preferred_language, 'en') = 'ar'
+          then 'تم تغيير موعد الجلسة: ' || coalesce(v_candidate.title_ar, v_candidate.title_en, '')
+          else 'Session rescheduled: ' || coalesce(v_candidate.title_en, v_candidate.title_ar, '') end,
+        p_link_path => '/my-agenda',
+        p_session_id => new.id,
+        p_old_start_time => old.start_time,
+        p_new_start_time => new.start_time
+      );
+    end loop;
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function promote_next_waitlist_candidate(p_session_id uuid) returns void
+language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_session         sessions%rowtype;
+  v_candidate       record;
+  v_new_booking_id  uuid;
+  v_preferred_language text;
+begin
+  select * into v_session from sessions where id = p_session_id;
+
+  <<promotion>>
+  for v_candidate in
+    select sw.id, sw.application_id, sw.status
+    from session_waitlist sw
+    where sw.session_id = p_session_id
+      and sw.status = 'waiting'
+    order by sw.joined_at asc
+    for update of sw
+  loop
+    -- Defense-in-depth, not closing a distinct gap: Postgres's FOR
+    -- UPDATE / EvalPlanQual re-check already excludes a row a
+    -- concurrent leave_waitlist withdrew before this loop's lock on
+    -- it was granted, so this branch should be unreachable in
+    -- practice -- kept as a guard against relying on undocumented
+    -- planner behavior staying stable across a future Postgres
+    -- version.
+    if v_candidate.status is distinct from 'waiting' then
+      continue;
+    end if;
+
+    if exists (
+      select 1 from session_bookings sb join sessions s on s.id = sb.session_id
+      where sb.application_id = v_candidate.application_id and sb.status = 'active'
+        and tstzrange(s.start_time, s.end_time, '[)') && tstzrange(v_session.start_time, v_session.end_time, '[)')
+    ) or exists (
+      select 1 from allocation_assignments aa join sessions s on s.id = aa.session_id
+      where aa.application_id = v_candidate.application_id and aa.status = 'confirmed'
+        and tstzrange(s.start_time, s.end_time, '[)') && tstzrange(v_session.start_time, v_session.end_time, '[)')
+    ) then
+      continue;
+    end if;
+
+    insert into session_bookings (application_id, session_id)
+    values (v_candidate.application_id, p_session_id)
+    returning id into v_new_booking_id;
+
+    update session_waitlist
+    set status = 'promoted', promoted_at = now()
+    where id = v_candidate.id;
+
+    update session_waitlist sw2
+    set status = 'withdrawn', withdrawn_at = now()
+    from sessions s2
+    where sw2.session_id = s2.id
+      and sw2.application_id = v_candidate.application_id
+      and sw2.status = 'waiting'
+      and tstzrange(s2.start_time, s2.end_time, '[)') && tstzrange(v_session.start_time, v_session.end_time, '[)');
+
+    insert into session_notification_outbox (booking_id, application_id, session_id, notification_type)
+    values (v_new_booking_id, v_candidate.application_id, p_session_id, 'waitlist_promoted');
+
+    -- NEW: dual-write into notifications.
+    select preferred_language into v_preferred_language from applications where id = v_candidate.application_id;
+    perform create_notification(
+      p_application_id => v_candidate.application_id,
+      p_channel => 'waitlist_promoted',
+      p_title => case when coalesce(v_preferred_language, 'en') = 'ar'
+        then 'تمت ترقيتك من قائمة الانتظار: ' || coalesce(v_session.title_ar, v_session.title_en, '')
+        else 'You''ve been promoted from the waitlist: ' || coalesce(v_session.title_en, v_session.title_ar, '') end,
+      p_link_path => '/my-agenda',
+      p_session_id => p_session_id
+    );
+
+    exit promotion;
+  end loop;
+end;
+$$;
 ```
+
+**Note on the `enforce_session_lifecycle_booking_sync()` cancellation branch's recipient loop**: the existing CTE-based outbox insert (`just_cancelled as (update ... returning ...)`) only exists within that one statement's scope — a second statement cannot re-read a CTE's result set. The added loop above re-derives the same affected-booking set via `sb.status = 'session_cancelled' and sb.cancelled_at = (select max(cancelled_at) ...)`, which is correct given the CTE's `update` just set `cancelled_at = now()` on exactly those rows in the same transaction (so `now()` is stable and this `max()` correctly identifies them), but is a second query doing the work the CTE's `returning` already did once. If this bothers whoever implements it, an equally correct alternative is restructuring the CTE to feed both inserts in one `with` block — either is acceptable; don't spend implementation time on this unless the simpler re-query approach shown above turns out to be wrong in testing (Step 6's test will catch it if so).
 
 - [ ] **Step 4: `updateApplicationStatusForCaller` — add acceptance/rejection notifications**
 
@@ -1028,7 +1246,7 @@ git commit -m "feat: add staff-only announcement composer page"
 - Create: `src/app/api/cron/process-notifications/route.ts`
 - Modify: `src/app/api/cron/session-reminders/route.ts`
 - Modify: `src/app/api/cron/travel-reminders/route.ts`
-- Delete: `src/app/api/cron/process-session-notifications/route.ts` (superseded; `session_notification_outbox` is no longer drained by anything after this task — confirm Task 3's dual-write is in place so no email silently stops, per Task 3 Step 1's deployment-ordering note)
+- Delete: `src/app/api/cron/process-session-notifications/route.ts` (superseded, but ONLY after the new cron is confirmed live in production — do not delete this file in the same step that creates the new cron; see Step 6's explicit sequencing below and Task 3 Step 1's dual-write rationale)
 - Modify: `vercel.json`
 - Test: `tests/attendance/process-notifications-cron.test.ts` (new — unit test with mocked dependencies, since NO precedent exists anywhere in this codebase for a live-HTTP cron-route test; confirmed during plan-research)
 
@@ -1038,7 +1256,7 @@ git commit -m "feat: add staff-only announcement composer page"
 
 Since no cron-route-testing precedent exists, establish one: mock the Supabase service-role client and `sendEmailGuarded`/the new `resend.ts` functions, construct a `NextRequest` with a correct `Authorization: Bearer <CRON_SECRET>` header, call the route's exported `GET` directly (same general shape as `tests/api/*.test.ts` Route Handler tests elsewhere in this codebase, e.g. `tests/api/admit-walk-in-route.test.ts` — read that file's structure first even though it's a different kind of route, for the "import and call GET/POST directly" convention).
 
-Cover: `CRON_SECRET` missing → 500; wrong/missing bearer token → 403; pending non-broadcast row → correct email function dispatched based on `channel`, `email_status` updated to `sent`; pending broadcast row → queries all `accepted` applications, batches sends, marks `sent` with `error_message` summary if any batch member failed; already-`sent`/`failed` rows are never re-processed.
+Cover: `CRON_SECRET` missing → 500; wrong/missing bearer token → 403; pending non-broadcast row → correct email function dispatched based on `channel`, `email_status` updated to `sent`; pending broadcast row → queries all `accepted` applications, batches sends, marks `sent` with `error_message` summary if any batch member failed; already-`sent`/`failed` rows are never re-processed; **(Testing Requirement 6, explicit case)** mock the recipient query to return a different result on a second call than the first, simulating an applicant whose status changed between row-creation and cron-run — assert the excluded applicant's mocked email-send function is never invoked, confirming the lazy/send-time (not snapshotted-at-creation) evaluation this route's own code comment documents.
 
 - [ ] **Step 2: Run, verify fail**
 
@@ -1168,7 +1386,7 @@ export async function GET(req: NextRequest) {
 
 - [ ] **Step 5: Modify `travel-reminders/route.ts`** — replace `sendTravelReminder`'s internal `sendEmailGuarded` call with a `create_notification` RPC call (`p_channel: 'travel_reminder'`), preserving the exact existing no-`travel_legs`-row query and the `2026-11-05` cutoff check UNCHANGED, and preserving the existing 10-at-a-time `Promise.all` batching structure (now batching RPC calls instead of email sends — functionally equivalent concurrency shape).
 
-- [ ] **Step 6: Delete `process-session-notifications/route.ts`**, after confirming (re-read Task 3 Step 1's note) that the dual-write triggers are live and this task's replacement cron is being deployed in the same release.
+- [ ] **Step 6: Delete `process-session-notifications/route.ts`** — this is the one genuinely risky step in the whole plan (re-read Task 3 Step 1's note in full). Do not perform this deletion until BOTH: (a) the new `process-notifications` cron (Step 3 above) has been applied/deployed and confirmed actually running in production (not just unit-test-passing — verify via a live query, e.g. `select channel, email_status, sent_at from notifications where email_status = 'sent' order by sent_at desc limit 5;` against the live DB, showing recent real sends), AND (b) Task 3's dual-write migrations are confirmed live (this should already be true if Task 3 was executed earlier in plan order, but re-confirm rather than assume). Until both are true, leave `process-session-notifications/route.ts` in place — it costs nothing to leave running briefly alongside the new cron (both reading from different tables, no conflict), and the dual-write means no email type depends on it being removed promptly.
 
 - [ ] **Step 7: Update `vercel.json`**
 
@@ -1319,9 +1537,9 @@ npx eslint src/ tests/ supabase/
 ```
 Compare any output against `master` via `git diff master -- <file>` before dismissing an error as pre-existing (known baseline: 2 pre-existing errors in `tests/attendance/qr-issuance-reservation.test.ts`/`qr-credentials-lifecycle-trigger.test.ts`, confirmed identical on `master` by this project's own prior verification).
 
-- [ ] **Step 3: Verify the deployment-ordering constraint from Task 3 Step 1 and Task 6 Step 6**
+- [ ] **Step 3: Verify `process-session-notifications/route.ts` was only deleted after the new cron was confirmed live**
 
-Explicitly confirm in this final review that Tasks 3 and 6 are being deployed together (not Task 3 merged days before Task 6) — this is the one genuine "if deployed wrong, silently breaks production emails" risk in this whole plan. State this clearly in the final report regardless of how execution actually happened.
+Per Task 3 Step 1 and Task 6 Step 6: this plan uses a dual-write (not a hard cutover) specifically so there's no ordering constraint between Tasks 3 and 6 that could silently break production emails — the only genuinely risky single action is Task 6 Step 6's deletion. Explicitly confirm in this final review that the deletion happened only after a live query confirmed the new `process-notifications` cron had actually sent at least one real email in production (not just that its unit test passed). State this confirmation clearly in the final report regardless of how execution actually happened.
 
 - [ ] **Step 4: Dispatch a final whole-branch code-reviewer subagent**
 
