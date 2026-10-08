@@ -575,6 +575,15 @@
       "application": "الطلب"
     }
   },
+  "announcements": {
+    "title": "الإعلانات",
+    "titleLabel": "العنوان",
+    "bodyLabel": "الرسالة",
+    "sendButton": "إرسال الإعلان",
+    "sending": "جارٍ الإرسال…",
+    "sendSuccess": "تم إرسال الإعلان.",
+    "sendError": "فشل إرسال الإعلان"
+  },
   "applications": {
     "list": {
       "title": "الطلبات",

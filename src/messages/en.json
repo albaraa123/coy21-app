@@ -575,6 +575,15 @@
       "application": "Application"
     }
   },
+  "announcements": {
+    "title": "Announcements",
+    "titleLabel": "Title",
+    "bodyLabel": "Message",
+    "sendButton": "Send announcement",
+    "sending": "Sending…",
+    "sendSuccess": "Announcement sent.",
+    "sendError": "Failed to send announcement"
+  },
   "applications": {
     "list": {
       "title": "Applications",
