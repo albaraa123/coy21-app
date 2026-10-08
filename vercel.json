@@ -1,24 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/session-reminders",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/travel-reminders",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/process-notifications",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/process-session-notifications",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/process-session-no-shows",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
