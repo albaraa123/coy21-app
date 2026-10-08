@@ -382,6 +382,75 @@ export async function sendBookingConfirmedEmail(params: {
   });
 }
 
+// Sub-project 6, Task 6: these two functions give session-reminders/route.ts
+// and travel-reminders/route.ts's notification content (title + free-text
+// body, both already locale-resolved by their own producer routes, which
+// still own their respective time-window/no-travel-leg queries) a real
+// dispatch path through the unified process-notifications cron. params.body
+// is the producer route's own locale-resolved body text (e.g. room/time for
+// a session reminder, or the reminder explainer for a travel reminder) --
+// this function does not re-derive locale-specific copy itself, unlike
+// every other export in this file, because the row's own title/body were
+// already built with the correct locale by the producer route at
+// create_notification-call time (see session-reminders/route.ts and
+// travel-reminders/route.ts). Still routed through sendEmailGuarded like
+// every other send in this file.
+export async function sendSessionReminderEmail(params: {
+  to: string;
+  fullName: string;
+  title: string;
+  body: string | null;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+
+  const greeting = params.locale === 'ar' ? `مرحباً ${params.fullName}،` : `Hello ${params.fullName},`;
+  const text = [greeting, '', params.title, ...(params.body ? ['', params.body] : [])].join('\n');
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: configResult.config.apiKey,
+    from: configResult.config.fromEmail,
+    replyTo: configResult.config.replyToEmail,
+    to: params.to,
+    subject: params.title,
+    text,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
+export async function sendTravelReminderEmail(params: {
+  to: string;
+  fullName: string;
+  title: string;
+  body: string | null;
+  locale: 'ar' | 'en';
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+
+  const greeting = params.locale === 'ar' ? `مرحباً ${params.fullName}،` : `Hello ${params.fullName},`;
+  const text = [greeting, '', params.body ?? params.title].join('\n');
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: configResult.config.apiKey,
+    from: configResult.config.fromEmail,
+    replyTo: configResult.config.replyToEmail,
+    to: params.to,
+    subject: params.title,
+    text,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
 export async function sendAnnouncementEmail(params: {
   to: string;
   fullName: string;

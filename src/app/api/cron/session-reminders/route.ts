@@ -1,8 +1,15 @@
 // src/app/api/cron/session-reminders/route.ts
 //
-// COY21 §9 — sends a session reminder email to every participant with an
-// active booking for a session starting 25–35 minutes from now (a 10-minute
-// window around the target 30-minute lead time, to tolerate cron drift).
+// COY21 §9 — finds every participant with an active booking for a session
+// starting 25–35 minutes from now (a 10-minute window around the target
+// 30-minute lead time, to tolerate cron drift) and inserts a
+// `session_reminder` row into `notifications` via the create_notification
+// RPC for each. The actual email send is now dispatched by the unified
+// process-notifications cron (Sub-project 6, Task 6) -- this route's own
+// job is only to identify WHO gets reminded and WHEN, not to send mail
+// itself. Time-window query and active-booking resolution are UNCHANGED
+// from before Task 6; only the dispatch mechanism at the bottom of the
+// loop changed (direct sendEmailGuarded call -> create_notification RPC).
 //
 // Invoke every 5 minutes from any cron service, e.g.:
 //   Vercel Cron:  vercel.json -> { "crons": [{ "path": "/api/cron/session-reminders", "schedule": "*/5 * * * *" }] }
@@ -16,13 +23,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { getResendConfig } from '@/lib/email/resend-config';
-import { fetchEmailSettings, sendEmailGuarded } from '@/lib/email/send-guarded';
 import { formatConferenceTime } from '@/lib/datetime/conference-time';
-
-function escapeHtml(v: string): string {
-  return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 function isAuthorizedCronRequest(req: NextRequest, cronSecret: string): boolean {
   const authHeader = req.headers.get('authorization') ?? '';
@@ -42,14 +43,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Forbidden', { status: 403 });
   }
 
-  const configResult = getResendConfig();
-  if (!configResult.ok) {
-    return NextResponse.json({ error: 'Resend not configured', missing: configResult.missing }, { status: 500 });
-  }
-  const { config } = configResult;
-
   const service = createServiceRoleClient();
-  const settings = await fetchEmailSettings();
 
   // Sessions starting 25–35 minutes from now
   const now = new Date();
@@ -87,10 +81,12 @@ export async function GET(req: NextRequest) {
 
     const appIds = bookings.map((b) => b.application_id);
 
-    // Resolve to names + emails
+    // Resolve to names + emails (preferred_language carried through so the
+    // notification row's title can be locale-aware, same as every other
+    // create_notification caller in this sub-project).
     const { data: apps } = await service
       .from('applications')
-      .select('profiles!applications_applicant_id_fkey(full_name, email)')
+      .select('id, preferred_language, profiles!applications_applicant_id_fkey(full_name, email)')
       .in('id', appIds);
 
     if (!apps) continue;
@@ -108,64 +104,27 @@ export async function GET(req: NextRequest) {
       const profile = Array.isArray(app.profiles) ? app.profiles[0] : app.profiles;
       if (!profile?.email || !profile?.full_name) continue;
 
-      const name = escapeHtml(profile.full_name);
-      const subject = `Reminder: "${sessionTitle}" starts in 30 minutes`;
-      const text = [
-        `Hello ${profile.full_name},`,
-        '',
-        `This is a reminder that your session is starting soon:`,
-        '',
-        `  Session: ${sessionTitle}`,
-        room ? `  Room:    ${room}` : '',
-        startLocal ? `  Time:    ${startLocal}` : '',
-        '',
-        'Please make your way to the venue now.',
-        '',
-        'COY21 Team',
-      ].filter(Boolean).join('\n');
+      const locale = (app.preferred_language as 'ar' | 'en') ?? 'en';
+      const title = locale === 'ar'
+        ? `تذكير: "${sessionTitle}" يبدأ خلال 30 دقيقة`
+        : `Reminder: "${sessionTitle}" starts in 30 minutes`;
+      const bodyLines = [
+        room ? (locale === 'ar' ? `القاعة: ${room}` : `Room: ${room}`) : '',
+        startLocal ? (locale === 'ar' ? `الوقت: ${startLocal}` : `Time: ${startLocal}`) : '',
+      ].filter(Boolean);
+      const body = bodyLines.length > 0 ? bodyLines.join('\n') : null;
 
-      const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"/></head>
-<body style="font-family:Arial,sans-serif;color:#1a1a1a;background:#f5f5f5;margin:0;padding:24px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-<tr><td align="center">
-<table role="presentation" style="max-width:520px;width:100%;background:#fff;border-radius:8px;overflow:hidden;">
-<tr><td style="background:#008080;padding:20px 24px;text-align:center;">
-<span style="color:#fff;font-size:18px;font-weight:bold;">COY21 Türkiye 2026</span>
-</td></tr>
-<tr><td style="padding:24px;">
-<p style="margin:0 0 16px;font-size:15px;">Hello ${name},</p>
-<p style="margin:0 0 16px;font-size:14px;color:#333;line-height:1.6;">
-Your session is starting in <strong>30 minutes</strong>:
-</p>
-<table role="presentation" width="100%" style="background:#f0f9f9;border-radius:6px;margin:0 0 20px;">
-<tr><td style="padding:16px;">
-<p style="margin:0 0 8px;font-size:13px;color:#666;">Session</p>
-<p style="margin:0 0 12px;font-size:15px;font-weight:bold;">${escapeHtml(sessionTitle)}</p>
-${room ? `<p style="margin:0 0 8px;font-size:13px;color:#666;">Room</p><p style="margin:0 0 12px;font-size:14px;">${escapeHtml(room)}</p>` : ''}
-${startLocal ? `<p style="margin:0 0 8px;font-size:13px;color:#666;">Time</p><p style="margin:0;font-size:14px;">${startLocal}</p>` : ''}
-</td></tr>
-</table>
-<p style="margin:0;font-size:13px;color:#666;">Please make your way to the venue now.</p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
-
-      const { error } = await sendEmailGuarded({
-        settings,
-        apiKey: config.apiKey,
-        from: config.fromEmail,
-        replyTo: config.replyToEmail,
-        to: profile.email,
-        subject,
-        text,
-        html,
-        originalRecipientDescription: `${profile.full_name} <${profile.email}>`,
-      });
+      const { error } = await service.rpc('create_notification' as never, {
+        p_application_id: app.id,
+        p_channel: 'session_reminder',
+        p_title: title,
+        p_body: body,
+        p_link_path: '/my-agenda',
+        p_session_id: session.id,
+      } as never);
 
       if (error) {
+        console.error('session-reminders: create_notification failed', { applicationId: app.id, sessionId: session.id, error });
         failed++;
       } else {
         sent++;

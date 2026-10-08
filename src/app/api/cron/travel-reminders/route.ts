@@ -1,7 +1,14 @@
 // src/app/api/cron/travel-reminders/route.ts
 //
-// COY21 §11 — sends a travel submission reminder to accepted participants
-// who have NOT yet submitted any travel legs.
+// COY21 §11 — finds accepted participants who have NOT yet submitted any
+// travel legs and inserts a `travel_reminder` row into `notifications` via
+// the create_notification RPC for each. The actual email send is now
+// dispatched by the unified process-notifications cron (Sub-project 6,
+// Task 6) -- this route's own job is only to identify WHO needs reminding,
+// not to send mail itself. No-travel-legs-row query and the 2026-11-05
+// event-start cutoff are UNCHANGED from before Task 6; only the dispatch
+// mechanism changed (direct sendEmailGuarded call -> create_notification
+// RPC), still batched 10-at-a-time via Promise.all.
 //
 // Run once daily (e.g. 09:00 UTC). Stops running automatically after the
 // COY21 event start date — add an early-exit guard for that below.
@@ -13,15 +20,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { getResendConfig } from '@/lib/email/resend-config';
-import { fetchEmailSettings, sendEmailGuarded, type EmailSettings } from '@/lib/email/send-guarded';
+
+type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 
 // COY21 event start — stop sending reminders from this date onward.
 const EVENT_START = new Date('2026-11-05T00:00:00Z');
-
-function escapeHtml(v: string): string {
-  return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 function isAuthorizedCronRequest(req: NextRequest, cronSecret: string): boolean {
   const authHeader = req.headers.get('authorization') ?? '';
@@ -46,14 +49,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ skipped: true, reason: 'Event already started' });
   }
 
-  const configResult = getResendConfig();
-  if (!configResult.ok) {
-    return NextResponse.json({ error: 'Resend not configured', missing: configResult.missing }, { status: 500 });
-  }
-  const { config } = configResult;
-
   const service = createServiceRoleClient();
-  const settings = await fetchEmailSettings();
 
   // Find all accepted application IDs that have at least one travel leg
   const { data: withTravel } = await service
@@ -62,10 +58,12 @@ export async function GET(req: NextRequest) {
 
   const withTravelIds = new Set((withTravel ?? []).map((r) => r.application_id));
 
-  // All accepted participants
+  // All accepted participants (preferred_language carried through so the
+  // notification row's title can be locale-aware, same as every other
+  // create_notification caller in this sub-project).
   const { data: apps, error } = await service
     .from('applications')
-    .select('id, profiles!applications_applicant_id_fkey(full_name, email)')
+    .select('id, preferred_language, profiles!applications_applicant_id_fkey(full_name, email)')
     .eq('status', 'accepted');
 
   if (error) {
@@ -73,7 +71,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch applications' }, { status: 500 });
   }
 
-  const appUrl = config.appUrl;
   let sent = 0;
   let failed = 0;
 
@@ -81,17 +78,20 @@ export async function GET(req: NextRequest) {
     if (withTravelIds.has(app.id)) return []; // already submitted
     const profile = Array.isArray(app.profiles) ? app.profiles[0] : app.profiles;
     if (!profile?.email || !profile?.full_name) return [];
-    return [{ email: profile.email, fullName: profile.full_name }];
+    const locale = (app.preferred_language as 'ar' | 'en') ?? 'en';
+    return [{ applicationId: app.id, locale }];
   });
 
   // Sent in concurrency-limited batches rather than one at a time: a fully
   // serial loop over every accepted-but-travel-less participant can exceed
   // the serverless function's execution timeout on a large participant
-  // list, silently truncating the reminder run partway through.
+  // list, silently truncating the reminder run partway through. Now
+  // batching create_notification RPC calls instead of email sends --
+  // functionally equivalent concurrency shape, same BATCH_SIZE.
   const BATCH_SIZE = 10;
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     const batch = recipients.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(batch.map((recipient) => sendTravelReminder(settings, config, appUrl, recipient)));
+    const results = await Promise.all(batch.map((recipient) => createTravelReminderNotification(service, recipient)));
     for (const ok of results) {
       if (ok) sent++;
       else failed++;
@@ -101,68 +101,28 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ sent, failed });
 }
 
-async function sendTravelReminder(
-  settings: EmailSettings,
-  config: { fromEmail: string; replyToEmail: string; supportEmail: string; apiKey: string },
-  appUrl: string,
-  profile: { email: string; fullName: string }
+async function createTravelReminderNotification(
+  service: ServiceClient,
+  recipient: { applicationId: string; locale: 'ar' | 'en' }
 ): Promise<boolean> {
-  const name = escapeHtml(profile.fullName);
-  const travelUrl = `${appUrl}/my-travel`;
+  const title = recipient.locale === 'ar'
+    ? 'مطلوب إجراء: يرجى تقديم تفاصيل رحلتك لـ COY21'
+    : 'Action required: submit your travel details for COY21';
+  const body = recipient.locale === 'ar'
+    ? 'لم نستلم تفاصيل رحلتك بعد. يرجى تسجيل الدخول وتقديم معلومات رحلتك الجوية حتى يتمكن فريق اللوجستيات من التخطيط لاستقبالك في المطار.'
+    : 'We haven\'t received your travel details yet. Please log in and submit your flight information so our logistics team can plan airport reception.';
 
-  const subject = 'Action required: submit your travel details for COY21';
-  const text = [
-    `Hello ${profile.fullName},`,
-    '',
-    'We haven\'t received your travel details yet.',
-    '',
-    'Please log in and submit your flight information so our logistics team can plan airport reception:',
-    `  ${travelUrl}`,
-    '',
-    'If you have any questions, contact us at ' + config.supportEmail,
-    '',
-    'COY21 Team',
-  ].join('\n');
+  const { error } = await service.rpc('create_notification' as never, {
+    p_application_id: recipient.applicationId,
+    p_channel: 'travel_reminder',
+    p_title: title,
+    p_body: body,
+    p_link_path: '/my-travel',
+  } as never);
 
-  const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"/></head>
-<body style="font-family:Arial,sans-serif;color:#1a1a1a;background:#f5f5f5;margin:0;padding:24px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-<tr><td align="center">
-<table role="presentation" style="max-width:520px;width:100%;background:#fff;border-radius:8px;overflow:hidden;">
-<tr><td style="background:#008080;padding:20px 24px;text-align:center;">
-<span style="color:#fff;font-size:18px;font-weight:bold;">COY21 Türkiye 2026</span>
-</td></tr>
-<tr><td style="padding:24px;">
-<p style="margin:0 0 16px;font-size:15px;">Hello ${name},</p>
-<p style="margin:0 0 16px;font-size:14px;color:#333;line-height:1.6;">
-We haven&apos;t received your travel details yet. Please submit your flight information so our logistics team can plan airport reception for your arrival.
-</p>
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
-<tr><td style="border-radius:6px;background:#008080;">
-<a href="${escapeHtml(travelUrl)}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#fff;font-weight:bold;text-decoration:none;">Submit travel details</a>
-</td></tr>
-</table>
-<p style="margin:0;font-size:13px;color:#666;">
-Questions? Contact us at <a href="mailto:${escapeHtml(config.supportEmail)}" style="color:#008080;">${escapeHtml(config.supportEmail)}</a>
-</p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+  if (error) {
+    console.error('travel-reminders: create_notification failed', { applicationId: recipient.applicationId, error });
+  }
 
-  const { error: sendErr } = await sendEmailGuarded({
-    settings,
-    apiKey: config.apiKey,
-    from: config.fromEmail,
-    replyTo: config.replyToEmail,
-    to: profile.email,
-    subject,
-    text,
-    html,
-    originalRecipientDescription: `${profile.fullName} <${profile.email}>`,
-  });
-
-  return !sendErr;
+  return !error;
 }
