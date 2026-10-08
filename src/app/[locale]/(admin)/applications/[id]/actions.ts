@@ -81,6 +81,31 @@ export async function updateApplicationStatusForCaller(
     throw new Error('Application status changed by someone else, please refresh');
   }
 
+  if (newStatus === 'accepted' || newStatus === 'rejected') {
+    const { data: applicant } = await service
+      .from('applications')
+      .select('preferred_language')
+      .eq('id', applicationId)
+      .single();
+    const locale = (applicant?.preferred_language as 'ar' | 'en') ?? 'en';
+    const title = newStatus === 'accepted'
+      ? (locale === 'ar' ? 'تم قبول طلبك!' : 'Your application has been accepted!')
+      : (locale === 'ar' ? 'تحديث بخصوص طلبك' : 'Update on your application');
+    const { error: notifError } = await service.rpc('create_notification' as never, {
+      p_application_id: applicationId,
+      p_channel: newStatus === 'accepted' ? 'application_accepted' : 'application_rejected',
+      p_title: title,
+      p_link_path: newStatus === 'accepted' ? '/my-dashboard' : '/my-application',
+    } as never);
+    if (notifError) {
+      // Do not fail the whole status-change operation over a notification
+      // write failure -- the status change itself already succeeded and
+      // committed. Log and continue, matching this file's existing
+      // tolerance pattern for the application_status_history insert below.
+      console.error('updateApplicationStatus: status updated but notification insert failed', { applicationId, userId, error: notifError });
+    }
+  }
+
   // Issues application_number on acceptance for applications that don't
   // already have one (self-registration path — see
   // docs/superpowers/specs/2026-09-30-import-classification-approval-design.md
