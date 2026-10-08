@@ -1,0 +1,11 @@
+-- supabase/migrations/20261008011000_notifications_broadcast_feed_index.sql
+--
+-- Code-quality review of Task 0 (sub-project 6) found notifications_
+-- application_feed_idx only covers the personal half of the bell's
+-- "join personal + broadcast rows" feed query (20261008010000's
+-- `where not is_broadcast`) -- there was no equivalent index for the
+-- `is_broadcast = true order by created_at desc` half, which would fall
+-- back to a full sequential scan. Cheap to add now, before Task 6+'s
+-- bell query is built against this table, rather than retrofitting it
+-- mid-feature later.
+create index notifications_broadcast_feed_idx on notifications (created_at desc) where is_broadcast;
