@@ -1,0 +1,22 @@
+-- supabase/migrations/20261008070000_add_notification_processing_status.sql
+--
+-- Code-quality review of Task 6 found a real concurrent-invocation
+-- double-send risk in the new process-notifications cron: Vercel Cron does
+-- not guarantee a previous invocation has finished before the next one
+-- fires, and at a 1-minute schedule against a route whose per-row work
+-- includes an awaited Resend HTTP call, two overlapping invocations could
+-- both read the same row as 'pending' and both send the email. Adding a
+-- 'processing' status lets the route atomically claim a row (pending ->
+-- processing, conditional on the row still being pending) before sending
+-- anything -- a losing concurrent claim affects 0 rows and is skipped.
+--
+-- A row stuck in 'processing' (e.g. the route crashed/timed out between
+-- claiming and marking sent/failed) must not become a new permanent-stuck
+-- state. The companion migration 20261008071000 adds a `claimed_at` column
+-- and the route's fetch query admits a 'processing' row once claimed_at is
+-- older than STALE_PROCESSING_MS, so an abandoned claim self-heals on a
+-- later invocation instead of sitting forever. Postgres requires a new enum
+-- value to be committed in its own transaction before it can be referenced
+-- by other DDL, which is why that follow-up is a separate migration file
+-- rather than appended here.
+alter type notification_status add value 'processing';

@@ -72,6 +72,8 @@ type NotificationRow = {
   session_id: string | null;
   old_start_time: string | null;
   new_start_time: string | null;
+  email_status: string;
+  claimed_at: string | null;
 };
 
 type FakeAppLookupResult = { data: unknown; error: unknown };
@@ -79,8 +81,12 @@ type FakeAppLookupResult = { data: unknown; error: unknown };
 /**
  * Builds a fake service-role client whose `.from(table)` dispatches based
  * on `table`:
- *  - 'notifications' select chain -> pendingRows (first call) via
- *    .eq().order().limit(); its .update() chain is recorded in `updates`.
+ *  - 'notifications' select chain -> pendingRows via .or().order().limit().
+ *    Its .update() chain is recorded in `updates`; the FIRST update call
+ *    per row id is the claim (pending/stale-processing -> processing) and
+ *    is driven by `claimResult` (defaults to succeeding, i.e. 1 row
+ *    affected) -- every update after the first for that id is a real
+ *    sent/failed resolution.
  *  - 'applications' select chain -> either a queue of per-call results
  *    (appLookupQueue, consumed in order -- used by the lazy-evaluation
  *    test to return a DIFFERENT result on the 2nd call than the 1st) or
@@ -91,26 +97,73 @@ function fakeService(opts: {
   appLookupQueue?: FakeAppLookupResult[];
   appLookupResult?: FakeAppLookupResult;
   broadcastRecipientsResult?: { data: unknown[] | null; error: unknown };
+  claimResult?: { data: unknown; error: unknown } | ((id: string) => { data: unknown; error: unknown });
 }) {
   const updates: Array<{ id: string; payload: Record<string, unknown> }> = [];
+  const claimedIds = new Set<string>();
+  // Every .eq() call made as part of a claim attempt, grouped per claim
+  // (one inner array per UPDATE call that turned out to be a claim), so
+  // tests can assert the EXACT chain shape used (e.g. ['id', ...],
+  // ['email_status', ...], and -- only for a stale-processing reclaim --
+  // ['claimed_at', ...]) rather than just that *some* claim happened.
+  const claimEqCalls: Array<Array<[string, unknown]>> = [];
   let appLookupCallIndex = 0;
 
   const from = vi.fn((table: string) => {
     if (table === 'notifications') {
       return {
         select: vi.fn(() => ({
-          eq: vi.fn(() => ({
+          or: vi.fn(() => ({
             order: vi.fn(() => ({
               limit: vi.fn(() => Promise.resolve({ data: opts.pendingRows, error: null })),
             })),
           })),
         })),
-        update: vi.fn((payload: Record<string, unknown>) => ({
-          eq: vi.fn((_col: string, id: string) => {
-            updates.push({ id, payload });
-            return Promise.resolve({ data: null, error: null });
-          }),
-        })),
+        update: vi.fn((payload: Record<string, unknown>) => {
+          // First .eq() in the chain is always on 'id'. Whether THIS
+          // update call is a claim (vs. a real sent/failed resolution) is
+          // decided right here, once, the first time a given id's update
+          // chain is built -- not re-decided on each subsequent .eq() --
+          // so the recorded eq-call list below reflects exactly what the
+          // real supabase-js builder call sequence would record. A real
+          // resolution update is `.update(...).eq('id', id)` with NO
+          // further chaining -- the route awaits that .eq() call directly
+          // -- so each node is itself thenable (a resolved-promise shape)
+          // as well as exposing `.eq`/`.select` for the longer claim chain.
+          let isClaim: boolean | null = null;
+          let recordedCalls: Array<[string, unknown]> = [];
+          let resolutionId: string | undefined;
+
+          function buildEqNode(): Record<string, unknown> {
+            const resolved = Promise.resolve({ data: null, error: null });
+            return {
+              eq: vi.fn((col: string, value: unknown) => {
+                if (isClaim === null) {
+                  isClaim = payload.email_status === 'processing' && !claimedIds.has(value as string);
+                  if (isClaim) {
+                    recordedCalls = [];
+                    claimEqCalls.push(recordedCalls);
+                    claimedIds.add(value as string);
+                  } else {
+                    resolutionId = value as string;
+                  }
+                }
+                if (isClaim) recordedCalls.push([col, value]);
+                return buildEqNode();
+              }),
+              select: vi.fn(() => {
+                const id = recordedCalls.find((c) => c[0] === 'id')?.[1] as string | undefined;
+                return Promise.resolve(isClaim && id ? resolveClaim(id) : { data: null, error: null });
+              }),
+              then: (...args: Parameters<Promise<unknown>['then']>) => {
+                if (!isClaim && resolutionId) updates.push({ id: resolutionId, payload });
+                return resolved.then(...args);
+              },
+            };
+          }
+
+          return buildEqNode();
+        }),
       };
     }
     if (table === 'applications') {
@@ -141,7 +194,12 @@ function fakeService(opts: {
     throw new Error(`Unexpected table in test: ${table}`);
   });
 
-  return { client: { from }, updates };
+  function resolveClaim(id: string): { data: unknown; error: unknown } {
+    if (typeof opts.claimResult === 'function') return opts.claimResult(id);
+    return opts.claimResult ?? { data: [{ id }], error: null };
+  }
+
+  return { client: { from }, updates, claimEqCalls };
 }
 
 function applicationRow(overrides: Partial<{ full_name: string; email: string; preferred_language: string }> = {}) {
@@ -166,6 +224,8 @@ function baseRow(overrides: Partial<NotificationRow> = {}): NotificationRow {
     session_id: null,
     old_start_time: null,
     new_start_time: null,
+    email_status: 'pending',
+    claimed_at: null,
     ...overrides,
   };
 }
@@ -203,7 +263,7 @@ describe('GET /api/cron/process-notifications', () => {
 
   it('dispatches the correct email function based on channel and marks the row sent', async () => {
     const row = baseRow({ channel: 'application_accepted' });
-    const { client, updates } = fakeService({
+    const { client, updates, claimEqCalls } = fakeService({
       pendingRows: [row],
       appLookupResult: applicationRow(),
     });
@@ -223,6 +283,15 @@ describe('GET /api/cron/process-notifications', () => {
     expect(updates).toHaveLength(1);
     expect(updates[0].id).toBe(row.id);
     expect(updates[0].payload.email_status).toBe('sent');
+
+    // A fresh-pending row's claim uses only 2 .eq() calls (id, email_status)
+    // -- no claimed_at condition -- contrasting with the 3-call
+    // stale-processing-reclaim shape covered by a dedicated test below.
+    expect(claimEqCalls).toHaveLength(1);
+    expect(claimEqCalls[0]).toEqual([
+      ['id', row.id],
+      ['email_status', 'pending'],
+    ]);
   });
 
   it('dispatches session_cancelled to sendSessionCancellationNotificationEmail', async () => {
@@ -366,18 +435,175 @@ describe('GET /api/cron/process-notifications', () => {
     expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
   });
 
-  it('only queries pending rows and never re-processes rows the cron already resolved (sent/failed)', async () => {
+  it('only queries pending (or stale-processing) rows and never re-processes rows the cron already resolved (sent/failed)', async () => {
     const row = baseRow({ channel: 'application_accepted' });
     const { client } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
     createServiceRoleClientMock.mockReturnValue(client);
 
     await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
 
-    // The fake service's notifications.select().eq() chain is only ever
-    // wired to serve 'email_status' = 'pending' -- assert the handler
-    // actually calls .eq with that filter rather than fetching everything.
+    // The fake service's notifications.select().or() chain is only ever
+    // wired to serve pending/stale-processing rows -- assert the handler
+    // actually calls .or with that filter rather than fetching everything.
     const notificationsFromCall = (client.from as ReturnType<typeof vi.fn>).mock.calls.find((c) => c[0] === 'notifications');
     expect(notificationsFromCall).toBeTruthy();
+  });
+
+  it('reclaims a stale-processing row (abandoned by a crashed prior invocation) and sends it', async () => {
+    // A row the fetch query picked up because it's been 'processing' for
+    // longer than STALE_PROCESSING_MS -- exercises the claim's 3-.eq()
+    // branch (id + email_status + claimed_at), not the 2-.eq() fresh-pending
+    // branch every other test in this file uses. Asserting on claimEqCalls
+    // directly (not just the end-to-end sent outcome) proves the extra
+    // claimed_at condition was actually issued, since the fake's resolved
+    // value does not otherwise depend on which branch ran.
+    const staleClaimedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const row = baseRow({ channel: 'application_accepted', email_status: 'processing', claimed_at: staleClaimedAt });
+    const { client, updates, claimEqCalls } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
+    createServiceRoleClientMock.mockReturnValue(client);
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(json.sent).toBe(1);
+    expect(json.failed).toBe(0);
+    expect(sendApplicationAcceptedEmailMock).toHaveBeenCalledTimes(1);
+    expect(updates[0].payload.email_status).toBe('sent');
+
+    expect(claimEqCalls).toHaveLength(1);
+    expect(claimEqCalls[0]).toEqual([
+      ['id', row.id],
+      ['email_status', 'processing'],
+      ['claimed_at', staleClaimedAt],
+    ]);
+  });
+
+  it('skips a stale-processing row if a concurrent invocation reclaims it first (the claimed_at condition no longer matches)', async () => {
+    const staleClaimedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const row = baseRow({ channel: 'application_accepted', email_status: 'processing', claimed_at: staleClaimedAt });
+    const { client, updates } = fakeService({
+      pendingRows: [row],
+      appLookupResult: applicationRow(),
+      // Simulates another invocation reclaiming this exact stale row first:
+      // by the time this invocation's UPDATE runs, claimed_at has already
+      // moved on, so the 3-.eq() filter (id + email_status + claimed_at)
+      // matches 0 rows.
+      claimResult: { data: [], error: null },
+    });
+    createServiceRoleClientMock.mockReturnValue(client);
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(json.sent).toBe(0);
+    expect(json.failed).toBe(0);
+    expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
+  });
+
+  it('skips a row whose claim loses the race to a concurrent invocation, sending no email and not counting it', async () => {
+    const row = baseRow({ channel: 'application_accepted' });
+    const { client, updates } = fakeService({
+      pendingRows: [row],
+      appLookupResult: applicationRow(),
+      // Simulates another invocation claiming this exact row first: the
+      // conditional UPDATE's .eq() filters no longer match any row, so
+      // .select('id') comes back empty.
+      claimResult: { data: [], error: null },
+    });
+    createServiceRoleClientMock.mockReturnValue(client);
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(json.sent).toBe(0);
+    expect(json.failed).toBe(0);
+    expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
+    // No sent/failed resolution update was made either -- the row was
+    // skipped entirely, left for whichever invocation actually won the claim.
+    expect(updates).toHaveLength(0);
+  });
+
+  it('skips a row when the claim query itself errors, logging but not throwing', async () => {
+    const row = baseRow({ channel: 'application_accepted' });
+    const { client } = fakeService({
+      pendingRows: [row],
+      appLookupResult: applicationRow(),
+      claimResult: { data: null, error: { message: 'connection reset' } },
+    });
+    createServiceRoleClientMock.mockReturnValue(client);
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(response.status).toBe(200);
+    expect(json.sent).toBe(0);
+    expect(json.failed).toBe(0);
+    expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('marks a row failed (not left stuck) when the email function throws instead of returning {error}', async () => {
+    const row = baseRow({ channel: 'application_accepted' });
+    const { client, updates } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
+    createServiceRoleClientMock.mockReturnValue(client);
+    sendApplicationAcceptedEmailMock.mockRejectedValue(new Error('ECONNRESET'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(response.status).toBe(200);
+    expect(json.failed).toBe(1);
+    expect(json.sent).toBe(0);
+    const resolution = updates.find((u) => u.payload.email_status === 'failed');
+    expect(resolution).toBeTruthy();
+    expect(String(resolution!.payload.error_message)).toMatch(/ECONNRESET/);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('returns 500 and logs when the initial pending-rows fetch itself errors', async () => {
+    const { client } = fakeService({ pendingRows: [] });
+    (client.from as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
+      select: vi.fn(() => ({
+        or: vi.fn(() => ({
+          order: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve({ data: null, error: { message: 'db unavailable' } })),
+          })),
+        })),
+      })),
+    }));
+    createServiceRoleClientMock.mockReturnValue(client);
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    expect(response.status).toBe(500);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('a broadcast batch where one recipient send throws is still marked sent, with the other recipient still emailed', async () => {
+    const row = baseRow({ is_broadcast: true, application_id: null, channel: 'announcement', title: 'Venue change', body: null });
+    const recipients = [
+      { id: randomUUID(), preferred_language: 'en', profiles: { full_name: 'Alice', email: 'alice@example.com' } },
+      { id: randomUUID(), preferred_language: 'en', profiles: { full_name: 'Bilal', email: 'bilal@example.com' } },
+    ];
+    const { client, updates } = fakeService({
+      pendingRows: [row],
+      broadcastRecipientsResult: { data: recipients, error: null },
+    });
+    createServiceRoleClientMock.mockReturnValue(client);
+    sendAnnouncementEmailMock
+      .mockRejectedValueOnce(new Error('Resend timeout'))
+      .mockResolvedValueOnce({ id: 'ok', error: null });
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(json.sent).toBe(1);
+    expect(sendAnnouncementEmailMock).toHaveBeenCalledTimes(2);
+    expect(updates[0].payload.email_status).toBe('sent');
+    expect(String(updates[0].payload.error_message)).toMatch(/failed/i);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 
   it('a pending broadcast row queries all accepted applications, batches sends, and marks sent', async () => {
