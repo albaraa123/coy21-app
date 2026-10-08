@@ -125,6 +125,12 @@ describe('mark_notification_read', () => {
     await clientB.auth.signInWithPassword({ email: `notif-rpc-${runId}-mark-read-b@test.local`, password: 'password123' });
     const { error } = await clientB.rpc('mark_notification_read' as never, { p_notification_id: notifId } as never);
     expect(error).not.toBeNull();
+    // Pin this to the RPC's own ownership check specifically, not just "some
+    // error occurred" -- matches the rigor already established by the
+    // create_announcement non-staff-rejection test above. Without this, an
+    // unrelated failure (bad grant, typo'd RPC name, transient network
+    // error, a PostgREST 404) could pass this test by accident.
+    expect(error!.message).toContain('Not authorized');
 
     const { data: after } = await admin.from('notifications').select('read_at').eq('id', notifId).single();
     expect((after as { read_at: string | null }).read_at).toBeNull();
