@@ -202,6 +202,7 @@ export async function GET(req: NextRequest) {
           .eq('status', 'accepted');
 
         let anyFailed = false;
+        let anySent = false;
         const list = (recipients ?? []) as unknown as Array<{
           preferred_language: string | null;
           profiles: { full_name: string | null; email: string | null } | { full_name: string | null; email: string | null }[] | null;
@@ -239,19 +240,43 @@ export async function GET(req: NextRequest) {
               anyFailed = true;
             } else if (!outcome.value) {
               anyFailed = true;
+            } else {
+              anySent = true;
             }
           }
         }
 
+        // A zero-recipient broadcast (no accepted applications at send
+        // time) previously fell through this same "sent, no error" path
+        // as a genuinely successful send with nothing to report -- found
+        // live, 2026-10-09: an announcement created while the database had
+        // zero accepted applicants was marked 'sent' with a null
+        // error_message, even though sendAnnouncementEmail was never
+        // called even once (list.length === 0, so the batching loop above
+        // never runs). This is indistinguishable from a real send in the
+        // UI and in any later audit of this table, which is exactly how
+        // the gap was discovered: a confirmed 'sent' row with no
+        // corresponding entry in Resend's own send log at all. Marked
+        // 'failed' here instead, with a specific, non-generic error
+        // message, so this case is visibly different from both "sent
+        // cleanly" and "sent with some per-recipient failures."
+        const genuinelyHadNoRecipients = !anySent && !anyFailed;
+        const broadcastUpdate = genuinelyHadNoRecipients
+          ? { email_status: 'failed', error_message: 'No accepted applicants to notify at send time' }
+          : {
+              email_status: 'sent',
+              sent_at: new Date().toISOString(),
+              error_message: anyFailed ? 'One or more recipients failed; see send logs' : null,
+            };
         await service
           .from('notifications' as never)
-          .update({
-            email_status: 'sent',
-            sent_at: new Date().toISOString(),
-            error_message: anyFailed ? 'One or more recipients failed; see send logs' : null,
-          } as never)
+          .update(broadcastUpdate as never)
           .eq('id', r.id);
-        sent++;
+        if (genuinelyHadNoRecipients) {
+          failed++;
+        } else {
+          sent++;
+        }
         continue;
       }
 

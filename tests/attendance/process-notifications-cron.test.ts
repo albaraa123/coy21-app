@@ -633,6 +633,37 @@ describe('GET /api/cron/process-notifications', () => {
     expect(updates[0].payload.error_message).toBeNull();
   });
 
+  // Found live, 2026-10-09: a broadcast row with zero accepted applicants
+  // at send time (e.g. created before any applicant was accepted yet, or
+  // a test/empty database) previously fell through the SAME "sent, no
+  // error" path as a genuinely successful send -- sendAnnouncementEmail
+  // was never called even once (the batching loop's list is empty), yet
+  // the row was marked 'sent' with a null error_message. This was
+  // confirmed on the real deployed site: the notifications table showed
+  // email_status='sent' for a test announcement, but Resend's own send
+  // log had no record of it at all -- indistinguishable from a real
+  // delivery without checking Resend directly. Must now be marked
+  // 'failed' with a specific, non-generic message instead, so an empty
+  // audience is visibly different from both a clean send and a partial
+  // failure.
+  it('a broadcast row with zero accepted applicants at send time is marked failed, not a silent "sent"', async () => {
+    const row = baseRow({ is_broadcast: true, application_id: null, channel: 'announcement', title: 'Test Announcement', body: null });
+    const { client, updates } = fakeService({
+      pendingRows: [row],
+      broadcastRecipientsResult: { data: [], error: null },
+    });
+    createServiceRoleClientMock.mockReturnValue(client);
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(json.sent).toBe(0);
+    expect(json.failed).toBe(1);
+    expect(sendAnnouncementEmailMock).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(1);
+    expect(updates[0].payload.email_status).toBe('failed');
+    expect(updates[0].payload.error_message).toBe('No accepted applicants to notify at send time');
+  });
+
   it('a broadcast row with a partially-failed batch is still marked sent, with a summary error_message', async () => {
     const row = baseRow({ is_broadcast: true, application_id: null, channel: 'announcement', title: 'Venue change', body: null });
     const recipients = [
