@@ -75,7 +75,7 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
 
   const { data: reviewers } = await service
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, email')
     .in('role', [...STAFF_ROLES]);
 
   const validNextStatuses = VALID_TRANSITIONS[application.status as ApplicationStatus] ?? [];
