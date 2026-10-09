@@ -5,6 +5,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
 import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
 import { registrationSchema } from '@/lib/validation/registration';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from '@/i18n/routing';
@@ -23,6 +24,9 @@ const INTEREST_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance
 const TRACK_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance'] as const;
 
 const AGE_GROUP_OPTIONS = ['under_18', '18_24', '25_34', '35_44', '45_plus'] as const;
+
+const inputClass =
+  'rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
 
 // The DB row models "not yet filled in" as `null` for nullable columns, while the
 // form schema models the same absence as `undefined` (via zod `.optional()`). Convert
@@ -161,40 +165,110 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
   if (step === 1) {
     return (
-      <div>
+      <div className="flex flex-col gap-4">
         {progressIndicator}
-        <input {...register('phone')} placeholder="Phone" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
-        {errors.phone && <p>{errors.phone.message}</p>}
-        <input {...register('country')} placeholder="Country" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
-        {errors.country && <p>{errors.country.message}</p>}
-        <input {...register('nationality')} placeholder="Nationality" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
-        {errors.nationality && <p>{errors.nationality.message}</p>}
-        <input {...register('birth_date')} type="date" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
-        <select {...register('age_group')} onBlur={() => autosaveStep(STEP_1_FIELDS)}>
-          <option value="">Age group</option>
-          {AGE_GROUP_OPTIONS.map((option) => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
-        {errors.birth_date && <p>{errors.birth_date.message}</p>}
-        <input {...register('city')} placeholder="City" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
-        {errors.city && <p>{errors.city.message}</p>}
-        <input {...register('field_of_work')} placeholder="Field of work" onBlur={() => autosaveStep(STEP_1_FIELDS)} />
-        {errors.field_of_work && <p>{errors.field_of_work.message}</p>}
-        <select {...register('preferred_language')} onBlur={() => autosaveStep(STEP_1_FIELDS)}>
-          <option value="ar">العربية</option>
-          <option value="en">English</option>
-        </select>
-        <button
-          type="button"
-          disabled={!isStepValid(1, watchedValues)}
-          onClick={() => {
-            void autosaveStep(STEP_1_FIELDS);
-            setStep(2);
-          }}
-        >
-          Next
-        </button>
+        <h2 className="text-lg font-semibold text-charcoal dark:text-gray-100">Personal Information</h2>
+
+        <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+          Phone <span className="text-red-600">*</span>
+          <input
+            {...register('phone')}
+            placeholder="Phone"
+            onBlur={() => autosaveStep(STEP_1_FIELDS)}
+            className={inputClass}
+          />
+          {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
+        </label>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+            Country <span className="text-red-600">*</span>
+            <input
+              {...register('country')}
+              placeholder="Country"
+              onBlur={() => autosaveStep(STEP_1_FIELDS)}
+              className={inputClass}
+            />
+            {errors.country && <p className="text-sm text-red-600">{errors.country.message}</p>}
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+            Nationality <span className="text-red-600">*</span>
+            <input
+              {...register('nationality')}
+              placeholder="Nationality"
+              onBlur={() => autosaveStep(STEP_1_FIELDS)}
+              className={inputClass}
+            />
+            {errors.nationality && <p className="text-sm text-red-600">{errors.nationality.message}</p>}
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+            Birth date
+            <input
+              {...register('birth_date')}
+              type="date"
+              onBlur={() => autosaveStep(STEP_1_FIELDS)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+            Age group
+            <select {...register('age_group')} onBlur={() => autosaveStep(STEP_1_FIELDS)} className={inputClass}>
+              <option value="">Age group</option>
+              {AGE_GROUP_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <p className="text-xs text-charcoal/60 dark:text-gray-400">Provide either your birth date or an age range.</p>
+          {errors.birth_date && <p className="text-sm text-red-600">{errors.birth_date.message}</p>}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+            City <span className="text-red-600">*</span>
+            <input
+              {...register('city')}
+              placeholder="City"
+              onBlur={() => autosaveStep(STEP_1_FIELDS)}
+              className={inputClass}
+            />
+            {errors.city && <p className="text-sm text-red-600">{errors.city.message}</p>}
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+            Field of work <span className="text-red-600">*</span>
+            <input
+              {...register('field_of_work')}
+              placeholder="Field of work"
+              onBlur={() => autosaveStep(STEP_1_FIELDS)}
+              className={inputClass}
+            />
+            {errors.field_of_work && <p className="text-sm text-red-600">{errors.field_of_work.message}</p>}
+          </label>
+        </div>
+
+        <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+          Preferred language <span className="text-red-600">*</span>
+          <select {...register('preferred_language')} onBlur={() => autosaveStep(STEP_1_FIELDS)} className={inputClass}>
+            <option value="ar">العربية</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            disabled={!isStepValid(1, watchedValues)}
+            onClick={() => {
+              void autosaveStep(STEP_1_FIELDS);
+              setStep(2);
+            }}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     );
   }
