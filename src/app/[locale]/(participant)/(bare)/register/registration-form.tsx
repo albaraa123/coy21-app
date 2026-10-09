@@ -368,44 +368,121 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       {progressIndicator}
-      <input {...register('organization')} placeholder="Organization" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
-      <textarea {...register('climate_experience')} placeholder="Climate experience" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
-      <textarea {...register('past_initiatives')} placeholder="Past initiatives" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
-      <textarea {...register('topics_to_learn')} placeholder="Topics to learn" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
-      <input {...register('content_type_pref')} placeholder="Content type preference" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
-      <fieldset>
-        <legend>Track interests</legend>
-        {TRACK_OPTIONS.map((option) => (
-          <label key={option}>
-            <input
-              type="checkbox"
-              value={option}
-              {...register('track_interests')}
+      <h2 className="text-lg font-semibold text-charcoal dark:text-gray-100">Tell Us More</h2>
+
+      <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+        Organization
+        <input
+          {...register('organization')}
+          placeholder="Organization"
+          onBlur={() => autosaveStep(STEP_3_FIELDS)}
+          className={inputClass}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+        Climate experience
+        <textarea
+          {...register('climate_experience')}
+          placeholder="Climate experience"
+          onBlur={() => autosaveStep(STEP_3_FIELDS)}
+          className={inputClass}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+        Past initiatives
+        <textarea
+          {...register('past_initiatives')}
+          placeholder="Past initiatives"
+          onBlur={() => autosaveStep(STEP_3_FIELDS)}
+          className={inputClass}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+        Topics to learn
+        <textarea
+          {...register('topics_to_learn')}
+          placeholder="Topics to learn"
+          onBlur={() => autosaveStep(STEP_3_FIELDS)}
+          className={inputClass}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+        Content type preference
+        <input
+          {...register('content_type_pref')}
+          placeholder="Content type preference"
+          onBlur={() => autosaveStep(STEP_3_FIELDS)}
+          className={inputClass}
+        />
+      </label>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 text-sm text-charcoal dark:text-gray-100">Track interests</legend>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+          {TRACK_OPTIONS.map((option) => (
+            <CheckboxCard
+              key={option}
+              option={option}
+              checked={(watchedValues.track_interests ?? []).includes(option)}
+              registerProps={register('track_interests')}
               onBlur={() => autosaveStep(STEP_3_FIELDS)}
             />
-            {option}
-          </label>
-        ))}
+          ))}
+        </div>
       </fieldset>
-      <textarea {...register('priority_sessions')} placeholder="Priority sessions" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
-      <textarea {...register('special_needs')} placeholder="Special needs" onBlur={() => autosaveStep(STEP_3_FIELDS)} />
-      <button type="button" onClick={() => setStep(2)}>Back</button>
-      <button type="submit" disabled={submitting}>Submit Application</button>
-      {/*
-        Skip intentionally does NOT go through handleSubmit(onSubmit): handleSubmit
-        re-validates the full registrationSchema (all step-1/2 required fields), which
-        would make Skip functionally identical to Submit and — if validation somehow
-        failed here — silently do nothing (handleSubmit only invokes its callback on
-        success, and step 3 renders no error messages for step-1/2 fields). Skip calls
-        finalizeSubmission directly so it genuinely bypasses that gate, trusting that
-        step 1/2 are already valid by construction (enforced by the Next buttons'
-        isStepValid checks), while still submitting via the same autosave + submitApplication
-        path as Submit.
-      */}
-      <button type="button" disabled={submitting} onClick={() => void finalizeSubmission()}>Skip</button>
-      {submitError && <p role="alert">{submitError}</p>}
+
+      <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+        Priority sessions
+        <textarea
+          {...register('priority_sessions')}
+          placeholder="Priority sessions"
+          onBlur={() => autosaveStep(STEP_3_FIELDS)}
+          className={inputClass}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+        Special needs
+        <textarea
+          {...register('special_needs')}
+          placeholder="Special needs"
+          onBlur={() => autosaveStep(STEP_3_FIELDS)}
+          className={inputClass}
+        />
+      </label>
+
+      {submitError && (
+        <p role="alert" className="rounded-md border border-red-600 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-400 dark:bg-red-950/40 dark:text-red-300">
+          {submitError}
+        </p>
+      )}
+
+      <div className="flex items-center justify-between">
+        <Button type="button" variant="secondary" onClick={() => setStep(2)}>Back</Button>
+        <div className="flex gap-2">
+          {/*
+            Skip intentionally does NOT go through handleSubmit(onSubmit): handleSubmit
+            re-validates the full registrationSchema (all step-1/2 required fields), which
+            would make Skip functionally identical to Submit and — if validation somehow
+            failed here — silently do nothing (handleSubmit only invokes its callback on
+            success, and step 3 renders no error messages for step-1/2 fields). Skip calls
+            finalizeSubmission directly so it genuinely bypasses that gate, trusting that
+            step 1/2 are already valid by construction (enforced by the Next buttons'
+            isStepValid checks), while still submitting via the same autosave + submitApplication
+            path as Submit.
+          */}
+          <Button type="button" variant="ghost" disabled={submitting} onClick={() => void finalizeSubmission()}>
+            Skip
+          </Button>
+          <Button type="submit" disabled={submitting}>Submit Application</Button>
+        </div>
+      </div>
     </form>
   );
 }
