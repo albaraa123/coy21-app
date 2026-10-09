@@ -592,6 +592,7 @@
       "emptyTitle": "No applications yet",
       "emptyDescription": "Submitted applications will appear here once applicants start applying.",
       "applicationNumber": "Application #",
+      "viewApplication": "View",
       "name": "Name",
       "email": "Email",
       "country": "Country",

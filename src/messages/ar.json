@@ -592,6 +592,7 @@
       "emptyTitle": "لا توجد طلبات بعد",
       "emptyDescription": "ستظهر الطلبات المُرسلة هنا بمجرد أن يبدأ المتقدمون بالتقديم.",
       "applicationNumber": "رقم الطلب",
+      "viewApplication": "عرض",
       "name": "الاسم",
       "email": "البريد الإلكتروني",
       "country": "الدولة",
