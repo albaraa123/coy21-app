@@ -51,6 +51,7 @@ export const adminNavGroups: NavGroup[] = [
     items: [
       { labelKey: 'nav.reports',        href: '/reports',        iconKey: 'reports' },
       { labelKey: 'nav.communications', href: '/communications', iconKey: 'communications' },
+      { labelKey: 'nav.announcements',  href: '/announcements',  iconKey: 'communications' },
     ],
   },
   {

@@ -8,7 +8,12 @@ import type { NavGroup, NavItem } from '@/lib/nav/nav-types';
  *
  * `ADMIN_VERIFIED_ROUTES` below is the confirmed, real, FULL route
  * inventory for src/app/[locale]/(admin)/ as of Phase 5.5 Task 4
- * (2026-07-28), cross-checked directly against the directory tree.
+ * (2026-07-28), cross-checked directly against the directory tree, and
+ * kept current since (most recently `/announcements`, added by the
+ * notifications-layer sub-project but never added to this list or to
+ * admin-nav-config.ts — a real page that existed with no sidebar link at
+ * all, found during a live deployment walkthrough on 2026-10-09 and fixed
+ * in the same change that added this entry).
  * `/dashboard` is intentionally included even though it does not exist yet
  * (it lands in a later task) — see the comments in admin-nav-config.ts.
  *
@@ -84,6 +89,7 @@ const ADMIN_VERIFIED_ROUTES = [
   '/settings',
   '/reports',
   '/communications',
+  '/announcements',
 ];
 
 /**
@@ -226,6 +232,16 @@ describe('admin nav config', () => {
     const attendanceGroup = adminNavGroups.find((g) => g.labelKey === 'nav.groups.attendance');
     expect(attendanceGroup).toBeDefined();
     expect(collectHrefs(attendanceGroup!.items)).toEqual(['/attendance/scanners', '/attendance/admissions', '/attendance/walk-in', '/attendance/demand', '/attendance/ops-dashboard']);
+  });
+
+  // Regression test for the /announcements-had-no-sidebar-link bug (found
+  // live, 2026-10-09): /reports and /communications alone are not enough —
+  // this must fail if /announcements (or any future reporting-surface
+  // page) is built but never wired into this group.
+  it('puts /reports, /communications, and /announcements under the Reporting group', () => {
+    const reportingGroup = adminNavGroups.find((g) => g.labelKey === 'nav.groups.reporting');
+    expect(reportingGroup).toBeDefined();
+    expect(collectHrefs(reportingGroup!.items)).toEqual(['/reports', '/communications', '/announcements']);
   });
 
   it('puts /applications under the Participants group (detail route /applications/[id] intentionally not rendered)', () => {
