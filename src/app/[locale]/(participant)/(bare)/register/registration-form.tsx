@@ -74,8 +74,8 @@ function CheckboxCard({
     <label
       className={
         checked
-          ? 'flex cursor-pointer items-center justify-center rounded-md border border-turquoise bg-turquoise/10 px-3 py-2 text-center text-sm font-medium text-turquoise'
-          : 'flex cursor-pointer items-center justify-center rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-center text-sm text-charcoal hover:border-charcoal/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
+          ? 'flex cursor-pointer items-center justify-center rounded-md border border-turquoise bg-turquoise/10 px-3 py-2 text-center text-sm font-medium text-turquoise focus-within:ring-2 focus-within:ring-turquoise focus-within:ring-offset-1'
+          : 'flex cursor-pointer items-center justify-center rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-center text-sm text-charcoal hover:border-charcoal/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 focus-within:ring-2 focus-within:ring-turquoise focus-within:ring-offset-1'
       }
     >
       <input
