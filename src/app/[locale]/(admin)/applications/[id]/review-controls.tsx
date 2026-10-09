@@ -8,7 +8,7 @@ import type { ApplicationStatus } from '@/lib/validation/admission-review';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-type Reviewer = { id: string; full_name: string };
+type Reviewer = { id: string; full_name: string; email: string };
 type Note = { id: string; body: string; created_at: string; profiles: { full_name: string } | null };
 
 // Visual weight for each possible status transition, matching the
@@ -147,7 +147,7 @@ export default function ReviewControls({
           >
             <option value="">{t('unassigned')}</option>
             {reviewers.map((r) => (
-              <option key={r.id} value={r.id}>{r.full_name}</option>
+              <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
             ))}
           </select>
         </Card>
