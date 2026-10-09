@@ -20,8 +20,20 @@ type ApplicationDraft = Tables<'applications'>;
 // is a specific enum union in the schema, not a bare `string`.
 type FormValues = z.infer<typeof registrationSchema>;
 
-const INTEREST_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance'] as const;
-const TRACK_OPTIONS = ['policy', 'technology', 'media', 'community', 'finance'] as const;
+const INTEREST_OPTIONS = [
+  'Climate Policy & Advocacy',
+  'Climate Technology & Innovation',
+  'Environmental Media & Communications',
+  'Community & Grassroots Action',
+  'Green Finance & Economy',
+] as const;
+const TRACK_OPTIONS = [
+  'Climate Policy & Advocacy',
+  'Climate Technology & Innovation',
+  'Environmental Media & Communications',
+  'Community & Grassroots Action',
+  'Green Finance & Economy',
+] as const;
 
 const AGE_GROUP_OPTIONS = ['under_18', '18_24', '25_34', '35_44', '45_plus'] as const;
 
