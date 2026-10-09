@@ -115,7 +115,49 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
     await finalizeSubmission();
   }
 
-  const progressIndicator = <p>{t('stepProgress', { step, total: 3 })}</p>;
+  const STEPS = [1, 2, 3] as const;
+
+  const progressIndicator = (
+    <div className="mb-6">
+      <span className="sr-only">{t('stepProgress', { step, total: 3 })}</span>
+      <div className="flex items-center" aria-hidden="true">
+        {STEPS.map((s, i) => (
+          <div key={s} className="flex flex-1 items-center last:flex-none">
+            <div
+              className={
+                s < step
+                  ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-turquoise text-white'
+                  : s === step
+                  ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-turquoise font-bold text-turquoise'
+                  : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-charcoal/20 text-charcoal/40 dark:border-gray-700 dark:text-gray-500'
+              }
+            >
+              {s < step ? (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path
+                    fillRule="evenodd"
+                    d="M16.704 5.29a1 1 0 010 1.415l-7.5 7.5a1 1 0 01-1.414 0l-3.5-3.5a1 1 0 111.414-1.415L8.5 12.085l6.79-6.79a1 1 0 011.414-.004z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              ) : (
+                s
+              )}
+            </div>
+            {s !== 3 && (
+              <div
+                className={
+                  s < step
+                    ? 'h-0.5 flex-1 bg-turquoise'
+                    : 'h-0.5 flex-1 bg-charcoal/20 dark:bg-gray-700'
+                }
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   if (step === 1) {
     return (
