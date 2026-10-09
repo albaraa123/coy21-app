@@ -153,7 +153,7 @@ export default async function ApplicationsListPage({
             {applications.map((app) => (
               <Card key={app.id}>
                 <Link href={`/applications/${app.id}`} className="font-mono text-sm font-medium text-turquoise hover:underline">
-                  {app.application_number}
+                  {app.application_number ?? t('viewApplication')}
                 </Link>
                 {app.participant_type && (
                   <span className="text-xs text-charcoal/50 dark:text-gray-500 capitalize">{app.participant_type.replace('_', ' ')}</span>
@@ -194,7 +194,7 @@ export default async function ApplicationsListPage({
                   <tr key={app.id}>
                     <td className="px-4 py-2">
                       <Link href={`/applications/${app.id}`} className="font-mono text-sm font-medium text-turquoise hover:underline">
-                        {app.application_number}
+                        {app.application_number ?? t('viewApplication')}
                       </Link>
                     </td>
                     <td className="px-4 py-2 text-xs text-charcoal/70 dark:text-gray-400 capitalize">
