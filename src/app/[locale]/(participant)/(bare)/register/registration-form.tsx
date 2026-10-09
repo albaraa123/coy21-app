@@ -59,6 +59,37 @@ function draftToDefaultValues(draft: ApplicationDraft): Partial<FormValues> {
   };
 }
 
+function CheckboxCard({
+  option,
+  checked,
+  registerProps,
+  onBlur,
+}: {
+  option: string;
+  checked: boolean;
+  registerProps: ReturnType<ReturnType<typeof useForm<FormValues>>['register']>;
+  onBlur: () => void;
+}) {
+  return (
+    <label
+      className={
+        checked
+          ? 'flex cursor-pointer items-center justify-center rounded-md border border-turquoise bg-turquoise/10 px-3 py-2 text-center text-sm font-medium text-turquoise'
+          : 'flex cursor-pointer items-center justify-center rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-center text-sm text-charcoal hover:border-charcoal/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
+      }
+    >
+      <input
+        type="checkbox"
+        value={option}
+        className="sr-only"
+        {...registerProps}
+        onBlur={onBlur}
+      />
+      {option}
+    </label>
+  );
+}
+
 export default function RegistrationForm({ draft }: { draft: ApplicationDraft }) {
   const t = useTranslations('register');
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -275,43 +306,63 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
   if (step === 2) {
     return (
-      <div>
+      <div className="flex flex-col gap-4">
         {progressIndicator}
-        <fieldset>
-          <legend>Interests (select at least one)</legend>
-          {INTEREST_OPTIONS.map((option) => (
-            <label key={option}>
-              <input
-                type="checkbox"
-                value={option}
-                {...register('interests')}
+        <h2 className="text-lg font-semibold text-charcoal dark:text-gray-100">Your Interests</h2>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm text-charcoal dark:text-gray-100">
+            Interests (select at least one) <span className="text-red-600">*</span>
+          </legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+            {INTEREST_OPTIONS.map((option) => (
+              <CheckboxCard
+                key={option}
+                option={option}
+                checked={(watchedValues.interests ?? []).includes(option)}
+                registerProps={register('interests')}
                 onBlur={() => autosaveStep(STEP_2_FIELDS)}
               />
-              {option}
-            </label>
-          ))}
-          {errors.interests && <p>{errors.interests.message}</p>}
+            ))}
+          </div>
+          {errors.interests && <p className="text-sm text-red-600">{errors.interests.message}</p>}
         </fieldset>
-        <select {...register('experience_level')} onBlur={() => autosaveStep(STEP_2_FIELDS)}>
-          <option value="none">None</option>
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="expert">Expert</option>
-        </select>
-        {errors.experience_level && <p>{errors.experience_level.message}</p>}
-        <textarea {...register('participation_goals')} placeholder="Participation goals" onBlur={() => autosaveStep(STEP_2_FIELDS)} />
-        {errors.participation_goals && <p>{errors.participation_goals.message}</p>}
-        <button type="button" onClick={() => setStep(1)}>Back</button>
-        <button
-          type="button"
-          disabled={!isStepValid(2, watchedValues)}
-          onClick={() => {
-            void autosaveStep(STEP_2_FIELDS);
-            setStep(3);
-          }}
-        >
-          Next
-        </button>
+
+        <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+          Experience level <span className="text-red-600">*</span>
+          <select {...register('experience_level')} onBlur={() => autosaveStep(STEP_2_FIELDS)} className={inputClass}>
+            <option value="none">None</option>
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="expert">Expert</option>
+          </select>
+          {errors.experience_level && <p className="text-sm text-red-600">{errors.experience_level.message}</p>}
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
+          Participation goals <span className="text-red-600">*</span>
+          <textarea
+            {...register('participation_goals')}
+            placeholder="Participation goals"
+            onBlur={() => autosaveStep(STEP_2_FIELDS)}
+            className={inputClass}
+          />
+          {errors.participation_goals && <p className="text-sm text-red-600">{errors.participation_goals.message}</p>}
+        </label>
+
+        <div className="flex justify-between">
+          <Button type="button" variant="secondary" onClick={() => setStep(1)}>Back</Button>
+          <Button
+            type="button"
+            disabled={!isStepValid(2, watchedValues)}
+            onClick={() => {
+              void autosaveStep(STEP_2_FIELDS);
+              setStep(3);
+            }}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     );
   }
