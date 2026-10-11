@@ -121,6 +121,10 @@ export default function PersonManager({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!form.fullNameAr.trim() || !form.fullNameEn.trim()) {
+      setError(t('requiredFieldsError'));
+      return;
+    }
     setSubmitting(true);
     try {
       const input = {

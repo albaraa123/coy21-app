@@ -62,6 +62,10 @@ export default function TagManager({ tags }: { tags: Tag[] }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!form.code.trim() || !form.nameAr.trim() || !form.nameEn.trim()) {
+      setError(t('requiredFieldsError'));
+      return;
+    }
     setSubmitting(true);
     try {
       const input = { code: form.code, nameAr: form.nameAr, nameEn: form.nameEn };

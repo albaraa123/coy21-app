@@ -86,6 +86,10 @@ export default function TrackManager({ tracks }: { tracks: Track[] }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!form.code.trim() || !form.nameAr.trim() || !form.nameEn.trim()) {
+      setError(t('requiredFieldsError'));
+      return;
+    }
     setSubmitting(true);
     try {
       const input = {

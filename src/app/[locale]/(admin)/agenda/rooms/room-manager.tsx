@@ -86,6 +86,10 @@ export default function RoomManager({ rooms }: { rooms: Room[] }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!form.code.trim() || !form.nameAr.trim() || !form.nameEn.trim()) {
+      setError(t('requiredFieldsError'));
+      return;
+    }
     setSubmitting(true);
     try {
       const capacity = Number(form.capacity);
