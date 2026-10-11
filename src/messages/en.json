@@ -949,6 +949,7 @@
       "create": "Create",
       "displayOrderError": "Display order must be an integer",
       "saveError": "Failed to save conference day",
+      "requiredFieldsError": "Please fill in all required fields",
       "deactivateError": "Failed to deactivate conference day",
       "reactivateError": "Failed to reactivate conference day"
     },
@@ -980,6 +981,7 @@
       "create": "Create",
       "capacityError": "Capacity must be a positive integer",
       "saveError": "Failed to save room",
+      "requiredFieldsError": "Please fill in all required fields",
       "deactivateError": "Failed to deactivate room",
       "reactivateError": "Failed to reactivate room"
     },
@@ -1006,6 +1008,7 @@
       "save": "Save",
       "create": "Create",
       "saveError": "Failed to save track",
+      "requiredFieldsError": "Please fill in all required fields",
       "deactivateError": "Failed to deactivate track",
       "reactivateError": "Failed to reactivate track"
     },
@@ -1032,6 +1035,7 @@
       "save": "Save",
       "create": "Create",
       "saveError": "Failed to save session type",
+      "requiredFieldsError": "Please fill in all required fields",
       "deactivateError": "Failed to deactivate session type",
       "reactivateError": "Failed to reactivate session type"
     },
@@ -1056,6 +1060,7 @@
       "save": "Save",
       "create": "Create",
       "saveError": "Failed to save tag",
+      "requiredFieldsError": "Please fill in all required fields",
       "deactivateError": "Failed to deactivate tag",
       "reactivateError": "Failed to reactivate tag"
     },
@@ -1093,6 +1098,7 @@
       "save": "Save",
       "create": "Create",
       "saveError": "Failed to save person",
+      "requiredFieldsError": "Please fill in all required fields",
       "deactivateError": "Failed to deactivate person",
       "reactivateError": "Failed to reactivate person"
     },

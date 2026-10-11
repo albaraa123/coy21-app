@@ -949,6 +949,7 @@
       "create": "إنشاء",
       "displayOrderError": "يجب أن يكون ترتيب العرض رقمًا صحيحًا",
       "saveError": "تعذر حفظ يوم المؤتمر",
+      "requiredFieldsError": "يرجى تعبئة جميع الحقول المطلوبة",
       "deactivateError": "تعذر إيقاف يوم المؤتمر",
       "reactivateError": "تعذر إعادة تفعيل يوم المؤتمر"
     },
@@ -980,6 +981,7 @@
       "create": "إنشاء",
       "capacityError": "يجب أن تكون السعة رقمًا صحيحًا موجبًا",
       "saveError": "تعذر حفظ القاعة",
+      "requiredFieldsError": "يرجى تعبئة جميع الحقول المطلوبة",
       "deactivateError": "تعذر إيقاف القاعة",
       "reactivateError": "تعذر إعادة تفعيل القاعة"
     },
@@ -1006,6 +1008,7 @@
       "save": "حفظ",
       "create": "إنشاء",
       "saveError": "تعذر حفظ المسار",
+      "requiredFieldsError": "يرجى تعبئة جميع الحقول المطلوبة",
       "deactivateError": "تعذر إيقاف المسار",
       "reactivateError": "تعذر إعادة تفعيل المسار"
     },
@@ -1032,6 +1035,7 @@
       "save": "حفظ",
       "create": "إنشاء",
       "saveError": "تعذر حفظ نوع الجلسة",
+      "requiredFieldsError": "يرجى تعبئة جميع الحقول المطلوبة",
       "deactivateError": "تعذر إيقاف نوع الجلسة",
       "reactivateError": "تعذر إعادة تفعيل نوع الجلسة"
     },
@@ -1056,6 +1060,7 @@
       "save": "حفظ",
       "create": "إنشاء",
       "saveError": "تعذر حفظ الوسم",
+      "requiredFieldsError": "يرجى تعبئة جميع الحقول المطلوبة",
       "deactivateError": "تعذر إيقاف الوسم",
       "reactivateError": "تعذر إعادة تفعيل الوسم"
     },
@@ -1093,6 +1098,7 @@
       "save": "حفظ",
       "create": "إنشاء",
       "saveError": "تعذر حفظ الشخص",
+      "requiredFieldsError": "يرجى تعبئة جميع الحقول المطلوبة",
       "deactivateError": "تعذر إيقاف الشخص",
       "reactivateError": "تعذر إعادة تفعيل الشخص"
     },

@@ -74,6 +74,10 @@ export default function DayManager({ days }: { days: ConferenceDay[] }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!form.conferenceDate.trim() || !form.labelAr.trim() || !form.labelEn.trim() || !form.displayOrder.trim()) {
+      setError(t('requiredFieldsError'));
+      return;
+    }
     setSubmitting(true);
     try {
       const displayOrder = Number(form.displayOrder);
