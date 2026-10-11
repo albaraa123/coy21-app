@@ -50,7 +50,10 @@ export const adminNavGroups: NavGroup[] = [
     labelKey: 'nav.groups.reporting',
     items: [
       { labelKey: 'nav.reports',        href: '/reports',        iconKey: 'reports' },
-      { labelKey: 'nav.communications', href: '/communications', iconKey: 'communications' },
+      // '/communications' (older, bypasses the unified notifications system)
+      // intentionally has no sidebar link as of 2026-10-11 -- '/announcements'
+      // is the correct path for anything meant to go through the bell + email
+      // pipeline. The route itself is kept as a fallback, not deleted.
       { labelKey: 'nav.announcements',  href: '/announcements',  iconKey: 'communications' },
     ],
   },

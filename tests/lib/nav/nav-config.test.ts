@@ -146,8 +146,15 @@ const ADMIN_DETAIL_ONLY_ROUTES = [
   '/participants/imports/[batchId]',
 ];
 
+// '/communications' is a real, verified, still-reachable-by-URL route (kept
+// as a fallback), but intentionally has no sidebar link as of 2026-10-11 --
+// '/announcements' is the correct path for anything meant to go through the
+// unified notifications system, and having both linked invited staff
+// confusion about which one to use. Excluded here the same way
+// ADMIN_DETAIL_ONLY_ROUTES excludes dynamic-segment routes, even though
+// this one is static, not dynamic.
 const ADMIN_SIDEBAR_ROUTES = ADMIN_VERIFIED_ROUTES.filter(
-  (route) => !ADMIN_DETAIL_ONLY_ROUTES.includes(route)
+  (route) => !ADMIN_DETAIL_ONLY_ROUTES.includes(route) && route !== '/communications'
 );
 
 const PARTICIPANT_VERIFIED_ROUTES = [
@@ -211,6 +218,10 @@ describe('admin nav config', () => {
     }
   });
 
+  it('never renders /communications as a sidebar NavItem (superseded by /announcements, kept as a URL-only fallback)', () => {
+    expect(allAdminHrefs()).not.toContain('/communications');
+  });
+
   it('places /dashboard first/ungrouped', () => {
     expect(adminDashboardItem.href).toBe('/dashboard');
   });
@@ -235,13 +246,16 @@ describe('admin nav config', () => {
   });
 
   // Regression test for the /announcements-had-no-sidebar-link bug (found
-  // live, 2026-10-09): /reports and /communications alone are not enough —
-  // this must fail if /announcements (or any future reporting-surface
-  // page) is built but never wired into this group.
-  it('puts /reports, /communications, and /announcements under the Reporting group', () => {
+  // live, 2026-10-09): /reports alone is not enough — this must fail if
+  // /announcements (or any future reporting-surface page) is built but
+  // never wired into this group. /communications was deliberately removed
+  // from this group on 2026-10-11 (see the "never renders /communications"
+  // test above) once /announcements took over as the one correct path
+  // through the unified notifications system.
+  it('puts /reports and /announcements under the Reporting group', () => {
     const reportingGroup = adminNavGroups.find((g) => g.labelKey === 'nav.groups.reporting');
     expect(reportingGroup).toBeDefined();
-    expect(collectHrefs(reportingGroup!.items)).toEqual(['/reports', '/communications', '/announcements']);
+    expect(collectHrefs(reportingGroup!.items)).toEqual(['/reports', '/announcements']);
   });
 
   it('puts /applications under the Participants group (detail route /applications/[id] intentionally not rendered)', () => {
