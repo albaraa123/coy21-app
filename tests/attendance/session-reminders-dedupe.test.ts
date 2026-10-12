@@ -211,4 +211,30 @@ describe('GET /api/cron/session-reminders', () => {
     const secondTick = await (await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never)).json();
     expect(secondTick).toMatchObject({ sent: 0, failed: 0, alreadyReminded: 1 });
   });
+
+  // Regression test for a live incident (2026-10-13): a real, non-staff
+  // participant's profiles.full_name was '' (empty, not null -- no profile
+  // row is ever missing full_name entirely, since it's NOT NULL with a
+  // default, but a self-registered participant can leave it blank). This
+  // route's own `!profile?.full_name` check (the only full_name gate
+  // anywhere in the reminder pipeline -- process-notifications itself
+  // never skips on a missing name, it degrades to an empty greeting)
+  // silently dropped them from session_reminder dispatch entirely despite
+  // having an active booking and a valid email.
+  it('still creates a reminder for a participant whose profile full_name is empty, not just missing email', async () => {
+    const session = baseSession();
+    const appId = randomUUID();
+    const { client, rpcCalls } = fakeService({
+      sessions: [session],
+      bookings: [{ application_id: appId }],
+      apps: [{ id: appId, preferred_language: 'en', profiles: { full_name: '', email: 'noname@example.com' } }],
+    });
+    createServiceRoleClientMock.mockReturnValue(client);
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const body = await response.json();
+
+    expect(body).toMatchObject({ sent: 1, failed: 0, alreadyReminded: 0 });
+    expect(rpcCalls).toHaveLength(1);
+  });
 });
