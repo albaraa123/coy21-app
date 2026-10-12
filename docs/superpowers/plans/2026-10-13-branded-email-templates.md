@@ -379,7 +379,7 @@ Note: `config` and `loginUrl` are already in scope in this function (lines 61-63
 
 - [ ] **Step 2: Delete the old `buildLoginDetailsHtml` function and its leftover `escapeHtml` usages inside it**
 
-Delete lines 510-603 of the original file (the entire `buildLoginDetailsHtml` function, from `function buildLoginDetailsHtml(params: {` through its closing `}`). Keep the standalone `escapeHtml` function (lines 501-508) in `resend.ts` — it's still used elsewhere (see Task 3's note on this).
+Delete lines 510-603 of the original file (the entire `buildLoginDetailsHtml` function, from `function buildLoginDetailsHtml(params: {` through its closing `}`). Also delete the standalone `escapeHtml` function (lines 501-508) — its only caller was `buildLoginDetailsHtml`, which this step just removed, so it becomes dead code otherwise (the new `html-template.ts` has its own separate, unexported `escapeHtml` copy — this isn't reused across files, it's intentionally duplicated once, matching the spec's file-separation decision).
 
 - [ ] **Step 3: Update the existing test file**
 
@@ -486,11 +486,11 @@ Replace with:
 
 - [ ] **Step 3: Add `html` to the remaining 5 functions in this task, following the identical pattern**
 
-For each of `sendSessionRescheduleNotificationEmail`, `sendWaitlistPromotionNotificationEmail`, `sendApplicationAcceptedEmail`, `sendApplicationRejectedEmail`, `sendBookingConfirmedEmail`: insert a `const html = buildBrandedEmailHtml({...})` call before the existing `return sendEmailGuarded({...})`, using that function's own `subject`/`body`/`config.appUrl` (already in scope), the badge from the mapping above, `paragraphs: body.split('\n\n')`, and a `cta` pointing at whatever URL that function's existing plain-text body already links to (`loginUrl` for accepted, `agendaUrl` for waitlist-promotion/booking-confirmed; `sendApplicationRejectedEmail` has no link in its existing body, so omit `cta` entirely for that one). Add `html,` to the `sendEmailGuarded({...})` call, same as Step 2.
+For each of `sendSessionRescheduleNotificationEmail`, `sendWaitlistPromotionNotificationEmail`, `sendApplicationAcceptedEmail`, `sendApplicationRejectedEmail`, `sendBookingConfirmedEmail`: insert a `const html = buildBrandedEmailHtml({...})` call before the existing `return sendEmailGuarded({...})`, using that function's own `subject`/`body`/`config.appUrl` (already in scope), the badge from the mapping above, `paragraphs: body.split('\n\n')`, and a `cta` pointing at whatever URL that function's existing plain-text body already links to (`loginUrl` for accepted, `agendaUrl` for waitlist-promotion/booking-confirmed). **Two of these five functions have no link in their existing plain-text body and must omit `cta` entirely: `sendApplicationRejectedEmail` AND `sendSessionRescheduleNotificationEmail`** (the latter's body only states the old/new time, with no URL — do not invent one or borrow `browseUrl`/`agendaUrl` from a different function, neither is in scope there). Add `html,` to the `sendEmailGuarded({...})` call, same as Step 2.
 
 - [ ] **Step 4: Add `html`-presence assertions to the 3 existing test files**
 
-In `tests/email/session-lifecycle-notifications.test.ts`, add to the existing `sendSessionCancellationNotificationEmail` and `sendSessionRescheduleNotificationEmail` describe blocks (find their first `it('sends an English ...')` test and add after the existing `call.text` assertions):
+In `tests/email/session-lifecycle-notifications.test.ts`, add to the existing `sendSessionCancellationNotificationEmail` and `sendSessionRescheduleNotificationEmail` describe blocks (test names vary per file — don't search for a literal `'sends an English ...'` string; instead find each describe block's first/English-locale happy-path test, e.g. `'sends a cancellation email with a link to the browse page, in the requested locale'` or `'includes both old and new formatted times'`, and add after that test's existing `call.text` assertions):
 ```typescript
     expect(typeof call.html).toBe('string');
     expect(call.html.length).toBeGreaterThan(0);
@@ -533,12 +533,12 @@ Insert before its existing `return sendEmailGuarded({...})`:
 ```typescript
   const html = buildBrandedEmailHtml({
     locale: params.locale,
-    heading: params.title,
-    paragraphs: params.body ? [bodyText, params.body] : [bodyText],
+    heading: subject,
+    paragraphs: bodyText.split('\n\n'),
     logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
   });
 ```
-Add `html,` to the `sendEmailGuarded({...})` call. (No badge, no cta — announcements are neutral per spec, and have no link in the existing body.)
+Add `html,` to the `sendEmailGuarded({...})` call. (No badge, no cta — announcements are neutral per spec, and have no link in the existing body.) **Important: use `heading: subject` (matching every other function with a fixed subject template, including `sendApplicationAcceptedEmail`/`sendBookingConfirmedEmail`/etc. in Task 3), not `params.title`** — `subject` already embeds `params.title` inside the "Announcement from COY21 Türkiye 2026: ..." template, so using `subject` as the heading is consistent with the rest of the function set. **Also use `paragraphs: bodyText.split('\n\n')`, not a manually-constructed array.** `bodyText` (the function's own existing variable, defined just above this snippet) already embeds `params.body` inside itself when it's present (see its ternary: `` `...${params.title}${params.body ? `\n\n${params.body}` : ''}...` ``) — constructing `paragraphs` as `[bodyText, params.body]` would render `params.body`'s text a second time as a duplicate paragraph. Splitting the single already-complete `bodyText` string is correct and matches the pattern used by every other function in this plan.
 
 - [ ] **Step 2: Add `html` to `sendRegistrationConfirmationEmail`**
 
