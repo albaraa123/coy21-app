@@ -66,6 +66,16 @@ describe('sendRegistrationConfirmationEmail', () => {
     const call = sendMock.mock.calls[0][0];
     expect(call.html).toMatch(/[؀-ۿ]/);
   });
+
+  it('fails safely (returns an error, never throws) when RESEND_API_KEY is missing', async () => {
+    delete process.env.RESEND_API_KEY;
+    const { sendRegistrationConfirmationEmail } = await import('@/lib/email/resend');
+
+    const result = await sendRegistrationConfirmationEmail({ to: 'a@example.com', fullName: 'Test User', locale: 'en' });
+
+    expect(result.id).toBeNull();
+    expect(result.error).toContain('RESEND_API_KEY');
+  });
 });
 
 describe('sendClassificationChangeNotificationEmail', () => {
@@ -82,6 +92,35 @@ describe('sendClassificationChangeNotificationEmail', () => {
     expect(call.text).toContain('COY21-DEL-0042');
     expect(call.html).toContain('COY21-DEL-0042');
     expect(call.html).toContain('UPDATED');
+  });
+
+  it('sends with both text and html, Arabic', async () => {
+    const { sendClassificationChangeNotificationEmail } = await import('@/lib/email/resend');
+    await sendClassificationChangeNotificationEmail({
+      to: 'a@example.com',
+      fullName: 'مستخدم',
+      newApplicationNumber: 'COY21-DEL-0042',
+      locale: 'ar',
+    });
+
+    const call = sendMock.mock.calls[0][0];
+    expect(call.html).toMatch(/[؀-ۿ]/);
+    expect(call.html).toContain('تحديث');
+  });
+
+  it('fails safely (returns an error, never throws) when RESEND_API_KEY is missing', async () => {
+    delete process.env.RESEND_API_KEY;
+    const { sendClassificationChangeNotificationEmail } = await import('@/lib/email/resend');
+
+    const result = await sendClassificationChangeNotificationEmail({
+      to: 'a@example.com',
+      fullName: 'Test User',
+      newApplicationNumber: 'COY21-DEL-0042',
+      locale: 'en',
+    });
+
+    expect(result.id).toBeNull();
+    expect(result.error).toContain('RESEND_API_KEY');
   });
 });
 
@@ -100,6 +139,36 @@ describe('sendSessionReminderEmail', () => {
     expect(call.html).toContain('Opening Ceremony');
     expect(call.html).toContain('REMINDER');
   });
+
+  it('sends with both text and html, Arabic', async () => {
+    const { sendSessionReminderEmail } = await import('@/lib/email/resend');
+    await sendSessionReminderEmail({
+      to: 'a@example.com',
+      fullName: 'مستخدم',
+      title: 'تذكير: جلسة حفل الافتتاح تبدأ بعد 30 دقيقة',
+      body: 'القاعة: القاعة الرئيسية\nالوقت: 09:00',
+      locale: 'ar',
+    });
+
+    const call = sendMock.mock.calls[0][0];
+    expect(call.html).toMatch(/[؀-ۿ]/);
+  });
+
+  it('fails safely (returns an error, never throws) when RESEND_API_KEY is missing', async () => {
+    delete process.env.RESEND_API_KEY;
+    const { sendSessionReminderEmail } = await import('@/lib/email/resend');
+
+    const result = await sendSessionReminderEmail({
+      to: 'a@example.com',
+      fullName: 'Test User',
+      title: 'Reminder: "Opening Ceremony" starts in 30 minutes',
+      body: 'Room: Main Hall\nTime: 09:00',
+      locale: 'en',
+    });
+
+    expect(result.id).toBeNull();
+    expect(result.error).toContain('RESEND_API_KEY');
+  });
 });
 
 describe('sendTravelReminderEmail', () => {
@@ -117,5 +186,35 @@ describe('sendTravelReminderEmail', () => {
     expect(typeof call.html).toBe('string');
     expect(call.html.length).toBeGreaterThan(0);
     expect(call.html).toContain('ACTION NEEDED');
+  });
+
+  it('sends with both text and html, Arabic', async () => {
+    const { sendTravelReminderEmail } = await import('@/lib/email/resend');
+    await sendTravelReminderEmail({
+      to: 'a@example.com',
+      fullName: 'مستخدم',
+      title: 'إجراء مطلوب: يرجى إرسال تفاصيل سفرك لمؤتمر COY21',
+      body: null,
+      locale: 'ar',
+    });
+
+    const call = sendMock.mock.calls[0][0];
+    expect(call.html).toMatch(/[؀-ۿ]/);
+  });
+
+  it('fails safely (returns an error, never throws) when RESEND_API_KEY is missing', async () => {
+    delete process.env.RESEND_API_KEY;
+    const { sendTravelReminderEmail } = await import('@/lib/email/resend');
+
+    const result = await sendTravelReminderEmail({
+      to: 'a@example.com',
+      fullName: 'Test User',
+      title: 'Action required: submit your travel details for COY21',
+      body: null,
+      locale: 'en',
+    });
+
+    expect(result.id).toBeNull();
+    expect(result.error).toContain('RESEND_API_KEY');
   });
 });
