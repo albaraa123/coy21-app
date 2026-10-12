@@ -93,7 +93,7 @@ describe('dispatch-all cron', () => {
     expect(processSessionNotificationsMock).toHaveBeenCalledTimes(1);
     expect(processSessionNoShowsMock).toHaveBeenCalledTimes(1);
 
-    expect(response.status).toBe(207);
+    expect(response.status).toBe(500);
     const failedResult = body.results.find((r: { name: string }) => r.name === 'process-notifications');
     expect(failedResult.ok).toBe(false);
     expect(failedResult.status).toBe(500);
@@ -112,7 +112,7 @@ describe('dispatch-all cron', () => {
     expect(processSessionNotificationsMock).toHaveBeenCalledTimes(1);
     expect(processSessionNoShowsMock).toHaveBeenCalledTimes(1);
 
-    expect(response.status).toBe(207);
+    expect(response.status).toBe(500);
     const thrownResult = body.results.find((r: { name: string }) => r.name === 'process-notifications');
     expect(thrownResult.ok).toBe(false);
     expect(thrownResult.error).toBe('transient connection drop');

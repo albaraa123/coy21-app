@@ -27,9 +27,7 @@
 // (e.g. process-notifications' row-claiming), but nothing coordinates
 // resource contention ACROSS routes if they ran concurrently against the
 // same database at the same moment. Sequential execution removes that
-// unknown entirely; the combined work across all 4 routes' existing
-// per-route BATCH_SIZE caps is small enough that running them one after
-// another well within typical serverless function time limits.
+// unknown entirely.
 //
 // One sub-route throwing or returning a non-ok response must not prevent
 // the remaining 3 from running -- each call is independently try/caught
@@ -39,6 +37,19 @@ import { GET as processNotifications } from '../process-notifications/route';
 import { GET as sessionReminders } from '../session-reminders/route';
 import { GET as processSessionNotifications } from '../process-session-notifications/route';
 import { GET as processSessionNoShows } from '../process-session-no-shows/route';
+
+// These 4 routes previously each had their OWN independent serverless-
+// invocation time budget; calling them sequentially in one invocation now
+// means they share a single budget, and two of them (process-notifications,
+// process-session-notifications) can each process up to BATCH_SIZE=25 rows
+// with a real outbound Resend call per row -- plausibly 100+ sequential
+// awaited network calls across all 4 routes on a backlogged tick. Set
+// explicitly rather than relying on whatever the platform's current
+// default happens to be (Vercel's Hobby-plan default has changed over
+// time with "fluid compute" rollout -- verify the ACTUAL effective limit
+// for this project in the Vercel dashboard before assuming this value is
+// sufficient headroom, don't just trust this comment).
+export const maxDuration = 60;
 
 const SUB_ROUTES: Array<{ name: string; handler: (req: NextRequest) => Promise<Response> }> = [
   { name: 'process-notifications', handler: processNotifications },
@@ -51,6 +62,7 @@ type SubRouteResult = {
   name: string;
   ok: boolean;
   status: number | null;
+  durationMs: number;
   body?: unknown;
   error?: string;
 };
@@ -59,6 +71,15 @@ export async function GET(req: NextRequest) {
   const results: SubRouteResult[] = [];
 
   for (const { name, handler } of SUB_ROUTES) {
+    // Timed individually (not just the whole invocation) so a hard
+    // platform timeout mid-loop can be diagnosed after the fact from
+    // whichever sub-route's logs/timing got furthest -- the dispatcher's
+    // own response never gets sent in that case (Vercel kills the
+    // invocation before NextResponse.json runs), but per-route
+    // console.error calls inside each sub-route plus this timing, once
+    // this route's own logs are checked, narrow down which route was
+    // running when the tick died.
+    const startedAt = Date.now();
     try {
       const response = await handler(req);
       let body: unknown = null;
@@ -69,7 +90,7 @@ export async function GET(req: NextRequest) {
         // from a failed auth check inside the sub-route) -- not an error
         // in THIS dispatcher, just nothing structured to report back.
       }
-      results.push({ name, ok: response.ok, status: response.status, body });
+      results.push({ name, ok: response.ok, status: response.status, durationMs: Date.now() - startedAt, body });
     } catch (err) {
       // A sub-route throwing (not returning a handled error response) must
       // not stop the remaining routes from running.
@@ -78,11 +99,18 @@ export async function GET(req: NextRequest) {
         name,
         ok: false,
         status: null,
+        durationMs: Date.now() - startedAt,
         error: err instanceof Error ? err.message : 'Unknown error',
       });
     }
   }
 
+  // 500 (not 207) when any sub-route failed: 207 is still in the 2xx
+  // class, and the external cron-job.org monitor driving this route only
+  // alerts on a non-2xx response -- a 207 here would make a real partial
+  // failure invisible to that monitor every single tick. Every sub-route
+  // still always runs regardless of this status code; this only affects
+  // what's reported back to the thing watching for failures.
   const anyFailed = results.some((r) => !r.ok);
-  return NextResponse.json({ results }, { status: anyFailed ? 207 : 200 });
+  return NextResponse.json({ results }, { status: anyFailed ? 500 : 200 });
 }
