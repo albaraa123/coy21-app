@@ -225,6 +225,8 @@ describe('sendAnnouncementEmail', () => {
     expect(call.subject).toContain('Venue change');
     expect(call.text).toContain('Venue change');
     expect(call.text).toContain('The closing ceremony has moved to Hall B.');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('sends Arabic subject/body when locale is ar, and handles a null body', async () => {

@@ -24,6 +24,13 @@ export async function sendRegistrationConfirmationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتم استلام طلب تسجيلك بنجاح. يرجى العلم أن استلام الطلب لا يعني القبول النهائي في المؤتمر، وسيتم التواصل معك بعد انتهاء فريق المؤتمر من مراجعة الطلبات.`
       : `Hello ${params.fullName},\n\nYour registration application has been received. Please note that receipt does not constitute final admission — we will contact you once the review team has finished processing applications.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -33,6 +40,7 @@ export async function sendRegistrationConfirmationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -170,6 +178,14 @@ export async function sendClassificationChangeNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتم تحديث تصنيف مشاركتك، ونتيجة لذلك تم إصدار رمز مشاركة جديد لك: ${params.newApplicationNumber}. الرمز السابق لم يعد صالحاً. إذا كان لديك رمز QR سابق، يرجى استخدام النسخة المحدّثة من حسابك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nYour participation classification has been updated, and as a result a new attendee code has been issued: ${params.newApplicationNumber}. Your previous code is no longer valid. If you had a QR code, please use the updated one from your account.\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تحديث' : 'UPDATED', color: 'gold' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -179,6 +195,7 @@ export async function sendClassificationChangeNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -503,6 +520,14 @@ export async function sendSessionReminderEmail(params: {
   const greeting = params.locale === 'ar' ? `مرحباً ${params.fullName}،` : `Hello ${params.fullName},`;
   const text = [greeting, '', params.title, ...(params.body ? ['', params.body] : [])].join('\n');
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تذكير' : 'REMINDER', color: 'blue' },
+    heading: params.title,
+    paragraphs: params.body ? [params.body] : [params.title],
+    logoUrl: `${configResult.config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -512,6 +537,7 @@ export async function sendSessionReminderEmail(params: {
     to: params.to,
     subject: params.title,
     text,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -531,6 +557,14 @@ export async function sendTravelReminderEmail(params: {
   const greeting = params.locale === 'ar' ? `مرحباً ${params.fullName}،` : `Hello ${params.fullName},`;
   const text = [greeting, '', params.body ?? params.title].join('\n');
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'إجراء مطلوب' : 'ACTION NEEDED', color: 'blue' },
+    heading: params.title,
+    paragraphs: params.body ? [params.body] : [params.title],
+    logoUrl: `${configResult.config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -540,6 +574,7 @@ export async function sendTravelReminderEmail(params: {
     to: params.to,
     subject: params.title,
     text,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -572,6 +607,13 @@ export async function sendAnnouncementEmail(params: {
       ? `مرحباً ${params.fullName}،\n\n${params.title}${params.body ? `\n\n${params.body}` : ''}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\n${params.title}${params.body ? `\n\n${params.body}` : ''}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    heading: subject,
+    paragraphs: bodyText.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -581,6 +623,7 @@ export async function sendAnnouncementEmail(params: {
     to: params.to,
     subject,
     text: bodyText,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
