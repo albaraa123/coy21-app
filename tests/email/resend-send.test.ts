@@ -75,6 +75,8 @@ describe('sendLoginDetailsEmail', () => {
     expect(call.html).toContain('participant@example.com');
     expect(call.html).toContain('password@123');
     expect(call.html).toContain('Test Participant');
+    expect(call.html).toContain('مرحبًا'); // Arabic section present
+    expect(call.html).toContain('Hello Test Participant'); // English section present
   });
 
   it('contains well-formed Arabic text, not mojibake, in both HTML and plain-text bodies', async () => {

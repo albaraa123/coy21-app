@@ -1,6 +1,7 @@
 import { getResendConfig } from './resend-config';
 import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 import { formatConferenceTime, formatConferenceDate } from '@/lib/datetime/conference-time';
+import { buildBrandedEmailBodySection } from './html-template';
 
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
@@ -91,13 +92,47 @@ export async function sendLoginDetailsEmail(params: {
     `Support: ${config.supportEmail}`,
   ].join('\n');
 
-  const html = buildLoginDetailsHtml({
-    fullName: params.fullName,
-    username: params.to,
-    temporaryPassword: params.temporaryPassword,
-    loginUrl,
-    supportEmail: config.supportEmail,
+  const arabicSection = buildBrandedEmailBodySection({
+    locale: 'ar',
+    heading: 'تم إنشاء حسابك',
+    paragraphs: [
+      `مرحبًا ${params.fullName}،`,
+      `تم إنشاء حسابك في منصة COY21 Türkiye 2026.\n\nاسم المستخدم: ${params.to}\nكلمة المرور المؤقتة: ${params.temporaryPassword}`,
+      'سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.',
+      `للدعم: ${config.supportEmail}`,
+    ],
+    cta: { label: 'تسجيل الدخول', url: loginUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
   });
+
+  const englishSection = buildBrandedEmailBodySection({
+    locale: 'en',
+    heading: 'Your account has been created',
+    paragraphs: [
+      `Hello ${params.fullName},`,
+      `Your COY21 Türkiye 2026 platform account has been created.\n\nUsername: ${params.to}\nTemporary password: ${params.temporaryPassword}`,
+      'You will be required to change your password when you first log in. Access to your participant profile and personal schedule will remain restricted until this step is completed.',
+      `Support: ${config.supportEmail}`,
+    ],
+    cta: { label: 'Log in', url: loginUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
+  const html = `<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>COY21 Türkiye 2026</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f4f8;padding:24px 0;">
+      <tr><td align="center">${arabicSection}</td></tr>
+      <tr><td align="center" style="padding-top:16px;">${englishSection}</td></tr>
+      <tr><td style="padding:16px 24px;text-align:center;color:#8899aa;font-size:11px;">COY21 Türkiye 2026 · Antalya, 5–7 Nov 2026</td></tr>
+    </table>
+  </body>
+</html>`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
@@ -492,113 +527,4 @@ export async function sendAnnouncementEmail(params: {
   });
 }
 
-// Escapes the handful of characters that matter for safe HTML text-node
-// interpolation. Every interpolated value here is either a participant's
-// own name/email (never expected to contain markup, but escaped
-// defensively since it is admin/import-sourced data, not something this
-// code fully controls the shape of) or a URL/constant this codebase itself
-// produces.
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function buildLoginDetailsHtml(params: {
-  fullName: string;
-  username: string;
-  temporaryPassword: string;
-  loginUrl: string;
-  supportEmail: string;
-}): string {
-  const name = escapeHtml(params.fullName);
-  const username = escapeHtml(params.username);
-  const password = escapeHtml(params.temporaryPassword);
-  const loginUrl = escapeHtml(params.loginUrl);
-  const supportEmail = escapeHtml(params.supportEmail);
-
-  // Table-based layout (not flexbox/grid) and inline styles throughout —
-  // the only layout approach that renders consistently across email
-  // clients (notably Outlook's Word-based rendering engine). max-width +
-  // width:100% on the outer table is what makes this responsive on mobile
-  // clients without a separate mobile stylesheet.
-  return `<!doctype html>
-<html lang="ar" dir="rtl">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>COY21 Türkiye 2026</title>
-  </head>
-  <body style="margin:0;padding:0;background-color:#f5f3ef;font-family:Tahoma,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f3ef;padding:24px 0;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-            <tr>
-              <td style="background-color:#0f2a2e;padding:20px 24px;text-align:center;">
-                <span style="color:#ffffff;font-size:18px;font-weight:bold;letter-spacing:0.5px;">COY21 Türkiye 2026</span>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:24px;" dir="rtl">
-                <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;">مرحبًا ${name}،</p>
-                <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">تم إنشاء حسابك في منصة COY21 Türkiye 2026.</p>
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f3ef;border-radius:6px;margin:0 0 16px;">
-                  <tr>
-                    <td style="padding:16px;">
-                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">اسم المستخدم</p>
-                      <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;font-weight:bold;">${username}</p>
-                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">كلمة المرور المؤقتة</p>
-                      <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:bold;font-family:monospace;">${password}</p>
-                    </td>
-                  </tr>
-                </table>
-                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
-                  <tr>
-                    <td style="border-radius:6px;background-color:#c9a227;">
-                      <a href="${loginUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#0f2a2e;font-weight:bold;text-decoration:none;">تسجيل الدخول</a>
-                    </td>
-                  </tr>
-                </table>
-                <p style="margin:0 0 16px;font-size:13px;color:#666666;line-height:1.6;">سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.</p>
-                <p style="margin:0;font-size:13px;color:#666666;">للدعم: <a href="mailto:${supportEmail}" style="color:#0f2a2e;">${supportEmail}</a></p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 24px 24px;border-top:1px solid #eeeeee;" dir="ltr">
-                <div style="padding-top:20px;">
-                  <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;">Hello ${name},</p>
-                  <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Your COY21 Türkiye 2026 platform account has been created.</p>
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f3ef;border-radius:6px;margin:0 0 16px;">
-                    <tr>
-                      <td style="padding:16px;">
-                        <p style="margin:0 0 8px;font-size:13px;color:#666666;">Username</p>
-                        <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;font-weight:bold;">${username}</p>
-                        <p style="margin:0 0 8px;font-size:13px;color:#666666;">Temporary password</p>
-                        <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:bold;font-family:monospace;">${password}</p>
-                      </td>
-                    </tr>
-                  </table>
-                  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
-                    <tr>
-                      <td style="border-radius:6px;background-color:#c9a227;">
-                        <a href="${loginUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#0f2a2e;font-weight:bold;text-decoration:none;">Log in</a>
-                      </td>
-                    </tr>
-                  </table>
-                  <p style="margin:0 0 16px;font-size:13px;color:#666666;line-height:1.6;">You will be required to change your password when you first log in. Access to your participant profile and personal schedule will remain restricted until this step is completed.</p>
-                  <p style="margin:0;font-size:13px;color:#666666;">Support: <a href="mailto:${supportEmail}" style="color:#0f2a2e;">${supportEmail}</a></p>
-                </div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
-}
 
