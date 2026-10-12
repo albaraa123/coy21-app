@@ -62,6 +62,8 @@ describe('sendWaitlistPromotionNotificationEmail', () => {
     expect(call.text).toContain('Intro to Climate Policy');
     expect(call.text).toContain('https://example.com/my-agenda');
     expect(call.text).not.toContain('https://example.com/my-agenda/browse');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('sends an Arabic email with a /my-agenda link', async () => {

@@ -60,6 +60,8 @@ describe('sendApplicationAcceptedEmail', () => {
     const call = sendMock.mock.calls[0][0];
     expect(call.to).toBe('participant@example.com');
     expect(call.text).toContain('Test Participant');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('sends Arabic subject/body when locale is ar', async () => {
@@ -110,6 +112,8 @@ describe('sendApplicationRejectedEmail', () => {
     const call = sendMock.mock.calls[0][0];
     expect(call.to).toBe('participant@example.com');
     expect(call.text).toContain('Test Participant');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('sends Arabic subject/body when locale is ar', async () => {
@@ -163,6 +167,8 @@ describe('sendBookingConfirmedEmail', () => {
     expect(call.subject).toContain('Intro to Climate Policy');
     expect(call.text).toContain('Intro to Climate Policy');
     expect(call.text).toContain('https://example.com/my-agenda');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('sends Arabic subject/body when locale is ar', async () => {
@@ -219,6 +225,8 @@ describe('sendAnnouncementEmail', () => {
     expect(call.subject).toContain('Venue change');
     expect(call.text).toContain('Venue change');
     expect(call.text).toContain('The closing ceremony has moved to Hall B.');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('sends Arabic subject/body when locale is ar, and handles a null body', async () => {

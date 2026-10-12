@@ -1,6 +1,7 @@
 import { getResendConfig } from './resend-config';
 import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 import { formatConferenceTime, formatConferenceDate } from '@/lib/datetime/conference-time';
+import { buildBrandedEmailBodySection, buildBrandedEmailHtml } from './html-template';
 
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
@@ -23,6 +24,13 @@ export async function sendRegistrationConfirmationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتم استلام طلب تسجيلك بنجاح. يرجى العلم أن استلام الطلب لا يعني القبول النهائي في المؤتمر، وسيتم التواصل معك بعد انتهاء فريق المؤتمر من مراجعة الطلبات.`
       : `Hello ${params.fullName},\n\nYour registration application has been received. Please note that receipt does not constitute final admission — we will contact you once the review team has finished processing applications.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -32,6 +40,7 @@ export async function sendRegistrationConfirmationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -91,13 +100,47 @@ export async function sendLoginDetailsEmail(params: {
     `Support: ${config.supportEmail}`,
   ].join('\n');
 
-  const html = buildLoginDetailsHtml({
-    fullName: params.fullName,
-    username: params.to,
-    temporaryPassword: params.temporaryPassword,
-    loginUrl,
-    supportEmail: config.supportEmail,
+  const arabicSection = buildBrandedEmailBodySection({
+    locale: 'ar',
+    heading: 'تم إنشاء حسابك',
+    paragraphs: [
+      `مرحبًا ${params.fullName}،`,
+      `تم إنشاء حسابك في منصة COY21 Türkiye 2026.\n\nاسم المستخدم: ${params.to}\nكلمة المرور المؤقتة: ${params.temporaryPassword}`,
+      'سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.',
+      `للدعم: ${config.supportEmail}`,
+    ],
+    cta: { label: 'تسجيل الدخول', url: loginUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
   });
+
+  const englishSection = buildBrandedEmailBodySection({
+    locale: 'en',
+    heading: 'Your account has been created',
+    paragraphs: [
+      `Hello ${params.fullName},`,
+      `Your COY21 Türkiye 2026 platform account has been created.\n\nUsername: ${params.to}\nTemporary password: ${params.temporaryPassword}`,
+      'You will be required to change your password when you first log in. Access to your participant profile and personal schedule will remain restricted until this step is completed.',
+      `Support: ${config.supportEmail}`,
+    ],
+    cta: { label: 'Log in', url: loginUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
+  const html = `<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>COY21 Türkiye 2026</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f4f8;padding:24px 0;">
+      <tr><td align="center">${arabicSection}</td></tr>
+      <tr><td align="center" style="padding-top:16px;">${englishSection}</td></tr>
+      <tr><td style="padding:16px 24px;text-align:center;color:#8899aa;font-size:11px;">COY21 Türkiye 2026 · Antalya, 5–7 Nov 2026</td></tr>
+    </table>
+  </body>
+</html>`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
@@ -135,6 +178,14 @@ export async function sendClassificationChangeNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتم تحديث تصنيف مشاركتك، ونتيجة لذلك تم إصدار رمز مشاركة جديد لك: ${params.newApplicationNumber}. الرمز السابق لم يعد صالحاً. إذا كان لديك رمز QR سابق، يرجى استخدام النسخة المحدّثة من حسابك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nYour participation classification has been updated, and as a result a new attendee code has been issued: ${params.newApplicationNumber}. Your previous code is no longer valid. If you had a QR code, please use the updated one from your account.\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تحديث' : 'UPDATED', color: 'gold' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -144,6 +195,7 @@ export async function sendClassificationChangeNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -178,6 +230,15 @@ export async function sendSessionCancellationNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nنأسف لإبلاغك بأن الجلسة التي حجزتها "${params.sessionTitle}" تم إلغاؤها. حجزك لهذه الجلسة أُلغي تلقائياً.\n\nيمكنك تصفح الجلسات المتاحة الأخرى وحجز بديل من هنا: ${browseUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nWe're sorry to let you know that the session you booked, "${params.sessionTitle}", has been cancelled. Your booking for this session has been automatically cancelled.\n\nYou can browse other available sessions and book a replacement here: ${browseUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'ألغيت' : 'CANCELLED', color: 'gold' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'تصفح الجلسات الأخرى' : 'Browse other sessions', url: browseUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -187,6 +248,7 @@ export async function sendSessionCancellationNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -218,6 +280,14 @@ export async function sendSessionRescheduleNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتغيّر موعد الجلسة التي حجزتها "${params.sessionTitle}".\n\nالموعد السابق: ${oldTimeFormatted}\nالموعد الجديد: ${newTimeFormatted}\n\nحجزك لا يزال سارياً على الموعد الجديد تلقائياً، ولا حاجة لإعادة الحجز. إذا تعارض الموعد الجديد مع حجز آخر لديك، يرجى مراجعة برنامجك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nThe session you booked, "${params.sessionTitle}", has had its time changed.\n\nPrevious time: ${oldTimeFormatted}\nNew time: ${newTimeFormatted}\n\nYour booking remains valid for the new time automatically -- no need to re-book. If the new time conflicts with another of your bookings, please review your agenda.\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تغيّر الموعد' : 'TIME CHANGED', color: 'gold' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -227,6 +297,7 @@ export async function sendSessionRescheduleNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -259,6 +330,15 @@ export async function sendWaitlistPromotionNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتحرر مقعد في الجلسة "${params.sessionTitle}" وتمت ترقيتك تلقائياً من قائمة الانتظار إلى حجز مؤكد.\n\nيمكنك مراجعة برنامجك من هنا: ${agendaUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nA seat opened up in "${params.sessionTitle}" and you've been automatically promoted from the waitlist to a confirmed booking.\n\nYou can review your agenda here: ${agendaUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'مؤكّد' : 'CONFIRMED', color: 'green' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'مراجعة برنامجي' : 'Review my agenda', url: agendaUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -268,6 +348,7 @@ export async function sendWaitlistPromotionNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -295,6 +376,15 @@ export async function sendApplicationAcceptedEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nيسعدنا إبلاغك بأن طلبك للمشاركة في COY21 Türkiye 2026 قد تم قبوله.\n\nيمكنك تسجيل الدخول إلى حسابك من هنا: ${loginUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nWe're pleased to let you know that your application to COY21 Türkiye 2026 has been accepted.\n\nYou can log in to your account here: ${loginUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تم القبول' : 'ACCEPTED', color: 'green' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'تسجيل الدخول' : 'Log in', url: loginUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -304,6 +394,7 @@ export async function sendApplicationAcceptedEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -329,6 +420,14 @@ export async function sendApplicationRejectedEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nنأسف لإبلاغك بأنه لم يتم قبول طلبك للمشاركة في COY21 Türkiye 2026 هذه المرة.\n\nنشكرك على اهتمامك ووقتك، ونتمنى لك التوفيق في مشاركاتك القادمة.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nWe're sorry to let you know that your application to COY21 Türkiye 2026 was not accepted this time.\n\nThank you for your interest and your time -- we wish you the best with your future engagements.\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تحديث على الطلب' : 'APPLICATION UPDATE', color: 'red' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -338,6 +437,7 @@ export async function sendApplicationRejectedEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -369,6 +469,15 @@ export async function sendBookingConfirmedEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتم تأكيد حجزك في الجلسة "${params.sessionTitle}".\n\nيمكنك مراجعة برنامجك من هنا: ${agendaUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nYour booking for "${params.sessionTitle}" has been confirmed.\n\nYou can review your agenda here: ${agendaUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'مؤكّد' : 'CONFIRMED', color: 'green' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'مراجعة برنامجي' : 'Review my agenda', url: agendaUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -378,6 +487,7 @@ export async function sendBookingConfirmedEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -410,6 +520,14 @@ export async function sendSessionReminderEmail(params: {
   const greeting = params.locale === 'ar' ? `مرحباً ${params.fullName}،` : `Hello ${params.fullName},`;
   const text = [greeting, '', params.title, ...(params.body ? ['', params.body] : [])].join('\n');
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تذكير' : 'REMINDER', color: 'blue' },
+    heading: params.title,
+    paragraphs: params.body ? [params.body] : [params.title],
+    logoUrl: `${configResult.config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -419,6 +537,7 @@ export async function sendSessionReminderEmail(params: {
     to: params.to,
     subject: params.title,
     text,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -438,6 +557,14 @@ export async function sendTravelReminderEmail(params: {
   const greeting = params.locale === 'ar' ? `مرحباً ${params.fullName}،` : `Hello ${params.fullName},`;
   const text = [greeting, '', params.body ?? params.title].join('\n');
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'إجراء مطلوب' : 'ACTION NEEDED', color: 'blue' },
+    heading: params.title,
+    paragraphs: params.body ? [params.body] : [params.title],
+    logoUrl: `${configResult.config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -447,6 +574,7 @@ export async function sendTravelReminderEmail(params: {
     to: params.to,
     subject: params.title,
     text,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -479,6 +607,13 @@ export async function sendAnnouncementEmail(params: {
       ? `مرحباً ${params.fullName}،\n\n${params.title}${params.body ? `\n\n${params.body}` : ''}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\n${params.title}${params.body ? `\n\n${params.body}` : ''}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    heading: subject,
+    paragraphs: bodyText.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -488,117 +623,9 @@ export async function sendAnnouncementEmail(params: {
     to: params.to,
     subject,
     text: bodyText,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
 
-// Escapes the handful of characters that matter for safe HTML text-node
-// interpolation. Every interpolated value here is either a participant's
-// own name/email (never expected to contain markup, but escaped
-// defensively since it is admin/import-sourced data, not something this
-// code fully controls the shape of) or a URL/constant this codebase itself
-// produces.
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function buildLoginDetailsHtml(params: {
-  fullName: string;
-  username: string;
-  temporaryPassword: string;
-  loginUrl: string;
-  supportEmail: string;
-}): string {
-  const name = escapeHtml(params.fullName);
-  const username = escapeHtml(params.username);
-  const password = escapeHtml(params.temporaryPassword);
-  const loginUrl = escapeHtml(params.loginUrl);
-  const supportEmail = escapeHtml(params.supportEmail);
-
-  // Table-based layout (not flexbox/grid) and inline styles throughout —
-  // the only layout approach that renders consistently across email
-  // clients (notably Outlook's Word-based rendering engine). max-width +
-  // width:100% on the outer table is what makes this responsive on mobile
-  // clients without a separate mobile stylesheet.
-  return `<!doctype html>
-<html lang="ar" dir="rtl">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>COY21 Türkiye 2026</title>
-  </head>
-  <body style="margin:0;padding:0;background-color:#f5f3ef;font-family:Tahoma,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f3ef;padding:24px 0;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-            <tr>
-              <td style="background-color:#0f2a2e;padding:20px 24px;text-align:center;">
-                <span style="color:#ffffff;font-size:18px;font-weight:bold;letter-spacing:0.5px;">COY21 Türkiye 2026</span>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:24px;" dir="rtl">
-                <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;">مرحبًا ${name}،</p>
-                <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">تم إنشاء حسابك في منصة COY21 Türkiye 2026.</p>
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f3ef;border-radius:6px;margin:0 0 16px;">
-                  <tr>
-                    <td style="padding:16px;">
-                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">اسم المستخدم</p>
-                      <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;font-weight:bold;">${username}</p>
-                      <p style="margin:0 0 8px;font-size:13px;color:#666666;">كلمة المرور المؤقتة</p>
-                      <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:bold;font-family:monospace;">${password}</p>
-                    </td>
-                  </tr>
-                </table>
-                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
-                  <tr>
-                    <td style="border-radius:6px;background-color:#c9a227;">
-                      <a href="${loginUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#0f2a2e;font-weight:bold;text-decoration:none;">تسجيل الدخول</a>
-                    </td>
-                  </tr>
-                </table>
-                <p style="margin:0 0 16px;font-size:13px;color:#666666;line-height:1.6;">سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.</p>
-                <p style="margin:0;font-size:13px;color:#666666;">للدعم: <a href="mailto:${supportEmail}" style="color:#0f2a2e;">${supportEmail}</a></p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 24px 24px;border-top:1px solid #eeeeee;" dir="ltr">
-                <div style="padding-top:20px;">
-                  <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;">Hello ${name},</p>
-                  <p style="margin:0 0 16px;font-size:14px;color:#333333;line-height:1.6;">Your COY21 Türkiye 2026 platform account has been created.</p>
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f3ef;border-radius:6px;margin:0 0 16px;">
-                    <tr>
-                      <td style="padding:16px;">
-                        <p style="margin:0 0 8px;font-size:13px;color:#666666;">Username</p>
-                        <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a;font-weight:bold;">${username}</p>
-                        <p style="margin:0 0 8px;font-size:13px;color:#666666;">Temporary password</p>
-                        <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:bold;font-family:monospace;">${password}</p>
-                      </td>
-                    </tr>
-                  </table>
-                  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
-                    <tr>
-                      <td style="border-radius:6px;background-color:#c9a227;">
-                        <a href="${loginUrl}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#0f2a2e;font-weight:bold;text-decoration:none;">Log in</a>
-                      </td>
-                    </tr>
-                  </table>
-                  <p style="margin:0 0 16px;font-size:13px;color:#666666;line-height:1.6;">You will be required to change your password when you first log in. Access to your participant profile and personal schedule will remain restricted until this step is completed.</p>
-                  <p style="margin:0;font-size:13px;color:#666666;">Support: <a href="mailto:${supportEmail}" style="color:#0f2a2e;">${supportEmail}</a></p>
-                </div>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
-}
 
