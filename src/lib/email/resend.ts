@@ -1,7 +1,7 @@
 import { getResendConfig } from './resend-config';
 import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 import { formatConferenceTime, formatConferenceDate } from '@/lib/datetime/conference-time';
-import { buildBrandedEmailBodySection } from './html-template';
+import { buildBrandedEmailBodySection, buildBrandedEmailHtml } from './html-template';
 
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
@@ -213,6 +213,15 @@ export async function sendSessionCancellationNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nنأسف لإبلاغك بأن الجلسة التي حجزتها "${params.sessionTitle}" تم إلغاؤها. حجزك لهذه الجلسة أُلغي تلقائياً.\n\nيمكنك تصفح الجلسات المتاحة الأخرى وحجز بديل من هنا: ${browseUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nWe're sorry to let you know that the session you booked, "${params.sessionTitle}", has been cancelled. Your booking for this session has been automatically cancelled.\n\nYou can browse other available sessions and book a replacement here: ${browseUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'ألغيت' : 'CANCELLED', color: 'gold' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'تصفح الجلسات الأخرى' : 'Browse other sessions', url: browseUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -222,6 +231,7 @@ export async function sendSessionCancellationNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -253,6 +263,14 @@ export async function sendSessionRescheduleNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتغيّر موعد الجلسة التي حجزتها "${params.sessionTitle}".\n\nالموعد السابق: ${oldTimeFormatted}\nالموعد الجديد: ${newTimeFormatted}\n\nحجزك لا يزال سارياً على الموعد الجديد تلقائياً، ولا حاجة لإعادة الحجز. إذا تعارض الموعد الجديد مع حجز آخر لديك، يرجى مراجعة برنامجك.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nThe session you booked, "${params.sessionTitle}", has had its time changed.\n\nPrevious time: ${oldTimeFormatted}\nNew time: ${newTimeFormatted}\n\nYour booking remains valid for the new time automatically -- no need to re-book. If the new time conflicts with another of your bookings, please review your agenda.\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تغيّر الموعد' : 'TIME CHANGED', color: 'gold' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -262,6 +280,7 @@ export async function sendSessionRescheduleNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -294,6 +313,15 @@ export async function sendWaitlistPromotionNotificationEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتحرر مقعد في الجلسة "${params.sessionTitle}" وتمت ترقيتك تلقائياً من قائمة الانتظار إلى حجز مؤكد.\n\nيمكنك مراجعة برنامجك من هنا: ${agendaUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nA seat opened up in "${params.sessionTitle}" and you've been automatically promoted from the waitlist to a confirmed booking.\n\nYou can review your agenda here: ${agendaUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'مؤكّد' : 'CONFIRMED', color: 'green' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'مراجعة برنامجي' : 'Review my agenda', url: agendaUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -303,6 +331,7 @@ export async function sendWaitlistPromotionNotificationEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -330,6 +359,15 @@ export async function sendApplicationAcceptedEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nيسعدنا إبلاغك بأن طلبك للمشاركة في COY21 Türkiye 2026 قد تم قبوله.\n\nيمكنك تسجيل الدخول إلى حسابك من هنا: ${loginUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nWe're pleased to let you know that your application to COY21 Türkiye 2026 has been accepted.\n\nYou can log in to your account here: ${loginUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تم القبول' : 'ACCEPTED', color: 'green' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'تسجيل الدخول' : 'Log in', url: loginUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -339,6 +377,7 @@ export async function sendApplicationAcceptedEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -364,6 +403,14 @@ export async function sendApplicationRejectedEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nنأسف لإبلاغك بأنه لم يتم قبول طلبك للمشاركة في COY21 Türkiye 2026 هذه المرة.\n\nنشكرك على اهتمامك ووقتك، ونتمنى لك التوفيق في مشاركاتك القادمة.\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nWe're sorry to let you know that your application to COY21 Türkiye 2026 was not accepted this time.\n\nThank you for your interest and your time -- we wish you the best with your future engagements.\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'تحديث على الطلب' : 'APPLICATION UPDATE', color: 'red' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -373,6 +420,7 @@ export async function sendApplicationRejectedEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }
@@ -404,6 +452,15 @@ export async function sendBookingConfirmedEmail(params: {
       ? `مرحباً ${params.fullName}،\n\nتم تأكيد حجزك في الجلسة "${params.sessionTitle}".\n\nيمكنك مراجعة برنامجك من هنا: ${agendaUrl}\n\nإذا كان لديك أي استفسار، يرجى التواصل معنا.`
       : `Hello ${params.fullName},\n\nYour booking for "${params.sessionTitle}" has been confirmed.\n\nYou can review your agenda here: ${agendaUrl}\n\nIf you have any questions, please contact us.`;
 
+  const html = buildBrandedEmailHtml({
+    locale: params.locale,
+    badge: { label: params.locale === 'ar' ? 'مؤكّد' : 'CONFIRMED', color: 'green' },
+    heading: subject,
+    paragraphs: body.split('\n\n'),
+    cta: { label: params.locale === 'ar' ? 'مراجعة برنامجي' : 'Review my agenda', url: agendaUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({
     settings,
@@ -413,6 +470,7 @@ export async function sendBookingConfirmedEmail(params: {
     to: params.to,
     subject,
     text: body,
+    html,
     originalRecipientDescription: `${params.fullName} <${params.to}>`,
   });
 }

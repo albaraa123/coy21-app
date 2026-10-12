@@ -60,6 +60,8 @@ describe('sendSessionCancellationNotificationEmail', () => {
     expect(call.subject).toContain('Intro to Climate Policy');
     expect(call.text).toContain('Intro to Climate Policy');
     expect(call.text).toContain('https://example.com/my-agenda/browse');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('sends Arabic subject/body when locale is ar', async () => {
@@ -99,6 +101,8 @@ describe('sendSessionRescheduleNotificationEmail', () => {
     expect(call.subject).toContain('Intro to Climate Policy');
     expect(call.text).toContain('Previous time:');
     expect(call.text).toContain('New time:');
+    expect(typeof call.html).toBe('string');
+    expect(call.html.length).toBeGreaterThan(0);
   });
 
   it('fails safely when RESEND_API_KEY is missing', async () => {
