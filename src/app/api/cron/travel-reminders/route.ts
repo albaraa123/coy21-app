@@ -77,7 +77,12 @@ export async function GET(req: NextRequest) {
   const recipients = (apps ?? []).flatMap((app) => {
     if (withTravelIds.has(app.id)) return []; // already submitted
     const profile = Array.isArray(app.profiles) ? app.profiles[0] : app.profiles;
-    if (!profile?.email || !profile?.full_name) return [];
+    // Only email is actually required -- a missing *name* should degrade
+    // to an empty greeting (same as every process-notifications channel,
+    // none of which skip on this), not silently drop the participant from
+    // travel reminders entirely. See the matching fix/comment in
+    // session-reminders/route.ts for the live incident this was found in.
+    if (!profile?.email) return [];
     const locale = (app.preferred_language as 'ar' | 'en') ?? 'en';
     return [{ applicationId: app.id, locale }];
   });

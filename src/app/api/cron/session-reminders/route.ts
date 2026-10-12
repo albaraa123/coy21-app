@@ -114,7 +114,16 @@ export async function GET(req: NextRequest) {
 
     for (const app of apps) {
       const profile = Array.isArray(app.profiles) ? app.profiles[0] : app.profiles;
-      if (!profile?.email || !profile?.full_name) continue;
+      // Only email is actually required to send a reminder -- a missing
+      // *name* should degrade to an empty greeting (same as every
+      // process-notifications channel, none of which skip on this), not
+      // silently drop the participant from reminders entirely. Found live,
+      // 2026-10-13: a real, non-staff participant's profiles.full_name was
+      // '' (empty, not null), and this stricter check here -- the only
+      // place in the reminder pipeline that gates on full_name -- meant
+      // they never got a session_reminder row created for them at all,
+      // even though they had an active booking.
+      if (!profile?.email) continue;
 
       const locale = (app.preferred_language as 'ar' | 'en') ?? 'en';
       const title = locale === 'ar'
