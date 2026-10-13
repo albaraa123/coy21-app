@@ -109,11 +109,11 @@ export default function PublicHomePage() {
                 style={{ background: 'linear-gradient(135deg, var(--color-turquoise), var(--color-green), var(--color-gold))' }}
               />
               <Image
-                src="/brand/logo/logo-stacked-color.svg"
+                src="/brand/logo/logo-horizontal-color.svg"
                 alt="COY21 Türkiye 2026"
-                width={220}
-                height={220}
-                className="relative h-auto w-52 drop-shadow-xl"
+                width={203}
+                height={84}
+                className="relative h-auto w-48 drop-shadow-xl"
               />
             </div>
           </Reveal>
