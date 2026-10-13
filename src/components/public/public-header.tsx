@@ -60,9 +60,9 @@ export function PublicHeader() {
           <Image
             src="/brand/logo/logo-horizontal-color.svg"
             alt="COY21 Türkiye 2026"
-            width={116}
-            height={48}
-            className="h-12 w-auto"
+            width={155}
+            height={64}
+            className="h-16 w-auto"
             priority
           />
         </Link>
