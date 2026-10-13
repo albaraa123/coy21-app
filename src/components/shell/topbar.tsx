@@ -59,7 +59,7 @@ export function Topbar({ locale, pageTitle, userDisplay, logoutLabel, mobileDraw
           <Image
             src="/brand/logo/logo-horizontal-color.svg"
             alt="COY21 Türkiye 2026"
-            width={160}
+            width={78}
             height={32}
             className="h-8 w-auto"
             priority
