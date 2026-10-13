@@ -99,7 +99,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <AppShell
       navGroups={visibleNavGroups}
-      storageKey="rcoy-admin-nav-v1"
+      storageKey="coy21-admin-nav-v1"
       userDisplay={userDisplay}
       locale={locale}
       logoutLabel={t('logoutLabel')}

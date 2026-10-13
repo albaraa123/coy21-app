@@ -12,8 +12,8 @@
  * not share persisted state.
  */
 
-export const STORAGE_KEY_ADMIN = 'rcoy-admin-nav-v1';
-export const STORAGE_KEY_PARTICIPANT = 'rcoy-participant-nav-v1';
+export const STORAGE_KEY_ADMIN = 'coy21-admin-nav-v1';
+export const STORAGE_KEY_PARTICIPANT = 'coy21-participant-nav-v1';
 
 /**
  * Reads the persisted set of expanded group labelKeys for the given

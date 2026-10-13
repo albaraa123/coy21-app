@@ -30,7 +30,7 @@
 //     immediately drops the previous deploy's cached assets rather
 //     than serving them indefinitely.
 const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA ?? `fallback-${Date.now()}`;
-const CACHE_NAME = `rcoy-scanner-shell-${BUILD_ID}`;
+const CACHE_NAME = `coy21-scanner-shell-${BUILD_ID}`;
 
 // Fixed, small, non-sensitive allow-list — static assets only. No HTML,
 // no API routes, no manifest data that could go stale in a way that

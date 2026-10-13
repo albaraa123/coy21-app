@@ -57,7 +57,7 @@ describe('scan-feedback', () => {
 
   describe('playScanFeedbackSound', () => {
     it('does nothing when muted (no AudioContext access)', async () => {
-      store['rcoy-scanner-sound-muted'] = 'true';
+      store['coy21-scanner-sound-muted'] = 'true';
       let constructed = false;
       (globalThis as unknown as { window: Record<string, unknown> }).window.AudioContext = class {
         constructor() {

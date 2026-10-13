@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { detectInstallPlatform, type InstallPlatform } from './install-platform';
 
-const DISMISS_KEY = 'rcoy-scanner-install-hint-dismissed';
+const DISMISS_KEY = 'coy21-scanner-install-hint-dismissed';
 
 function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;

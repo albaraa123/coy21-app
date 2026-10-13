@@ -118,7 +118,7 @@ export default async function ParticipantShellLayout({ children }: { children: R
   return (
     <AppShell
       navGroups={participantNavGroups}
-      storageKey="rcoy-participant-nav-v1"
+      storageKey="coy21-participant-nav-v1"
       userDisplay={userDisplay}
       locale={locale}
       logoutLabel={t('logoutLabel')}

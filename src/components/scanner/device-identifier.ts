@@ -10,7 +10,7 @@
 // localStorage and getting a fresh id is explicitly acceptable, and
 // verifyScannerScope/requireScannerDeviceCaller remain the sole
 // authorization gates, completely independent of this value.
-const STORAGE_KEY = 'rcoy-scanner-device-id';
+const STORAGE_KEY = 'coy21-scanner-device-id';
 
 /**
  * Returns a stable per-browser identifier, generating and persisting one

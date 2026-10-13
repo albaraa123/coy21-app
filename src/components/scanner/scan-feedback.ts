@@ -12,7 +12,7 @@
 
 export type FeedbackSeverity = 'success' | 'attention' | 'denied';
 
-const MUTE_STORAGE_KEY = 'rcoy-scanner-sound-muted';
+const MUTE_STORAGE_KEY = 'coy21-scanner-sound-muted';
 
 export function isSoundMuted(): boolean {
   try {

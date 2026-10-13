@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 const SCANNER_DIR = join(__dirname);
 
-const ALLOWED_KEYS = ['rcoy-scanner-device-id', 'rcoy-scanner-sound-muted', 'rcoy-scanner-install-hint-dismissed'];
+const ALLOWED_KEYS = ['coy21-scanner-device-id', 'coy21-scanner-sound-muted', 'coy21-scanner-install-hint-dismissed'];
 
 function collectSourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

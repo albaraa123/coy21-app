@@ -35,11 +35,11 @@ describe('getOrCreateDeviceIdentifier', () => {
     const { getOrCreateDeviceIdentifier } = await import('./device-identifier');
     const id = getOrCreateDeviceIdentifier();
     expect(id).toBe('generated-uuid-1234');
-    expect(store['rcoy-scanner-device-id']).toBe('generated-uuid-1234');
+    expect(store['coy21-scanner-device-id']).toBe('generated-uuid-1234');
   });
 
   it('reuses the existing persisted id on subsequent calls, never generating a new one', async () => {
-    store['rcoy-scanner-device-id'] = 'already-there';
+    store['coy21-scanner-device-id'] = 'already-there';
     const { getOrCreateDeviceIdentifier } = await import('./device-identifier');
     const id = getOrCreateDeviceIdentifier();
     expect(id).toBe('already-there');
