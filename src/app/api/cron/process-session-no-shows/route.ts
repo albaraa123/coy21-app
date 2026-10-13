@@ -8,18 +8,25 @@
 // 'no_show' and -- for waitlist-enabled session types -- promotes the
 // next FIFO waitlist candidate via the same promote_next_waitlist_
 // candidate() helper cancel_booking uses (added in
-// 20261006040000_no_show_detection_and_promotion_helper.sql). No
-// per-row email/outbox handling is needed here: a promotion already
-// queues a waitlist_promoted row into session_notification_outbox,
-// which the existing process-session-notifications cron drains.
+// 20261006040000_no_show_detection_and_promotion_helper.sql, latest
+// definition in 20261008060000_isolate_notification_failures.sql). No
+// per-row email handling is needed here: a promotion already calls
+// create_notification() directly inside that RPC (isolated in its own
+// exception block so a notification failure never undoes the already-
+// committed promotion), dispatched by process-notifications/route.ts --
+// confirmed live in production 2026-10-13. The RPC also still dual-writes
+// a row into session_notification_outbox as of this writing, but nothing
+// drains that table any more (process-session-notifications, the cron
+// that used to, was deleted 2026-10-13 once the create_notification path
+// above was verified) -- the outbox write is now inert, not a second
+// delivery path. See docs/pre-launch-checklist.md for the full context.
 //
 // Invoke every 5 minutes from any cron service, e.g.:
 //   Vercel Cron:  vercel.json -> { "crons": [{ "path": "/api/cron/process-session-no-shows", "schedule": "*/5 * * * *" }] }
 //   External:     GET https://your-domain.com/api/cron/process-session-no-shows
 //                 with header  Authorization: Bearer <CRON_SECRET>
 //
-// SECURITY: guarded by CRON_SECRET env var, same as
-// process-session-notifications/route.ts.
+// SECURITY: guarded by CRON_SECRET env var.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';

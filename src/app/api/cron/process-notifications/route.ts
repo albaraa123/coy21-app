@@ -1,20 +1,24 @@
 // src/app/api/cron/process-notifications/route.ts
 //
 // Sub-project 6, Task 6: unified email-dispatch cron, replacing
-// process-session-notifications (left in place until its deletion
-// precondition is verified live -- see Task 6 Step 6's explicit gate) and
-// absorbing session-reminders'/travel-reminders' direct-send logic (both
-// modified this task to insert `notifications` rows via the
-// create_notification RPC instead of sending email directly).
-// Runs every 1 minute (vercel.json). Same CRON_SECRET Bearer-token guard
-// as every other cron in this codebase -- isAuthorizedCronRequest below is
-// copied verbatim from process-session-notifications/route.ts.
+// process-session-notifications (deleted 2026-10-13 once its deletion
+// precondition -- Task 6 Step 6's explicit gate -- was verified live in
+// production: all 9 notification channel types confirmed sending via this
+// route, see docs/pre-launch-checklist.md) and absorbing session-reminders'/
+// travel-reminders' direct-send logic (both modified this task to insert
+// `notifications` rows via the create_notification RPC instead of sending
+// email directly).
+// Runs every 1 minute (external cron-job.org job, see pre-launch-checklist.md
+// -- Vercel Hobby's cron limit couldn't fit this cadence). Same CRON_SECRET
+// Bearer-token guard as every other cron in this codebase --
+// isAuthorizedCronRequest below was originally copied from the now-deleted
+// process-session-notifications/route.ts.
 //
 // Drains the `notifications` table (20261008010000_notifications_table.sql)
 // for rows with email_status = 'pending' (or a stale 'processing' row --
 // see below), dispatching the correct email function per `channel`.
-// Personal (non-broadcast) rows are processed sequentially, matching
-// process-session-notifications' existing concurrency model for that part.
+// Personal (non-broadcast) rows are processed sequentially, matching the
+// now-deleted process-session-notifications' concurrency model for that part.
 // A broadcast row (channel = 'announcement') fans out to every currently-
 // 'accepted' application, queried fresh at send time -- NOT from any
 // snapshot taken when create_announcement() inserted the row -- so an
