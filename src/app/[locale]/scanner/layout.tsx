@@ -19,7 +19,7 @@ export default function ScannerLayout({ children }: { children: React.ReactNode 
         <Image
           src="/brand/logo/logo-horizontal-color.svg"
           alt="COY21 Türkiye 2026"
-          width={140}
+          width={68}
           height={28}
           className="h-7 w-auto"
           priority

@@ -71,7 +71,7 @@ export default function ParticipantBareLayout({ children }: { children: React.Re
           <Image
             src="/brand/logo/logo-horizontal-color.svg"
             alt="COY21 Türkiye 2026"
-            width={180}
+            width={87}
             height={36}
             className="h-9 w-auto"
             priority
