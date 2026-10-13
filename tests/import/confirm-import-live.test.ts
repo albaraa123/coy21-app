@@ -479,7 +479,7 @@ describe('confirm import (live)', () => {
     expect(insertedApp?.applicant_id).toBeNull();
     expect(insertedApp?.import_batch_id).toBe(importBatchId);
     expect(insertedApp?.status).toBe('accepted');
-    expect(insertedApp?.application_number).toMatch(/^RCOY-2026-\d{5,}$/);
+    expect(insertedApp?.application_number).toMatch(/^COY21-(DEL|VOL|KP|YNG|SPK)-\d{4,}$/);
     expect(insertedApp?.organization).toBe('Raw Org');
 
     // ---------------------------------------------------------------
