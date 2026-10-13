@@ -80,8 +80,8 @@ export function buildBrandedEmailBodySection(params: BrandedEmailParams): string
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);" dir="${dir}">
       <tr>
-        <td style="background-color:#053269;padding:32px 24px;text-align:center;">
-          <img src="${logoUrl}" alt="COY21" style="height:60px;width:auto;" />
+        <td style="background-color:#053269;padding:28px 24px;text-align:center;">
+          <img src="${logoUrl}" alt="COY21" style="height:56px;width:auto;" />
         </td>
       </tr>
       <tr>
