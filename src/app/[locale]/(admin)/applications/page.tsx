@@ -57,16 +57,25 @@ export default async function ApplicationsListPage({
   // unfiltered. `!inner` turns it into a real join-level filter. Safe
   // unconditionally here since applicant_id is NOT NULL and every profile
   // row is created by the signup trigger, so no application can lack one.
+  // Excludes @test.local applicant emails: a small, permanent set of live
+  // test-suite fixture accounts that can never be deleted (they're
+  // referenced by qr_credentials/qr_lifecycle_operations, which are
+  // enforced append-only by a hard DELETE-blocking trigger — see
+  // docs/pre-launch-checklist.md's "Live test-suite fixture leak" entry
+  // for the full incident). Filtering them out here is a display-only
+  // fix; the rows themselves still exist and cannot be removed.
   let countQuery = service
     .from('applications')
     .select('id, profiles!applications_applicant_id_fkey!inner()', { count: 'exact', head: true })
-    .neq('status', 'draft');
+    .neq('status', 'draft')
+    .not('profiles.email', 'ilike', '%@test.local');
   let dataQuery = service
     .from('applications')
     .select(
       'id, application_number, participant_type, status, submitted_at, country, applicant_id, assigned_reviewer_id, profiles!applications_applicant_id_fkey!inner(full_name, email), reviewer:profiles!applications_assigned_reviewer_id_fkey(full_name)'
     )
     .neq('status', 'draft')
+    .not('profiles.email', 'ilike', '%@test.local')
     .order('submitted_at', { ascending: false })
     .order('id', { ascending: false });
 
