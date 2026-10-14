@@ -222,9 +222,21 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // FK-safe order: children before parents.
+  //
+  // import_rows.duplicate_of_row_id is a self-referencing FK (this suite's
+  // own duplicate-detection test, below, deliberately creates exactly this
+  // self-reference), and a plain bulk `delete().in('id', ...)` has no
+  // guaranteed row-processing order -- if Postgres processes the
+  // referenced row before the row pointing at it, the delete fails with
+  // "violates foreign key constraint ...duplicate_of_row_id_fkey", leaving
+  // the whole afterAll's remaining cleanup (applications, audit_logs, the
+  // auth users) never run. Null out every row's self-reference first so
+  // the subsequent delete can never hit this ordering problem.
   const { data: rowsToDelete } = await admin.from('import_rows').select('id').eq('import_batch_id', importBatchId);
   if (rowsToDelete && rowsToDelete.length > 0) {
-    await admin.from('import_rows').delete().in('id', rowsToDelete.map((r) => r.id));
+    const rowIds = rowsToDelete.map((r) => r.id);
+    await admin.from('import_rows').update({ duplicate_of_row_id: null }).in('id', rowIds);
+    await admin.from('import_rows').delete().in('id', rowIds);
   }
   if (importColumnMappingIds.length > 0) {
     await admin.from('import_column_mappings').delete().in('id', importColumnMappingIds);

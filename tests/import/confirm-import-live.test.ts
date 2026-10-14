@@ -283,13 +283,21 @@ beforeAll(async () => {
 afterAll(async () => {
   await deleteAllSuiteApplications();
 
+  // import_rows.duplicate_of_row_id is a self-referencing FK, and this
+  // suite deliberately creates a within-file duplicate (row 5 -> row 4,
+  // see the "Row 5: second occurrence" fixture comment above) to test
+  // duplicate detection. deleteChecked's plain bulk delete has no
+  // guaranteed row-processing order, so it can hit
+  // "...duplicate_of_row_id_fkey" if Postgres processes the referenced
+  // row before the row pointing at it -- null out every row's
+  // self-reference first so the delete can never hit that ordering
+  // problem (same fix as tests/import/validation-live.test.ts's afterAll).
   const { data: rowsToDelete } = await admin.from('import_rows').select('id').eq('import_batch_id', importBatchId);
   if (rowsToDelete && rowsToDelete.length > 0) {
-    await deleteChecked(
-      'import_rows',
-      'id',
-      rowsToDelete.map((r) => r.id)
-    );
+    const rowIds = rowsToDelete.map((r) => r.id);
+    const { error: clearErr } = await admin.from('import_rows').update({ duplicate_of_row_id: null }).in('id', rowIds);
+    if (clearErr) console.error('cleanup: clearing import_rows.duplicate_of_row_id failed', clearErr);
+    await deleteChecked('import_rows', 'id', rowIds);
   }
   if (importColumnMappingIds.length > 0) {
     const { error: mappingErr } = await admin.from('import_column_mappings').delete().in('id', importColumnMappingIds);
