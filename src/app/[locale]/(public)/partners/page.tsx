@@ -20,7 +20,7 @@ function PartnerCard({ name, slug }: { name: string; slug: string }) {
     <div className="flex h-28 items-center justify-center rounded-xl border border-charcoal/10 bg-white p-4 shadow-sm transition-shadow duration-200 hover:shadow-md">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`/partners/${slug}.png`}
+        src={`/partners/${slug}.svg`}
         alt={name}
         className="h-16 w-auto max-w-full object-contain"
       />
