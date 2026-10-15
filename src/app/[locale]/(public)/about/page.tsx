@@ -43,10 +43,10 @@ export default function AboutPage() {
               style={{ background: 'linear-gradient(135deg, var(--color-turquoise), var(--color-green), var(--color-gold))' }}
             />
             <Image
-              src="/brand/logo/logo-stacked-color.svg"
+              src="/brand/logo/logo-horizontal-color.svg"
               alt="COY21 Türkiye 2026"
-              width={200}
-              height={200}
+              width={179}
+              height={74}
               className="relative h-auto w-44 drop-shadow-xl"
             />
           </div>
