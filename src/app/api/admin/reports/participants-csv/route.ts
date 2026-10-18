@@ -34,6 +34,7 @@ export async function GET() {
       status,
       participant_type,
       created_at,
+      imported_email,
       profiles!applications_applicant_id_fkey (
         full_name,
         email
@@ -47,11 +48,22 @@ export async function GET() {
     return new NextResponse('Query failed', { status: 500 });
   }
 
+  // Excludes the permanent @test.local test fixtures left over from the
+  // 2026-10-13/14 live test-suite leak (see docs/pre-launch-checklist.md)
+  // — a real staff export of "accepted participants" must never include
+  // fake test rows alongside real attendee data, same filter already
+  // applied on the Applications list / admin dashboard / Reports page.
+  const realRows = (rows ?? []).filter((r) => {
+    if (r.imported_email?.toLowerCase().endsWith('@test.local')) return false;
+    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+    return !profile?.email?.toLowerCase().endsWith('@test.local');
+  });
+
   const header = ['Attendee Code', 'Full Name', 'Email', 'Type', 'Status', 'Created At'];
 
   const csvLines = [
     header.join(','),
-    ...(rows ?? []).map((r) => {
+    ...realRows.map((r) => {
       const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
       return [
         csvCell(r.application_number ?? ''),

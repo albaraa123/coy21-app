@@ -19,10 +19,23 @@ import { isStaffRole } from '@/lib/auth/is-staff-role';
 type ParticipantTypeRow = { participant_type: string | null; count: number };
 type ConfirmationRow = { status: string; count: number };
 
+// applications is small enough (low hundreds at most, by design — this is
+// a ~500-participant conference) that fetching raw rows and aggregating
+// in code is cheap and safe, and avoids two real problems with the
+// previous `count:id.count()` aggregate-function query shape:
+//   1. PostgREST aggregate functions are disabled on this project
+//      (confirmed live: every call failed with PGRST123 "Use of
+//      aggregate functions is not allowed") — byType/byStatus silently
+//      came back as empty arrays (the error was never checked), so this
+//      entire report section was already silently showing all zeros in
+//      production before this fix.
+//   2. An aggregate query can't exclude the permanent @test.local test
+//      fixtures left over from the 2026-10-13/14 live test-suite leak
+//      (see docs/pre-launch-checklist.md) the same way the Applications
+//      list / dashboard queries now do — raw rows can.
 async function getReportData(service: ReturnType<typeof createServiceRoleClient>) {
   const [
-    byTypeResult,
-    byStatusResult,
+    applicationsResult,
     totalBookingsResult,
     activeBookingsResult,
     travelLegsResult,
@@ -30,14 +43,7 @@ async function getReportData(service: ReturnType<typeof createServiceRoleClient>
   ] = await Promise.all([
     service
       .from('applications')
-      .select('participant_type, count:id.count()')
-      .eq('status', 'accepted')
-      .returns<ParticipantTypeRow[]>(),
-
-    service
-      .from('applications')
-      .select('status, count:id.count()')
-      .returns<ConfirmationRow[]>(),
+      .select('status, participant_type, imported_email, profiles!applications_applicant_id_fkey(email)'),
 
     service.from('session_bookings').select('*', { count: 'exact', head: true }),
 
@@ -48,9 +54,27 @@ async function getReportData(service: ReturnType<typeof createServiceRoleClient>
     service.rpc('count_distinct_travellers'),
   ]);
 
+  const isTestFixture = (row: { imported_email: string | null; profiles: { email: string } | { email: string }[] | null }) => {
+    if (row.imported_email?.toLowerCase().endsWith('@test.local')) return true;
+    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    return profile?.email?.toLowerCase().endsWith('@test.local') ?? false;
+  };
+
+  const realApplications = (applicationsResult.data ?? []).filter((row) => !isTestFixture(row));
+
+  const byTypeMap = new Map<string, number>();
+  const byStatusMap = new Map<string, number>();
+  for (const row of realApplications) {
+    if (row.status === 'accepted') {
+      const key = row.participant_type ?? 'unknown';
+      byTypeMap.set(key, (byTypeMap.get(key) ?? 0) + 1);
+    }
+    byStatusMap.set(row.status, (byStatusMap.get(row.status) ?? 0) + 1);
+  }
+
   return {
-    byType: (byTypeResult.data ?? []) as ParticipantTypeRow[],
-    byStatus: (byStatusResult.data ?? []) as ConfirmationRow[],
+    byType: [...byTypeMap.entries()].map(([participant_type, count]) => ({ participant_type, count })) as ParticipantTypeRow[],
+    byStatus: [...byStatusMap.entries()].map(([status, count]) => ({ status, count })) as ConfirmationRow[],
     totalBookings: totalBookingsResult.count ?? 0,
     activeBookings: activeBookingsResult.count ?? 0,
     travelLegs: travelLegsResult.count ?? 0,
