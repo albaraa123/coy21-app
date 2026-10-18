@@ -123,14 +123,60 @@ export async function getImportsRequiringAttention(caller: DashboardStaffCaller)
  * Count of applications with status = 'accepted'. Always `data` (never
  * `empty`) — zero accepted applications is a real, countable fact about
  * the world, not the absence of the concept "accepted applications".
+ *
+ * Excludes the small, permanent set of live-test-suite fixture
+ * applications left over from the 2026-10-13/14 incident (see
+ * docs/pre-launch-checklist.md's "Live test-suite fixture leak" entry) —
+ * these can never be deleted (referenced by qr_credentials/
+ * qr_lifecycle_operations, enforced append-only by a hard DELETE-blocking
+ * trigger), so they're filtered out of this count the same way they
+ * already are on the Applications list and Staff Management pages,
+ * rather than inflating a real-looking number on the dashboard.
+ *
+ * Two queries, not one combined filter — verified directly against the
+ * live database before landing on this shape:
+ *   - `.not('imported_email', 'ilike', ...)` alone silently drops every
+ *     row where imported_email is NULL (the normal case for claimed
+ *     applications), because SQL's `NOT (NULL ILIKE x)` evaluates to
+ *     NULL, which a WHERE clause treats as "exclude" — confirmed live,
+ *     this returned 0 rows including the one real accepted application.
+ *     Fixed with `.or('imported_email.is.null,imported_email.not.ilike...')`
+ *     to explicitly admit the NULL case.
+ *   - `.not('profiles.email', 'ilike', ...)` against a plain (non-`!inner`)
+ *     joined column does not restrict rows at all — confirmed live, it
+ *     silently returns every row unfiltered (same caveat already
+ *     documented on the Applications-list page's own query). `!inner`
+ *     fixes the filter but would then also exclude every legitimately
+ *     unclaimed application (applicant_id null) from the count entirely,
+ *     which is wrong. Resolved by running a second, `!inner`-scoped query
+ *     for exactly "claimed accepted applications with a @test.local
+ *     profile email" and subtracting that count from the first.
  */
 export async function getAcceptedParticipantCount(caller: DashboardStaffCaller): Promise<CardResult<number>> {
   if (!(await verifyStaffCaller(caller))) return { kind: 'unauthorized' };
 
-  const { count, error } = await caller.service.from('applications').select('id', { count: 'exact', head: true }).eq('status', 'accepted');
+  const baseQuery = caller.service
+    .from('applications')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'accepted')
+    .or('imported_email.is.null,imported_email.not.ilike.%@test.local');
 
-  if (error) return { kind: 'error', message: error.message };
-  return { kind: 'data', value: count ?? 0 };
+  const claimedTestLinkedQuery = caller.service
+    .from('applications')
+    .select('id, profiles!applications_applicant_id_fkey!inner(email)', { count: 'exact', head: true })
+    .eq('status', 'accepted')
+    .or('imported_email.is.null,imported_email.not.ilike.%@test.local')
+    .ilike('profiles.email', '%@test.local');
+
+  const [{ count: baseCount, error: baseError }, { count: testLinkedCount, error: testLinkedError }] = await Promise.all([
+    baseQuery,
+    claimedTestLinkedQuery,
+  ]);
+
+  if (baseError) return { kind: 'error', message: baseError.message };
+  if (testLinkedError) return { kind: 'error', message: testLinkedError.message };
+
+  return { kind: 'data', value: (baseCount ?? 0) - (testLinkedCount ?? 0) };
 }
 
 export type PendingInvitationsSummary = {

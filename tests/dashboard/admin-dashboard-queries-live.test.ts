@@ -67,9 +67,11 @@ async function makeStaffCaller(role: ProfileRole = 'super_admin'): Promise<Dashb
 /**
  * A thenable that mimics the shape every Postgrest query builder method
  * this codebase's queries chain onto (.select/.eq/.in/.order/.limit/
- * .maybeSingle) resolves to — always resolving to a real `{ data: null,
- * error }` response, never throwing. Every chained method returns `this`
- * so any call chain shape resolves the same way.
+ * .maybeSingle/.or/.ilike/.not — the last three added for
+ * getAcceptedParticipantCount's @test.local-exclusion filters) resolves
+ * to — always resolving to a real `{ data: null, error }` response,
+ * never throwing. Every chained method returns `this` so any call chain
+ * shape resolves the same way.
  */
 function makeFailingQueryBuilder(message: string) {
   const builder: Record<string, unknown> = {
@@ -81,6 +83,9 @@ function makeFailingQueryBuilder(message: string) {
     limit: () => builder,
     maybeSingle: () => builder,
     single: () => builder,
+    or: () => builder,
+    ilike: () => builder,
+    not: () => builder,
     then(resolve: (value: { data: null; error: { message: string }; count: null }) => void) {
       resolve({ data: null, error: { message }, count: null });
     },
@@ -237,8 +242,20 @@ describe('admin dashboard queries — data vs empty vs error distinctions', () =
     }
   }, 60000);
 
-  it('getAcceptedParticipantCount always matches a raw COUNT query taken immediately after, including after a real insert', async () => {
+  it('getAcceptedParticipantCount excludes a @test.local-domained accepted application (fixture-leak guard)', async () => {
     const caller = await makeStaffCaller();
+
+    // Deliberately uses this suite's own EMAIL_DOMAIN ('test.local') —
+    // the real pattern left over from the 2026-10-13/14 live test-suite
+    // fixture leak (see docs/pre-launch-checklist.md's "Live test-suite
+    // fixture leak" entry): a leftover @test.local accepted application
+    // inflated this exact dashboard count on the real production
+    // database. getAcceptedParticipantCount now explicitly filters these
+    // out, so a freshly-inserted @test.local row must NOT change the
+    // count — the inverse of this test's original assertion before that
+    // incident was found and fixed.
+    const before = await getAcceptedParticipantCount(caller);
+    expect(before.kind).toBe('data');
 
     const { data: app, error } = await admin
       .from('applications')
@@ -248,27 +265,38 @@ describe('admin dashboard queries — data vs empty vs error distinctions', () =
     expect(error).toBeNull();
     createdApplicationIds.push(app!.id);
 
-    // This suite runs concurrently alongside other *-live.test.ts files
-    // against the SAME shared live project (Vitest's default
-    // parallelism), so the global 'accepted' count can move in EITHER
-    // direction between two reads taken moments apart (another suite may
-    // insert or delete its own accepted applications mid-run) — a
-    // before/after delta assertion is therefore inherently flaky here,
-    // independent of this function's own correctness. The property that
-    // actually matters — this is a genuine live COUNT query, not a
-    // cached/stale/hardcoded value — is instead proven by comparing the
-    // function's result to a raw COUNT query issued immediately
-    // afterward: both necessarily observe the row just inserted above
-    // (since neither can observe a state further in the past than the
-    // insert that already completed), so they must agree.
-    const result = await getAcceptedParticipantCount(caller);
-    const { count: rawCount, error: rawError } = await admin.from('applications').select('id', { count: 'exact', head: true }).eq('status', 'accepted');
+    const after = await getAcceptedParticipantCount(caller);
+    expect(after.kind).toBe('data');
+    if (before.kind === 'data' && after.kind === 'data') {
+      // This suite runs concurrently alongside other *-live.test.ts files
+      // against the SAME shared live project (Vitest's default
+      // parallelism), so an exact equality assertion would be flaky if
+      // another suite inserts/deletes a non-test.local accepted
+      // application mid-run — but the @test.local row just inserted
+      // above must never be the reason the count moved, which is what
+      // this test actually needs to prove.
+      expect(after.value).toBe(before.value);
+    }
+  }, 60000);
 
-    expect(result.kind).toBe('data');
-    expect(rawError).toBeNull();
-    if (result.kind === 'data') {
-      expect(result.value).toBeGreaterThanOrEqual(1); // the row just inserted, at minimum
-      expect(result.value).toBe(rawCount);
+  it('getAcceptedParticipantCount counts a real (non-test.local) accepted application', async () => {
+    const caller = await makeStaffCaller();
+
+    const before = await getAcceptedParticipantCount(caller);
+    expect(before.kind).toBe('data');
+
+    const { data: app, error } = await admin
+      .from('applications')
+      .insert({ applicant_id: null, imported_email: `${EMAIL_PREFIX}accepted-real-${Date.now()}@example.com`, status: 'accepted' })
+      .select('id')
+      .single();
+    expect(error).toBeNull();
+    createdApplicationIds.push(app!.id);
+
+    const after = await getAcceptedParticipantCount(caller);
+    expect(after.kind).toBe('data');
+    if (before.kind === 'data' && after.kind === 'data') {
+      expect(after.value).toBe(before.value + 1);
     }
   }, 60000);
 
