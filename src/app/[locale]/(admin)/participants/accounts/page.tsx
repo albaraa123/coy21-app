@@ -35,12 +35,22 @@ export default async function ParticipantAccountsPage() {
   // imported_email at all are the population this feature can act on.
   // provisioning rows are left-joined so an application never touched by
   // this feature yet still appears with a 'no_account' implicit state.
+  //
+  // Excludes @test.local imported_email rows: the permanent fixtures left
+  // over from the 2026-10-13/14 live test-suite leak (see
+  // docs/pre-launch-checklist.md) are exactly the shape this page's own
+  // "imported, never self-registered" filter is designed to surface —
+  // confirmed live, 3 of them (obviously-fake names like "Classification
+  // Edit Fixture 55b85fa3") were showing here before this fix, same
+  // residue already excluded on the Applications list / dashboard /
+  // Reports page / CSV export.
   const { data: applications } = await service
     .from('applications')
     .select(
       'id, full_name, imported_email, import_batch_id, participant_type, import_batches(original_filename), participant_account_provisioning(account_status, email_status, must_change_password, normalized_email, last_login_email_sent_at, login_email_send_count, last_error_message, auth_user_id)'
     )
     .not('imported_email', 'is', null)
+    .not('imported_email', 'ilike', '%@test.local')
     .order('created_at', { ascending: false })
     .limit(500);
 
