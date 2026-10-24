@@ -21,6 +21,15 @@
 // state that would imply "there's just nothing here" instead of "we
 // couldn't verify you're allowed to see this."
 //
+// ALLOCATION CARDS REMOVED (2026-10-25): the "Latest allocation run" and
+// "Schedule publication" cards (and their getAllocationRunStatus/
+// getSchedulePublicationSummary queries) were removed per the same
+// product decision documented in admin-nav-config.ts — the conference
+// uses pure first-come-first-served self-booking instead of algorithmic
+// allocation. Those two query functions are kept in
+// admin-dashboard-queries.ts (unused, not deleted), matching the
+// nav-config decision to hide rather than delete the underlying feature.
+//
 // DENSITY: this is the deliberately DENSE admin view — a compact grid of
 // small metric/list cards, many numbers, minimal whitespace. Contrast with
 // my-dashboard/page.tsx's deliberately sparse, calm participant layout.
@@ -38,8 +47,6 @@ import {
   getAcceptedParticipantCount,
   getPendingInvitationsSummary,
   getUpcomingPublishedSessions,
-  getAllocationRunStatus,
-  getSchedulePublicationSummary,
   getSessionBookingsSummary,
   getTravelLegCount,
   type DashboardStaffCaller,
@@ -72,8 +79,6 @@ export default async function AdminDashboardPage() {
     acceptedCount,
     pendingInvitations,
     upcomingSessions,
-    allocationRunStatus,
-    schedulePublication,
     sessionBookings,
     travelLegCount,
   ] = await Promise.all([
@@ -82,8 +87,6 @@ export default async function AdminDashboardPage() {
     getAcceptedParticipantCount(caller),
     getPendingInvitationsSummary(caller),
     getUpcomingPublishedSessions(caller),
-    getAllocationRunStatus(caller),
-    getSchedulePublicationSummary(caller),
     getSessionBookingsSummary(caller),
     getTravelLegCount(caller),
   ]);
@@ -128,40 +131,6 @@ export default async function AdminDashboardPage() {
                 <div>
                   <dt className="text-xs text-charcoal/60 dark:text-gray-400">{t('pendingInvitations.failed')}</dt>
                   <dd className="text-lg font-semibold text-charcoal dark:text-gray-100">{value.failed}</dd>
-                </div>
-              </dl>
-            )}
-          </CardBody>
-        </DashboardCard>
-
-        <DashboardCard title={t('allocationRun.title')} href="/allocation/runs" linkLabel={t('allocationRun.linkLabel')}>
-          <CardBody result={allocationRunStatus} states={tStates} unauthorizedDestination={unauthorizedDestination} emptyLabel={t('allocationRun.empty')}>
-            {(value) => (
-              <div className="flex items-center gap-2">
-                <Badge variant={value.status === 'failed' ? 'cancelled' : 'elective'}>{value.status}</Badge>
-                <span className="text-xs text-charcoal/60 dark:text-gray-400">
-                  {new Date(value.runAt).toLocaleString(locale)}
-                </span>
-              </div>
-            )}
-          </CardBody>
-        </DashboardCard>
-
-        <DashboardCard title={t('schedulePublication.title')} href="/allocation/schedules" linkLabel={t('schedulePublication.linkLabel')}>
-          <CardBody result={schedulePublication} states={tStates} unauthorizedDestination={unauthorizedDestination}>
-            {(value) => (
-              <dl className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <dt className="text-xs text-charcoal/60 dark:text-gray-400">{t('schedulePublication.staged')}</dt>
-                  <dd className="text-lg font-semibold text-charcoal dark:text-gray-100">{value.staged}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-charcoal/60 dark:text-gray-400">{t('schedulePublication.needsResolution')}</dt>
-                  <dd className="text-lg font-semibold text-charcoal dark:text-gray-100">{value.needsResolution}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-charcoal/60 dark:text-gray-400">{t('schedulePublication.active')}</dt>
-                  <dd className="text-lg font-semibold text-charcoal dark:text-gray-100">{value.active}</dd>
                 </div>
               </dl>
             )}

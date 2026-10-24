@@ -153,8 +153,15 @@ const ADMIN_DETAIL_ONLY_ROUTES = [
 // confusion about which one to use. Excluded here the same way
 // ADMIN_DETAIL_ONLY_ROUTES excludes dynamic-segment routes, even though
 // this one is static, not dynamic.
+//
+// '/allocation/runs' and '/allocation/schedules' are, as of 2026-10-25,
+// the same situation: real, verified, still-reachable-by-URL routes
+// (code not deleted, only unlinked), per an explicit product decision
+// to run the conference on pure first-come-first-served self-booking
+// instead of algorithmic allocation -- see admin-nav-config.ts's own
+// comment on the removed Allocation nav group for the full reasoning.
 const ADMIN_SIDEBAR_ROUTES = ADMIN_VERIFIED_ROUTES.filter(
-  (route) => !ADMIN_DETAIL_ONLY_ROUTES.includes(route) && route !== '/communications'
+  (route) => !ADMIN_DETAIL_ONLY_ROUTES.includes(route) && !['/communications', '/allocation/runs', '/allocation/schedules'].includes(route)
 );
 
 const PARTICIPANT_VERIFIED_ROUTES = [
@@ -226,12 +233,11 @@ describe('admin nav config', () => {
     expect(adminDashboardItem.href).toBe('/dashboard');
   });
 
-  it('has exactly 7 groups: Participants, Agenda, Allocation, Attendance, Reporting, Staff, Settings', () => {
-    expect(adminNavGroups).toHaveLength(7);
+  it('has exactly 6 groups: Participants, Agenda, Attendance, Reporting, Staff, Settings (Allocation intentionally hidden, 2026-10-25 -- see admin-nav-config.ts)', () => {
+    expect(adminNavGroups).toHaveLength(6);
     expect(adminNavGroups.map((g) => g.labelKey)).toEqual([
       'nav.groups.participants',
       'nav.groups.agenda',
-      'nav.groups.allocation',
       'nav.groups.attendance',
       'nav.groups.reporting',
       'nav.groups.staff',

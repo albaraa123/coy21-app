@@ -29,13 +29,20 @@ export const adminNavGroups: NavGroup[] = [
       { labelKey: 'nav.agenda.people',   href: '/agenda/people',   iconKey: 'participants' },
     ],
   },
-  {
-    labelKey: 'nav.groups.allocation',
-    items: [
-      { labelKey: 'nav.allocation.runs',    href: '/allocation/runs',       iconKey: 'allocation' },
-      { labelKey: 'nav.schedules.overview', href: '/allocation/schedules',  iconKey: 'schedule' },
-    ],
-  },
+  // The Allocation nav group (runs/schedules, the algorithmic
+  // session-matching engine) is intentionally hidden as of 2026-10-25,
+  // per explicit product decision: the conference now uses pure
+  // first-come-first-served self-booking (book_session/join_waitlist,
+  // already live under (participant)/(shell)/my-agenda) instead of
+  // algorithmic allocation. The routes, pages, and engine
+  // (src/lib/allocation/*, src/app/[locale]/(admin)/allocation/*) are
+  // deliberately NOT deleted -- only hidden from the sidebar -- in case
+  // this decision is revisited. See docs/pre-launch-checklist.md for
+  // the full history (including a 2026-10-23/24 investigation into the
+  // allocation engine processing leaked test fixtures as real
+  // participants, now moot since this group is no longer reachable from
+  // the UI, though the underlying data-integrity issue was also fixed
+  // independently).
   {
     labelKey: 'nav.groups.attendance',
     items: [
