@@ -300,7 +300,15 @@ supabase
 
 Destructure the new `{ data: identity }` result and pass it to the new `<IdentityForm>`, rendered as the first `<Card>` in the page, above Emergency Contacts.
 
-- [ ] Add `IdentityForm` to `profile-forms.tsx`, following `AccommodationForm`'s shape (local `useState` form, `useTransition` for save, inline error string — this feature area has no i18n today, confirmed by grep; match that, don't introduce `useTranslations` here). Avatar upload: a plain `<input type="file">` that uploads directly to the `avatars` bucket via `supabase.storage.from('avatars').upload(...)` client-side (needs a `createBrowserClient`-style client; check `src/lib/supabase/client.ts` or equivalent for the existing browser-client helper used elsewhere in this codebase's `'use client'` components, and reuse it rather than inventing a new one), then calls `saveIdentity` with the resulting storage path.
+- [ ] Add `IdentityForm` to `profile-forms.tsx`, following `AccommodationForm`'s shape (local `useState` form, `useTransition` for save, inline error string — this feature area has no i18n today, confirmed by grep; match that, don't introduce `useTranslations` here). Avatar upload: a plain `<input type="file">` that uploads directly to the `avatars` bucket via `supabase.storage.from('avatars').upload(...)` client-side.
+
+**Browser-client import — confirmed by direct read, use this exact name, do not invent `createBrowserClient`**: `src/lib/supabase/client.ts` exports a function literally named `createClient()` (it calls `@supabase/ssr`'s `createBrowserClient` internally, but does not re-export that name). This is a real naming collision risk: `my-profile/actions.ts` (the Server Action file `profile-forms.tsx` already imports from) has its own, different, server-side `createClient` from `@/lib/supabase/server`. `profile-forms.tsx` itself does not import either today (confirmed by grep — clean slate), so there's no collision *inside this file* either way, but **import the browser client with an explicit alias regardless**, so a future reader never has to wonder which `createClient` is in scope at a glance:
+
+```typescript
+import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
+```
+
+**Field-naming note, so this isn't mistaken for an error and "fixed" the wrong way**: `AccommodationInput` (the cited template) uses snake_case fields matching DB columns 1:1 (`hotel_name`, `location_note`, `room_number`). The `IdentityInput`/`Identity` sketch below uses camelCase (`fullName`, `avatarPath`) on the TS side while still writing snake_case DB columns (`full_name`, `avatar_path`) inside `saveIdentity`'s body. **This is a deliberate, acknowledged deviation, not an oversight to reconcile** — `saveIdentity` is the first action in this file to also touch Supabase Auth (`auth.updateUser({ email })`), which has its own camelCase-style JS API conventions, so this plan keeps the form layer in camelCase rather than forcing `AccommodationForm`'s snake-case convention onto a different kind of action. Do not rename `IdentityInput`'s fields to snake_case to "match the template" — that would break the `IdentityForm` sketch below, which calls `saveIdentity` with these exact camelCase keys.
 
 ```typescript
 // Add to profile-forms.tsx, same file as AccommodationForm
@@ -330,7 +338,7 @@ export function IdentityForm({ initial }: { initial: Identity }) {
     setUploading(true);
     setError(null);
     try {
-      const supabase = createBrowserClient(); // reuse this codebase's existing browser-client helper
+      const supabase = createBrowserSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError('Not authenticated'); return; }
       const ext = file.name.split('.').pop();
@@ -379,7 +387,6 @@ export function IdentityForm({ initial }: { initial: Identity }) {
 }
 ```
 
-- [ ] Find the actual browser-client helper name before using `createBrowserClient()` literally — grep `src/lib/supabase` for a client-side (non-`'use server'`) Supabase client factory and use its real name/import path.
 - [ ] Manually test in the browser (dev server, sign in as the real participant test account `albaraak2002@gmail.com`): confirm the form renders, confirm save is blocked with no picture uploaded yet, confirm a picture upload + save succeeds, confirm editing just the phone number afterward (no new picture) still saves successfully (per the user-confirmed "required only on first save" rule).
 - [ ] Commit:
 
@@ -710,7 +717,9 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 **Files:** Modify `src/proxy.ts`, `src/app/[locale]/(admin)/layout.tsx`
 
-- [ ] Update `src/proxy.ts` to forward the real pathname via a request header before running the existing `next-intl` middleware:
+- [ ] Update `src/proxy.ts` to forward the real pathname via a request header before running the existing `next-intl` middleware. **Confirmed against this project's exact installed Next.js version's own bundled docs** (`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`, "Setting Headers" section, Next.js 16.2.11 — the version in this repo's `package.json`/lockfile): plain `request.headers.set(...)` inside proxy/middleware does **not** propagate to the Server Component request — that mutation is effectively local to the proxy's own execution. The ONLY documented way to make a request header available upstream to Server Components is `NextResponse.next({ request: { headers } })` — note this is NOT the same as `NextResponse.next({ headers })`, which instead sets a *response* header visible to the client, not the Server Component. This is settled, not a live unknown — use this form, no fallback needed:
+
+**Confirmed by reading `next-intl`'s actual compiled source** (`node_modules/next-intl/dist/esm/production/middleware/middleware.js`, v4.13.3, the exact version pinned in this repo's `package.json`): `createMiddleware(routing)` always returns a real `NextResponse` — every internal branch returns `NextResponse.next(...)`, `.rewrite(...)`, or `.redirect(...)` (it never returns `undefined`/void). This matters because it rules out one tempting composition approach: wrapping whatever `intlMiddleware(request)` returns in a fresh `NextResponse.next({...})` would silently convert a real locale redirect/rewrite into a plain 200 pass-through, breaking i18n routing. **The correct composition is the other direction: attach the new header to the `request` object BEFORE calling `intlMiddleware`, so next-intl's own response (whichever of `.next()`/`.rewrite()`/`.redirect()` it picks) is already built from a request that carries the header** — `NextRequest` is a subclass of the standard `Request`, and its `headers` can be set via the constructor:
 
 ```typescript
 // src/proxy.ts — modify the existing export
@@ -727,9 +736,31 @@ const intlMiddleware = createMiddleware(routing);
 // the real URL before render -- avoids adding a second Supabase auth
 // round-trip to every matched request (which a middleware-side auth
 // check would require); the layout already fetches profile.role itself.
+//
+// Confirmed against this project's exact Next.js 16.2.11 docs
+// (proxy.md's "Setting Headers" section): only
+// NextResponse.next({ request: { headers } }) makes a header visible to
+// Server Components -- plain request.headers.set(...) does not
+// propagate, and NextResponse.next({ headers }) sets a response header
+// visible to the client instead. But next-intl's own createMiddleware
+// (confirmed by reading its compiled source, v4.13.3) always returns its
+// OWN NextResponse (next/rewrite/redirect, chosen internally) -- so
+// re-wrapping its result in a second NextResponse.next({...}) here would
+// silently discard a real locale redirect/rewrite. Fix: build a NEW
+// NextRequest carrying the extra header, and pass THAT into
+// intlMiddleware, so whichever response next-intl produces is already
+// built from a request that has the header -- no post-hoc merging.
 export function proxy(request: NextRequest) {
-  request.headers.set('x-pathname', request.nextUrl.pathname);
-  return intlMiddleware(request);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', request.nextUrl.pathname);
+  const requestWithPathname = new NextRequest(request.url, {
+    headers: requestHeaders,
+    // Preserve everything else about the original request (method,
+    // body, etc.) by spreading it as the base init, with our header
+    // override layered on top.
+    ...request,
+  });
+  return intlMiddleware(requestWithPathname);
 }
 
 export const config = {
@@ -737,19 +768,7 @@ export const config = {
 };
 ```
 
-- [ ] Verify this header-set pattern actually propagates to the Server Component's `headers()` read in this Next.js version (Next.js 16) — middleware mutating `request.headers` directly, vs needing to clone and pass via `NextResponse.next({ request: { headers } })`. Check the Next.js 16 docs/changelog for the exact API if unsure; if `request.headers.set(...)` doesn't propagate, use:
-
-```typescript
-export function proxy(request: NextRequest) {
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-pathname', request.nextUrl.pathname);
-  const response = intlMiddleware(request);
-  response.headers.set('x-pathname', request.nextUrl.pathname);
-  return response;
-}
-```
-
-(Try reading it back in the layout during manual testing in Step 4.3's last checkbox below — if `headers().get('x-pathname')` comes back null, switch to this fallback form.)
+- [ ] **Manual test this specific mechanism FIRST, before writing any other Step 4.3 code** (promoted from a trailing aside to a blocking first action, per plan review): start the dev server, add a temporary `console.log((await headers()).get('x-pathname'))` at the top of `(admin)/layout.tsx`, navigate to any admin page, and confirm the real pathname prints (not `null`, not the previous page's stale value). Also confirm a locale-prefix redirect (visit a bare `/` or an un-prefixed path, if this app's locale routing produces a redirect for that case) still works correctly — i.e. confirm the header-forwarding change did not break next-intl's own redirect/rewrite behavior. Remove the temporary log once both are confirmed. **If `new NextRequest(request.url, { ...request, headers: requestHeaders })` does not correctly clone the original request (spreading a `Request`/`NextRequest` instance via `...request` does not reliably copy its internals the way spreading a plain object does — this is a real risk with this exact construction, not just a formality to check)**, stop and use the documented-safe alternative instead: pass `requestHeaders` to `intlMiddleware` by mutating the clone Next's own docs show (`const requestHeaders = new Headers(request.headers); requestHeaders.set(...)`) and reconstructing via `new Request(request, { headers: requestHeaders })` (the standard `Request` constructor's documented clone-with-overrides form, which — unlike spreading — is specified to copy the original request's method/body/etc.), then wrap that in `new NextRequest(...)` only if `intlMiddleware` requires the Next-specific type at the type level (check whether a plain cloned `Request` satisfies its parameter type first, since `NextRequest` adds `nextUrl`/`cookies` that a bare clone would lack).
 
 - [ ] Update `(admin)/layout.tsx`: add the pathname read and the staff-route check, right after `decideAdminAccess` is called (after line 63) and before the `unauthorized` branch is handled (before line 85), so a disallowed staff route gets its own specific redirect rather than falling into the generic `unauthorized` UI (staff IS authorized to be in the admin area generally — just not on this specific page):
 
