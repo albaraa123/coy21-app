@@ -1,21 +1,21 @@
 // tests/participant/my-profile-identity-live.test.ts
 //
-// saveIdentity runs inside a Server Action, which depends on Next.js's
-// request-scoped cookies()/headers() context (via createClient() from
-// '@/lib/supabase/server'). Outside a real request -- as here, invoked
-// directly from a Vitest process -- there is no authenticated session,
-// so supabase.auth.getUser() always resolves to { user: null } and every
-// call short-circuits on "Not authenticated" before ever reaching the
-// input-validation branch. This is the same limitation documented for
-// require*StaffCaller helpers in tests/auth/staff-roles-live.test.ts.
+// saveIdentity validates its required fields (fullName/email/phone/
+// avatarPath) as the very first statement in the function body, before
+// it ever calls createClient() -- which depends on Next.js's
+// request-scoped cookies()/headers() context and would throw outside a
+// real request (as here, invoked directly from a Vitest process). That
+// ordering means these 3 assertions DO genuinely exercise the real
+// required-field validation branch, not a "Not authenticated"
+// short-circuit -- unlike what an earlier version of this comment
+// claimed. saveAccommodation (my-profile-accommodation-live.test.ts)
+// follows this same validate-before-createClient() ordering, for the
+// identical reason.
 //
-// These 3 assertions therefore cannot prove the validation messages are
-// reached -- they can only prove the function exists, is callable with
-// this shape, and never writes on a bad input (because it errors out
-// before writing, regardless of which check fired first). That's still
-// a meaningful floor: it would fail today with "saveIdentity is not a
-// function" if the action weren't implemented at all, and it will keep
-// failing if the export is ever removed or renamed.
+// What these assertions still cannot prove: the ownership check or the
+// actual profiles/auth.updateUser() write path for a real authenticated
+// user -- that requires a real request context, which only manual
+// browser verification or a future Playwright-style test can provide.
 import { describe, expect, it } from 'vitest';
 import { saveIdentity } from '@/app/[locale]/(participant)/(shell)/my-profile/actions';
 
