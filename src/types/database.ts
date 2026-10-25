@@ -2166,27 +2166,33 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_path: string | null
           created_at: string
           email: string
           full_name: string
           id: string
           must_change_password: boolean
+          phone: string | null
           role: Database["public"]["Enums"]["user_role"]
         }
         Insert: {
+          avatar_path?: string | null
           created_at?: string
           email: string
           full_name: string
           id: string
           must_change_password?: boolean
+          phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
         }
         Update: {
+          avatar_path?: string | null
           created_at?: string
           email?: string
           full_name?: string
           id?: string
           must_change_password?: boolean
+          phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
         }
         Relationships: []
