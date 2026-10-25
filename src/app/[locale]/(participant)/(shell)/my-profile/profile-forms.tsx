@@ -267,6 +267,10 @@ export function AccommodationForm({
   function handleSave() {
     setSaved(false);
     setError(null);
+    if (!form.hotel_name.trim() || !form.location_note.trim()) {
+      setError('Hotel name and location note are required.');
+      return;
+    }
     startSave(async () => {
       const res = await saveAccommodation(applicationId, form);
       if (res.error) { setError(res.error); return; }
@@ -277,10 +281,10 @@ export function AccommodationForm({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Hotel / Accommodation name" value={form.hotel_name} onChange={(v) => setForm({ ...form, hotel_name: v })} placeholder="e.g. Akra Hotel" />
+        <Field label="Hotel / Accommodation name *" value={form.hotel_name} onChange={(v) => setForm({ ...form, hotel_name: v })} placeholder="e.g. Akra Hotel" />
         <Field label="Room number" value={form.room_number} onChange={(v) => setForm({ ...form, room_number: v })} placeholder="e.g. 412" />
         <div className="sm:col-span-2">
-          <Field label="Location note" value={form.location_note} onChange={(v) => setForm({ ...form, location_note: v })} placeholder="e.g. Near the conference centre" />
+          <Field label="Location note *" value={form.location_note} onChange={(v) => setForm({ ...form, location_note: v })} placeholder="e.g. Near the conference centre" />
         </div>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}

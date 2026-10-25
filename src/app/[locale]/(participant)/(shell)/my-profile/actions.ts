@@ -129,6 +129,10 @@ export async function saveAccommodation(
   applicationId: string,
   input: AccommodationInput,
 ): Promise<{ error?: string }> {
+  if (!input.hotel_name.trim() || !input.location_note.trim()) {
+    return { error: 'Hotel name and location note are required.' };
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
