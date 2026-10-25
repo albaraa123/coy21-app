@@ -77,6 +77,45 @@ export async function deleteEmergencyContact(
 }
 
 // ---------------------------------------------------------------------------
+// Identity (Name / Email / Phone / Photo)
+// ---------------------------------------------------------------------------
+
+export type IdentityInput = {
+  fullName: string;
+  email: string;
+  phone: string;
+  avatarPath: string | null;
+};
+
+export async function saveIdentity(input: IdentityInput): Promise<{ error?: string }> {
+  if (!input.fullName.trim() || !input.email.trim() || !input.phone.trim() || !input.avatarPath) {
+    return { error: 'Name, email, phone, and a profile picture are required.' };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  // full_name and avatar_path are plain profiles columns -- write directly.
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ full_name: input.fullName, avatar_path: input.avatarPath, phone: input.phone })
+    .eq('id', user.id);
+  if (profileError) return { error: profileError.message };
+
+  // email is NOT written to profiles directly (the grant no longer
+  // allows it -- see 20261025000200_narrow_profiles_email_grant.sql).
+  // Only call auth.updateUser if the email actually changed, to avoid
+  // sending a needless confirmation email on every unrelated save.
+  if (input.email.trim() !== user.email) {
+    const { error: authError } = await supabase.auth.updateUser({ email: input.email });
+    if (authError) return { error: authError.message };
+  }
+
+  return {};
+}
+
+// ---------------------------------------------------------------------------
 // Accommodation
 // ---------------------------------------------------------------------------
 
