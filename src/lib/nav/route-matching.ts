@@ -39,7 +39,7 @@
 import type { NavGroup, NavItem } from './nav-types';
 
 /** Strip a leading `/xx` or `/xx-YY` locale segment (e.g. "/en", "/ar"). */
-function stripLocalePrefix(pathname: string): string {
+export function stripLocalePrefix(pathname: string): string {
   const match = pathname.match(/^\/[a-z]{2}(?:-[A-Z]{2})?(\/|$)/);
   if (!match) {
     return pathname;
