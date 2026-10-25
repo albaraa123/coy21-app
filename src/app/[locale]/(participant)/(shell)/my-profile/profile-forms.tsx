@@ -23,6 +23,11 @@ type Identity = {
   avatar_path: string | null;
 };
 
+// Mirrors the avatars bucket's own allowed_mime_types/file_size_limit
+// (20261025000100_avatars_bucket.sql) for a fast client-side pre-check.
+const AVATAR_ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
 export function IdentityForm({ initial }: { initial: Identity }) {
   const [form, setForm] = useState({
     fullName: initial.full_name,
@@ -38,14 +43,31 @@ export function IdentityForm({ initial }: { initial: Identity }) {
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Client-side pre-check mirrors the avatars bucket's own
+    // allowed_mime_types/file_size_limit (20261025000100_avatars_bucket.sql)
+    // so a bad file gets a clear message here instead of a raw Storage
+    // error after a wasted upload attempt. The bucket config remains the
+    // real enforcement boundary -- this is just a faster, friendlier
+    // first check.
+    if (!AVATAR_ALLOWED_MIME_TYPES.includes(file.type)) {
+      setError('Please choose a PNG, JPEG, or WebP image.');
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setError('Image must be 5 MB or smaller.');
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
       const supabase = createBrowserSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError('Not authenticated'); return; }
-      const ext = file.name.split('.').pop();
-      const path = `${user.id}/avatar.${ext}`;
+      // Fixed filename (no variable extension) -- uploading a new photo
+      // always overwrites the same object via upsert:true, instead of
+      // leaving the previous upload's file orphaned in the bucket when
+      // the file extension changes between saves.
+      const path = `${user.id}/avatar`;
       const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
       if (uploadError) { setError(uploadError.message); return; }
       setAvatarPath(path);
