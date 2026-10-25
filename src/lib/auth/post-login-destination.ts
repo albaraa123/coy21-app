@@ -78,6 +78,17 @@ export function resolvePostLoginDestination(role: string | null | undefined): Po
   if (role === 'scanner_device') {
     return { href: '/scanner' };
   }
+  // 2026-10-25 staff narrowing: `staff` is still a non-participant role
+  // (isNonParticipantRole(role) below would also be true), but no longer
+  // has any use for the full /dashboard admin chrome -- its only two
+  // kept capabilities are walk-in admission and the attendance-correction
+  // console (see isRouteAllowedForStaff,
+  // src/lib/auth/staff-allowed-routes.ts). Checked before the general
+  // isNonParticipantRole branch so it takes priority for this one role;
+  // super_admin is unaffected and still falls through to /dashboard.
+  if (role === 'staff') {
+    return { href: '/attendance/walk-in' };
+  }
   if (isNonParticipantRole(role)) {
     return { href: '/dashboard' };
   }
