@@ -25,6 +25,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!profile || !isStaffRole(profile.role)) {
     return new Response('Not found', { status: 404 });
   }
+  // 2026-10-25 staff narrowing: the allocation engine/export is out of
+  // scope for `staff` (kept to walk-in admission + the attendance-
+  // correction console only — see docs/superpowers/specs/2026-10-25-
+  // profile-accommodation-staff-narrowing-design.md). isStaffRole above
+  // still admits `staff` (it must, for super_admin sharing this check),
+  // so this is an explicit additional rejection, not a change to
+  // isStaffRole itself. 403, not this file's existing 404-for-
+  // unauthorized convention, per the approved plan.
+  if (profile.role === 'staff') {
+    return new Response('Forbidden', { status: 403 });
+  }
 
   const { data: run } = await service.from('allocation_runs').select('id').eq('id', id).maybeSingle();
   if (!run) {

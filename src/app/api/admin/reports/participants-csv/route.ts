@@ -25,6 +25,16 @@ export async function GET() {
   if (!isStaffRole(profile?.role)) {
     return new NextResponse('Forbidden', { status: 403 });
   }
+  // 2026-10-25 staff narrowing: this participants export is out of scope
+  // for `staff` (kept to walk-in admission + the attendance-correction
+  // console only — see docs/superpowers/specs/2026-10-25-profile-
+  // accommodation-staff-narrowing-design.md). isStaffRole above still
+  // admits `staff` (it must, for super_admin/other callers sharing this
+  // check), so this is an explicit additional rejection, not a change to
+  // isStaffRole itself.
+  if (profile?.role === 'staff') {
+    return new NextResponse('Forbidden', { status: 403 });
+  }
 
   const service = createServiceRoleClient();
   const { data: rows, error } = await service
