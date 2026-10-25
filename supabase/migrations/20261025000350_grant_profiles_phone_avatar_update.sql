@@ -1,0 +1,18 @@
+-- 20261025000350_grant_profiles_phone_avatar_update.sql
+--
+-- Gap found during Task 1 implementation (Step 1.4/1.5 self-review):
+-- 20261025000200_narrow_profiles_email_grant.sql revoked ALL update
+-- privileges on profiles from authenticated, then granted back only
+-- `update (full_name)` -- the narrower column list it needed to close
+-- the Auth-confirmation-bypass hole. But saveIdentity
+-- (my-profile/actions.ts) also writes `phone` and `avatar_path` via a
+-- plain RLS-respecting client update, and no migration ever granted
+-- those columns to authenticated. Verified live via
+-- information_schema.column_privileges before writing this fix: only
+-- full_name had UPDATE granted. Without this migration, every
+-- saveIdentity call would fail with a Postgres permission error for
+-- every participant. email is deliberately NOT added here -- it stays
+-- writable only via the sync_profile_email_on_confirm trigger
+-- (SECURITY DEFINER), never directly by an authenticated client, per
+-- 20261025000200's whole purpose.
+grant update (phone, avatar_path) on profiles to authenticated;
