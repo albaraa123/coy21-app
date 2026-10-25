@@ -18,8 +18,6 @@ const {
   sendSessionCancellationNotificationEmailMock,
   sendSessionRescheduleNotificationEmailMock,
   sendWaitlistPromotionNotificationEmailMock,
-  sendApplicationAcceptedEmailMock,
-  sendApplicationRejectedEmailMock,
   sendBookingConfirmedEmailMock,
   sendAnnouncementEmailMock,
   sendSessionReminderEmailMock,
@@ -29,8 +27,6 @@ const {
   sendSessionCancellationNotificationEmailMock: vi.fn(),
   sendSessionRescheduleNotificationEmailMock: vi.fn(),
   sendWaitlistPromotionNotificationEmailMock: vi.fn(),
-  sendApplicationAcceptedEmailMock: vi.fn(),
-  sendApplicationRejectedEmailMock: vi.fn(),
   sendBookingConfirmedEmailMock: vi.fn(),
   sendAnnouncementEmailMock: vi.fn(),
   sendSessionReminderEmailMock: vi.fn(),
@@ -41,12 +37,16 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceRoleClient: createServiceRoleClientMock,
 }));
 
+// sendApplicationAcceptedEmail/sendApplicationRejectedEmail are NOT mocked
+// here -- the route no longer imports them (application_accepted/
+// application_rejected are disabled channels as of 2026-10-26, see the
+// dedicated test below). booking_confirmed is baseRow's default channel
+// and this file's generic stand-in for "any still-active channel" in the
+// cron-mechanics tests (claim/reclaim, retry, aggregate counts, etc.).
 vi.mock('@/lib/email/resend', () => ({
   sendSessionCancellationNotificationEmail: sendSessionCancellationNotificationEmailMock,
   sendSessionRescheduleNotificationEmail: sendSessionRescheduleNotificationEmailMock,
   sendWaitlistPromotionNotificationEmail: sendWaitlistPromotionNotificationEmailMock,
-  sendApplicationAcceptedEmail: sendApplicationAcceptedEmailMock,
-  sendApplicationRejectedEmail: sendApplicationRejectedEmailMock,
   sendBookingConfirmedEmail: sendBookingConfirmedEmailMock,
   sendAnnouncementEmail: sendAnnouncementEmailMock,
   sendSessionReminderEmail: sendSessionReminderEmailMock,
@@ -217,8 +217,8 @@ function baseRow(overrides: Partial<NotificationRow> = {}): NotificationRow {
     id: randomUUID(),
     is_broadcast: false,
     application_id: randomUUID(),
-    channel: 'application_accepted',
-    title: 'Your application has been accepted!',
+    channel: 'booking_confirmed',
+    title: 'Climate Finance 101',
     body: null,
     link_path: null,
     session_id: null,
@@ -236,8 +236,6 @@ beforeEach(() => {
   sendSessionCancellationNotificationEmailMock.mockResolvedValue({ id: 'email-id', error: null });
   sendSessionRescheduleNotificationEmailMock.mockResolvedValue({ id: 'email-id', error: null });
   sendWaitlistPromotionNotificationEmailMock.mockResolvedValue({ id: 'email-id', error: null });
-  sendApplicationAcceptedEmailMock.mockResolvedValue({ id: 'email-id', error: null });
-  sendApplicationRejectedEmailMock.mockResolvedValue({ id: 'email-id', error: null });
   sendBookingConfirmedEmailMock.mockResolvedValue({ id: 'email-id', error: null });
   sendAnnouncementEmailMock.mockResolvedValue({ id: 'email-id', error: null });
   sendSessionReminderEmailMock.mockResolvedValue({ id: 'email-id', error: null });
@@ -262,7 +260,7 @@ describe('GET /api/cron/process-notifications', () => {
   });
 
   it('dispatches the correct email function based on channel and marks the row sent', async () => {
-    const row = baseRow({ channel: 'application_accepted' });
+    const row = baseRow({ channel: 'booking_confirmed', title: 'Climate Finance 101' });
     const { client, updates, claimEqCalls } = fakeService({
       pendingRows: [row],
       appLookupResult: applicationRow(),
@@ -275,9 +273,10 @@ describe('GET /api/cron/process-notifications', () => {
     expect(json.sent).toBe(1);
     expect(json.failed).toBe(0);
 
-    expect(sendApplicationAcceptedEmailMock).toHaveBeenCalledWith({
+    expect(sendBookingConfirmedEmailMock).toHaveBeenCalledWith({
       to: 'jane@example.com',
       fullName: 'Jane Doe',
+      sessionTitle: 'Climate Finance 101',
       locale: 'en',
     });
     expect(updates).toHaveLength(1);
@@ -394,8 +393,6 @@ describe('GET /api/cron/process-notifications', () => {
     expect(String(updates[0].payload.error_message)).toMatch(/some_future_unmapped_channel/);
 
     for (const mock of [
-      sendApplicationAcceptedEmailMock,
-      sendApplicationRejectedEmailMock,
       sendBookingConfirmedEmailMock,
       sendSessionCancellationNotificationEmailMock,
       sendSessionRescheduleNotificationEmailMock,
@@ -407,11 +404,46 @@ describe('GET /api/cron/process-notifications', () => {
     }
   });
 
+  // Disabled 2026-10-26 per explicit product decision: every participant
+  // now arrives through staff-run CSV import, not self-registration, and
+  // acceptance/rejection notices are sent manually outside this system.
+  // application_accepted/application_rejected rows must be marked 'sent'
+  // without calling Resend at all -- a deliberate no-op treated as
+  // successful, not left pending forever and not marked 'failed' (nothing
+  // actually failed).
+  it.each(['application_accepted', 'application_rejected'] as const)(
+    'treats the disabled %s channel as a no-op, marking the row sent without calling Resend',
+    async (channel) => {
+      const row = baseRow({ channel });
+      const { client, updates } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
+      createServiceRoleClientMock.mockReturnValue(client);
+
+      const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+      const json = await response.json();
+      expect(json.sent).toBe(1);
+      expect(json.failed).toBe(0);
+      expect(updates[0].payload.email_status).toBe('sent');
+      expect(updates[0].payload.error_message).toBeUndefined();
+
+      for (const mock of [
+        sendBookingConfirmedEmailMock,
+        sendSessionCancellationNotificationEmailMock,
+        sendSessionRescheduleNotificationEmailMock,
+        sendWaitlistPromotionNotificationEmailMock,
+        sendAnnouncementEmailMock,
+        sendSessionReminderEmailMock,
+        sendTravelReminderEmailMock,
+      ]) {
+        expect(mock).not.toHaveBeenCalled();
+      }
+    }
+  );
+
   it('marks the row failed when the email function itself returns an error, without throwing', async () => {
-    const row = baseRow({ channel: 'application_rejected' });
+    const row = baseRow({ channel: 'booking_confirmed' });
     const { client, updates } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
     createServiceRoleClientMock.mockReturnValue(client);
-    sendApplicationRejectedEmailMock.mockResolvedValue({ id: null, error: 'Resend not configured' });
+    sendBookingConfirmedEmailMock.mockResolvedValue({ id: null, error: 'Resend not configured' });
 
     const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
     const json = await response.json();
@@ -421,7 +453,7 @@ describe('GET /api/cron/process-notifications', () => {
   });
 
   it('marks the row failed when the applicant profile/email is missing', async () => {
-    const row = baseRow({ channel: 'application_accepted' });
+    const row = baseRow({ channel: 'booking_confirmed' });
     const { client, updates } = fakeService({
       pendingRows: [row],
       appLookupResult: { data: { preferred_language: 'en', profiles: null }, error: null },
@@ -432,11 +464,11 @@ describe('GET /api/cron/process-notifications', () => {
     const json = await response.json();
     expect(json.failed).toBe(1);
     expect(updates[0].payload.email_status).toBe('failed');
-    expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
+    expect(sendBookingConfirmedEmailMock).not.toHaveBeenCalled();
   });
 
   it('only queries pending (or stale-processing) rows and never re-processes rows the cron already resolved (sent/failed)', async () => {
-    const row = baseRow({ channel: 'application_accepted' });
+    const row = baseRow({ channel: 'booking_confirmed' });
     const { client } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
     createServiceRoleClientMock.mockReturnValue(client);
 
@@ -458,7 +490,7 @@ describe('GET /api/cron/process-notifications', () => {
     // claimed_at condition was actually issued, since the fake's resolved
     // value does not otherwise depend on which branch ran.
     const staleClaimedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const row = baseRow({ channel: 'application_accepted', email_status: 'processing', claimed_at: staleClaimedAt });
+    const row = baseRow({ channel: 'booking_confirmed', email_status: 'processing', claimed_at: staleClaimedAt });
     const { client, updates, claimEqCalls } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
     createServiceRoleClientMock.mockReturnValue(client);
 
@@ -466,7 +498,7 @@ describe('GET /api/cron/process-notifications', () => {
     const json = await response.json();
     expect(json.sent).toBe(1);
     expect(json.failed).toBe(0);
-    expect(sendApplicationAcceptedEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendBookingConfirmedEmailMock).toHaveBeenCalledTimes(1);
     expect(updates[0].payload.email_status).toBe('sent');
 
     expect(claimEqCalls).toHaveLength(1);
@@ -479,7 +511,7 @@ describe('GET /api/cron/process-notifications', () => {
 
   it('skips a stale-processing row if a concurrent invocation reclaims it first (the claimed_at condition no longer matches)', async () => {
     const staleClaimedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const row = baseRow({ channel: 'application_accepted', email_status: 'processing', claimed_at: staleClaimedAt });
+    const row = baseRow({ channel: 'booking_confirmed', email_status: 'processing', claimed_at: staleClaimedAt });
     const { client, updates } = fakeService({
       pendingRows: [row],
       appLookupResult: applicationRow(),
@@ -495,12 +527,12 @@ describe('GET /api/cron/process-notifications', () => {
     const json = await response.json();
     expect(json.sent).toBe(0);
     expect(json.failed).toBe(0);
-    expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
+    expect(sendBookingConfirmedEmailMock).not.toHaveBeenCalled();
     expect(updates).toHaveLength(0);
   });
 
   it('skips a row whose claim loses the race to a concurrent invocation, sending no email and not counting it', async () => {
-    const row = baseRow({ channel: 'application_accepted' });
+    const row = baseRow({ channel: 'booking_confirmed' });
     const { client, updates } = fakeService({
       pendingRows: [row],
       appLookupResult: applicationRow(),
@@ -515,14 +547,14 @@ describe('GET /api/cron/process-notifications', () => {
     const json = await response.json();
     expect(json.sent).toBe(0);
     expect(json.failed).toBe(0);
-    expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
+    expect(sendBookingConfirmedEmailMock).not.toHaveBeenCalled();
     // No sent/failed resolution update was made either -- the row was
     // skipped entirely, left for whichever invocation actually won the claim.
     expect(updates).toHaveLength(0);
   });
 
   it('skips a row when the claim query itself errors, logging but not throwing', async () => {
-    const row = baseRow({ channel: 'application_accepted' });
+    const row = baseRow({ channel: 'booking_confirmed' });
     const { client } = fakeService({
       pendingRows: [row],
       appLookupResult: applicationRow(),
@@ -536,16 +568,16 @@ describe('GET /api/cron/process-notifications', () => {
     expect(response.status).toBe(200);
     expect(json.sent).toBe(0);
     expect(json.failed).toBe(0);
-    expect(sendApplicationAcceptedEmailMock).not.toHaveBeenCalled();
+    expect(sendBookingConfirmedEmailMock).not.toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
   });
 
   it('marks a row failed (not left stuck) when the email function throws instead of returning {error}', async () => {
-    const row = baseRow({ channel: 'application_accepted' });
+    const row = baseRow({ channel: 'booking_confirmed' });
     const { client, updates } = fakeService({ pendingRows: [row], appLookupResult: applicationRow() });
     createServiceRoleClientMock.mockReturnValue(client);
-    sendApplicationAcceptedEmailMock.mockRejectedValue(new Error('ECONNRESET'));
+    sendBookingConfirmedEmailMock.mockRejectedValue(new Error('ECONNRESET'));
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
@@ -727,8 +759,8 @@ describe('GET /api/cron/process-notifications', () => {
   });
 
   it('processes multiple pending rows and returns aggregate counts', async () => {
-    const row1 = baseRow({ channel: 'application_accepted' });
-    const row2 = baseRow({ channel: 'booking_confirmed', title: 'Climate Finance 101' });
+    const row1 = baseRow({ channel: 'waitlist_promoted', title: 'Climate Finance 101' });
+    const row2 = baseRow({ channel: 'booking_confirmed', title: 'Opening Ceremony' });
     const { client } = fakeService({ pendingRows: [row1, row2], appLookupResult: applicationRow() });
     createServiceRoleClientMock.mockReturnValue(client);
 
@@ -737,7 +769,7 @@ describe('GET /api/cron/process-notifications', () => {
     expect(json.processed).toBe(2);
     expect(json.sent).toBe(2);
     expect(json.failed).toBe(0);
-    expect(sendApplicationAcceptedEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendWaitlistPromotionNotificationEmailMock).toHaveBeenCalledTimes(1);
     expect(sendBookingConfirmedEmailMock).toHaveBeenCalledTimes(1);
   });
 

@@ -56,13 +56,15 @@ import {
   sendSessionCancellationNotificationEmail,
   sendSessionRescheduleNotificationEmail,
   sendWaitlistPromotionNotificationEmail,
-  sendApplicationAcceptedEmail,
-  sendApplicationRejectedEmail,
   sendBookingConfirmedEmail,
   sendAnnouncementEmail,
   sendSessionReminderEmail,
   sendTravelReminderEmail,
 } from '@/lib/email/resend';
+// sendApplicationAcceptedEmail/sendApplicationRejectedEmail are NOT
+// imported here -- see the 'application_accepted'/'application_rejected'
+// case below for why these 2 channels are disabled, not deleted. Both
+// functions still exist in resend.ts, unused only from this file.
 
 const BATCH_SIZE = 25;
 const BROADCAST_BATCH_SIZE = 10; // mirrors travel-reminders' existing batching
@@ -309,11 +311,20 @@ export async function GET(req: NextRequest) {
 
       let result: { id: string | null; error: string | null };
       switch (r.channel) {
+        // Disabled 2026-10-26 per explicit product decision: every
+        // participant now arrives through staff-run CSV import, not
+        // self-registration, so these two channels' real trigger
+        // (updateApplicationStatus in applications/[id]/actions.ts) never
+        // fires in practice -- but acceptance/rejection notices are still
+        // sent manually, outside this system, by the organising team. Not
+        // deleted (the notification-insert call sites, the email
+        // templates in resend.ts, and this cron's dispatch wiring are all
+        // left intact) in case this is reversed later -- only the actual
+        // send is skipped, treated the same as a successful send so the
+        // row doesn't sit as 'pending' forever.
         case 'application_accepted':
-          result = await sendApplicationAcceptedEmail({ to: profile.email, fullName: profile.full_name ?? '', locale });
-          break;
         case 'application_rejected':
-          result = await sendApplicationRejectedEmail({ to: profile.email, fullName: profile.full_name ?? '', locale });
+          result = { id: null, error: null };
           break;
         case 'booking_confirmed':
           result = await sendBookingConfirmedEmail({ to: profile.email, fullName: profile.full_name ?? '', sessionTitle: r.title, locale });

@@ -1,7 +1,7 @@
 import { getResendConfig } from './resend-config';
 import { fetchEmailSettings, sendEmailGuarded } from './send-guarded';
 import { formatConferenceTime, formatConferenceDate } from '@/lib/datetime/conference-time';
-import { buildBrandedEmailBodySection, buildBrandedEmailHtml } from './html-template';
+import { buildBrandedEmailHtml } from './html-template';
 
 export async function sendRegistrationConfirmationEmail(params: {
   to: string;
@@ -46,10 +46,11 @@ export async function sendRegistrationConfirmationEmail(params: {
 }
 
 // Login-details email for an admin-controlled account-provisioning action
-// (design doc section 14/15). Bilingual in a single message — both Arabic
-// and English sections in one send — per the approved spec, not a
-// per-locale choice. Callers are responsible for only invoking this for a
-// participant whose account currently uses the approved temporary password
+// (design doc section 14/15). English-only as of 2026-10-26 per explicit
+// product decision (was bilingual Arabic+English in one message before
+// that) -- same single-locale shape as every other export in this file
+// now. Callers are responsible for only invoking this for a participant
+// whose account currently uses the approved temporary password
 // (account_status in ('account_created', 'password_change_required')) —
 // this function has no way to verify that itself; the bulk-action layer
 // excludes ineligible rows before ever calling this.
@@ -70,23 +71,9 @@ export async function sendLoginDetailsEmail(params: {
   const { config } = configResult;
 
   const loginUrl = `${config.appUrl}/log-in`;
-  const subject = 'تم إنشاء حسابك في COY21 Türkiye 2026 / Your COY21 Türkiye 2026 account has been created';
+  const subject = 'Your COY21 Türkiye 2026 account has been created';
 
   const text = [
-    `مرحبًا ${params.fullName}،`,
-    '',
-    'تم إنشاء حسابك في منصة COY21 Türkiye 2026.',
-    '',
-    `اسم المستخدم: ${params.to}`,
-    `كلمة المرور المؤقتة: ${params.temporaryPassword}`,
-    `رابط تسجيل الدخول: ${loginUrl}`,
-    '',
-    'سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.',
-    '',
-    `للدعم: ${config.supportEmail}`,
-    '',
-    '----------------------------------------',
-    '',
     `Hello ${params.fullName},`,
     '',
     'Your COY21 Türkiye 2026 platform account has been created.',
@@ -100,47 +87,18 @@ export async function sendLoginDetailsEmail(params: {
     `Support: ${config.supportEmail}`,
   ].join('\n');
 
-  const arabicSection = buildBrandedEmailBodySection({
-    locale: 'ar',
-    heading: 'تم إنشاء حسابك',
-    paragraphs: [
-      `مرحبًا ${params.fullName}،`,
-      `تم إنشاء حسابك في منصة COY21 Türkiye 2026.\n\nاسم المستخدم: ${params.to}\nكلمة المرور المؤقتة: ${params.temporaryPassword}`,
-      'سيُطلب منك تغيير كلمة المرور عند أول تسجيل دخول. لن تتمكن من الوصول إلى ملفك وجدولك الشخصي قبل إكمال تغيير كلمة المرور.',
-      `للدعم: ${config.supportEmail}`,
-    ],
-    cta: { label: 'تسجيل الدخول', url: loginUrl },
-    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
-  });
-
-  const englishSection = buildBrandedEmailBodySection({
+  const html = buildBrandedEmailHtml({
     locale: 'en',
     heading: 'Your account has been created',
     paragraphs: [
       `Hello ${params.fullName},`,
-      `Your COY21 Türkiye 2026 platform account has been created.\n\nUsername: ${params.to}\nTemporary password: ${params.temporaryPassword}`,
+      `Your COY21 Türkiye 2026 platform account has been created.\n\nUsername: ${params.to}\nTemporary password: ${params.temporaryPassword}\nLogin: ${loginUrl}`,
       'You will be required to change your password when you first log in. Access to your participant profile and personal schedule will remain restricted until this step is completed.',
       `Support: ${config.supportEmail}`,
     ],
     cta: { label: 'Log in', url: loginUrl },
     logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
   });
-
-  const html = `<!doctype html>
-<html lang="ar" dir="rtl">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>COY21 Türkiye 2026</title>
-  </head>
-  <body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f4f8;padding:24px 0;">
-      <tr><td align="center">${arabicSection}</td></tr>
-      <tr><td align="center" style="padding-top:16px;">${englishSection}</td></tr>
-      <tr><td style="padding:16px 24px;text-align:center;color:#8899aa;font-size:11px;">COY21 Türkiye 2026 · Antalya, 5–7 Nov 2026</td></tr>
-    </table>
-  </body>
-</html>`;
 
   const settings = await fetchEmailSettings();
   return sendEmailGuarded({

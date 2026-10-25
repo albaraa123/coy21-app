@@ -1,7 +1,9 @@
 'use server';
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { sendRegistrationConfirmationEmail } from '@/lib/email/resend';
+// sendRegistrationConfirmationEmail is NOT imported here -- see the
+// emailResult comment below for why this email is disabled, not
+// deleted. The function still exists in resend.ts, unused only here.
 
 export async function submitApplication(applicationId: string): Promise<void> {
   const supabase = await createClient();
@@ -72,11 +74,15 @@ export async function submitApplication(applicationId: string): Promise<void> {
     console.error('submitApplication: application marked submitted but history insert failed', { applicationId, userId: user.id, error: historyError });
   }
 
-  const emailResult = await sendRegistrationConfirmationEmail({
-    to: profile.email,
-    fullName: profile.full_name,
-    locale: (application.preferred_language as 'ar' | 'en') ?? 'en',
-  });
+  // Disabled 2026-10-26 per explicit product decision: every participant
+  // now arrives through staff-run CSV import, not this self-registration
+  // form, so this confirmation email is no longer needed. Not deleted
+  // (sendRegistrationConfirmationEmail stays in resend.ts, the
+  // email_log insert below stays) in case self-registration is used
+  // again later -- only the actual send is skipped, logged the same way
+  // a successful send would be so nothing downstream treats this as a
+  // failure.
+  const emailResult: { id: string | null; error: string | null } = { id: null, error: null };
 
   const { error: emailLogError } = await service.from('email_log').insert({
     application_id: applicationId,

@@ -75,8 +75,14 @@ describe('sendLoginDetailsEmail', () => {
     expect(call.html).toContain('participant@example.com');
     expect(call.html).toContain('password@123');
     expect(call.html).toContain('Test Participant');
-    expect(call.html).toContain('مرحبًا'); // Arabic section present
-    expect(call.html).toContain('Hello Test Participant'); // English section present
+    // English-only as of 2026-10-26 (was bilingual Arabic+English before
+    // that) -- confirm no Arabic section leaked back in, and the login
+    // URL is visible as plain readable text in the HTML body, not only
+    // behind the "Log in" button (some email clients strip/break buttons).
+    expect(call.html).not.toMatch(/[؀-ۿ]/);
+    expect(call.html).toContain('Hello Test Participant');
+    expect(call.html).toContain('https://example.com/log-in');
+    expect(call.text).toContain('https://example.com/log-in');
   });
 
   it('contains well-formed Arabic text, not mojibake, in both HTML and plain-text bodies', async () => {
@@ -87,11 +93,16 @@ describe('sendLoginDetailsEmail', () => {
     // (length, presence of username/password). A mojibake string contains
     // only Latin-range characters (e.g. "Ù…Ø±Ø­Ø¨Ù‹Ø§" instead of "مرحبًا"),
     // so asserting a real Arabic-block character is present is a cheap,
-    // direct way to catch this class of bug from recurring.
+    // direct way to catch this class of bug from recurring. Originally
+    // targeted sendLoginDetailsEmail (bilingual at the time); retargeted
+    // to sendRegistrationConfirmationEmail's Arabic locale as of 2026-10-26
+    // when sendLoginDetailsEmail became English-only -- this risk class
+    // still applies to every other function in this file, all of which
+    // take a locale: 'ar' | 'en' parameter.
     sendMock.mockResolvedValue({ data: { id: 'email_1' }, error: null });
-    const { sendLoginDetailsEmail } = await import('@/lib/email/resend');
+    const { sendRegistrationConfirmationEmail } = await import('@/lib/email/resend');
 
-    await sendLoginDetailsEmail({ to: 'a@example.com', fullName: 'A', temporaryPassword: 'password@123' });
+    await sendRegistrationConfirmationEmail({ to: 'a@example.com', fullName: 'A', locale: 'ar' });
 
     const call = sendMock.mock.calls[0][0];
     const arabicBlock = /[؀-ۿ]/;
@@ -100,7 +111,7 @@ describe('sendLoginDetailsEmail', () => {
     expect(call.subject).toMatch(arabicBlock);
     // The specific greeting word, to confirm it's genuinely readable Arabic
     // and not just an isolated correctly-decoded character amid mojibake.
-    expect(call.text).toContain('مرحبًا');
+    expect(call.text).toContain('مرحباً');
   });
 
   it('includes both HTML and a plain-text fallback', async () => {
