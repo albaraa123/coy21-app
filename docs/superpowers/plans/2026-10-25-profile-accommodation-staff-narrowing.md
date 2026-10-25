@@ -753,13 +753,27 @@ const intlMiddleware = createMiddleware(routing);
 export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', request.nextUrl.pathname);
-  const requestWithPathname = new NextRequest(request.url, {
-    headers: requestHeaders,
-    // Preserve everything else about the original request (method,
-    // body, etc.) by spreading it as the base init, with our header
-    // override layered on top.
-    ...request,
-  });
+  // IMPORTANT: do NOT build this via `new NextRequest(request.url, { ...request, headers: requestHeaders })`.
+  // That spread looks plausible but is a real, silent bug: Request/NextRequest
+  // instances keep their real state (method, body, etc.) behind
+  // non-enumerable internals, not own-enumerable properties, so `...request`
+  // in an object literal copies NOTHING. Confirmed empirically against this
+  // project's actual installed `next/server` module (Node REPL): building a
+  // POST NextRequest that way silently produces a GET. Since this app's
+  // Server Actions ride as POST requests to ordinary page routes (which this
+  // proxy's matcher does cover, per proxy.md's own "Server Functions are not
+  // separate routes" note), that bug would silently break every Server
+  // Action submission in the app.
+  //
+  // The construction below IS verified empirically to work (Node REPL
+  // against this project's real next/server, including method, body,
+  // headers, cookies, and query string all surviving correctly):
+  // `new Request(request, { headers })` is the standard Request clone-with-
+  // overrides constructor (WHATWG-specified to copy method/body/etc.,
+  // unlike spreading), then `new NextRequest(...)` on the result restores
+  // the Next-specific nextUrl/cookies API that intlMiddleware needs.
+  const clonedRequest = new Request(request, { headers: requestHeaders });
+  const requestWithPathname = new NextRequest(clonedRequest);
   return intlMiddleware(requestWithPathname);
 }
 
@@ -768,7 +782,7 @@ export const config = {
 };
 ```
 
-- [ ] **Manual test this specific mechanism FIRST, before writing any other Step 4.3 code** (promoted from a trailing aside to a blocking first action, per plan review): start the dev server, add a temporary `console.log((await headers()).get('x-pathname'))` at the top of `(admin)/layout.tsx`, navigate to any admin page, and confirm the real pathname prints (not `null`, not the previous page's stale value). Also confirm a locale-prefix redirect (visit a bare `/` or an un-prefixed path, if this app's locale routing produces a redirect for that case) still works correctly — i.e. confirm the header-forwarding change did not break next-intl's own redirect/rewrite behavior. Remove the temporary log once both are confirmed. **If `new NextRequest(request.url, { ...request, headers: requestHeaders })` does not correctly clone the original request (spreading a `Request`/`NextRequest` instance via `...request` does not reliably copy its internals the way spreading a plain object does — this is a real risk with this exact construction, not just a formality to check)**, stop and use the documented-safe alternative instead: pass `requestHeaders` to `intlMiddleware` by mutating the clone Next's own docs show (`const requestHeaders = new Headers(request.headers); requestHeaders.set(...)`) and reconstructing via `new Request(request, { headers: requestHeaders })` (the standard `Request` constructor's documented clone-with-overrides form, which — unlike spreading — is specified to copy the original request's method/body/etc.), then wrap that in `new NextRequest(...)` only if `intlMiddleware` requires the Next-specific type at the type level (check whether a plain cloned `Request` satisfies its parameter type first, since `NextRequest` adds `nextUrl`/`cookies` that a bare clone would lack).
+- [ ] Manually test: start the dev server, add a temporary `console.log((await headers()).get('x-pathname'))` at the top of `(admin)/layout.tsx`, navigate to any admin page, and confirm the real pathname prints (not `null`, not the previous page's stale value). Confirm a locale-prefix redirect (visit a bare `/` or an un-prefixed path, if this app's locale routing produces a redirect for that case) still works correctly. **Also submit at least one real Server Action through a page this proxy matches** (e.g. save something on My Profile, or any other form backed by a Server Action) and confirm it still works — this specifically catches the method-downgrade bug class described above, which a GET-only navigation test would never surface. Remove the temporary log once all three are confirmed.
 
 - [ ] Update `(admin)/layout.tsx`: add the pathname read and the staff-route check, right after `decideAdminAccess` is called (after line 63) and before the `unauthorized` branch is handled (before line 85), so a disallowed staff route gets its own specific redirect rather than falling into the generic `unauthorized` UI (staff IS authorized to be in the admin area generally — just not on this specific page):
 
