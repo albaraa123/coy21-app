@@ -21,6 +21,7 @@ import { requireProgramAttendanceStaffCaller } from '@/lib/program-attendance/se
 import { requireAgendaStaffCaller } from '@/lib/agenda/server-helpers';
 import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers';
 import { requireImportStaffCaller } from '@/lib/import/server-helpers';
+import { requireWalkInStaffCaller } from '@/lib/walk-in/server-helpers';
 
 // See find-user-by-email.ts's own doc comment: a full pagination scan is
 // used instead of a single-page listUsers() call. Post-reset, auth.users
@@ -138,18 +139,29 @@ describe('a single staff-role profile satisfies every domain\'s authorization ch
     expect(typeof requireProgramAttendanceStaffCaller).toBe('function');
     expect(typeof requireAgendaStaffCaller).toBe('function');
     expect(typeof requireAdmissionStaffCaller).toBe('function');
+    // requireWalkInStaffCaller (src/lib/walk-in/server-helpers.ts) was split
+    // out of requireAdmissionStaffCaller during the 2026-10-25 staff
+    // narrowing specifically so the walk-in admission capability
+    // (/attendance/walk-in) would keep admitting staff while
+    // requireAdmissionStaffCaller itself (admission-review workflow) no
+    // longer does -- see that module's own doc comment.
+    expect(typeof requireWalkInStaffCaller).toBe('function');
   });
 });
 
-describe('sensitive travel and health data: a staff account can read it (consolidated tradeoff); a participant still cannot', () => {
-  // Unchanged in substance from the pre-reset version — this proves the
-  // staff-role-consolidation's RLS tradeoff (docs/superpowers/specs/
-  // 2026-09-29-staff-role-consolidation-design.md), which is orthogonal
-  // to this accounts-reset work and remains true regardless of which
-  // specific accounts exist. Uses throwaway fixtures, not the real
-  // STAFF_EMAIL/PARTICIPANT_EMAIL accounts.
+describe('sensitive travel and health data: neither staff nor participant can read it (narrowed 2026-10-25); only super_admin can', () => {
+  // Was 'a staff account can read it (consolidated tradeoff)' prior to the
+  // 2026-10-25 staff narrowing (docs/superpowers/specs/2026-10-25-profile-
+  // accommodation-staff-narrowing-design.md) — supabase/migrations/
+  // 20261025000500_narrow_staff_rls_to_super_admin.sql converted
+  // application_travel_info_staff_all and application_health_info_staff_all
+  // from is_staff() to is_super_admin(), so staff access to this sensitive
+  // data is now REVOKED. A participant still cannot read it either
+  // (unchanged). Uses throwaway fixtures, not the real
+  // STAFF_EMAIL/PARTICIPANT_EMAIL/SUPER_ADMIN_EMAIL accounts.
   let staffFixtureId: string;
   let participantFixtureId: string;
+  let superAdminFixtureId: string;
   let sensitiveApplicationId: string;
 
   it('setup: create fixtures and seed a sensitive application', async () => {
@@ -172,6 +184,16 @@ describe('sensitive travel and health data: a staff account can read it (consoli
     participantFixtureId = participant.user.id;
     createdAuthUserIds.push(participantFixtureId);
 
+    const { data: superAdmin, error: superAdminErr } = await admin.auth.admin.createUser({
+      email: 'staff-roles-live-sensitive-super-admin@test.local',
+      password: 'password123',
+      email_confirm: true,
+    });
+    if (superAdminErr || !superAdmin.user) throw new Error(`Failed: ${superAdminErr?.message}`);
+    superAdminFixtureId = superAdmin.user.id;
+    createdAuthUserIds.push(superAdminFixtureId);
+    await admin.from('profiles').update({ role: 'super_admin' }).eq('id', superAdminFixtureId);
+
     const SENSITIVE_EMAIL = 'staff-roles-live-sensitive-participant@example.com';
     const { data: app, error: appErr } = await admin
       .from('applications')
@@ -185,9 +207,28 @@ describe('sensitive travel and health data: a staff account can read it (consoli
     await admin.from('application_health_info').insert({ application_id: sensitiveApplicationId, medical_conditions: 'test condition' });
   }, 30000);
 
-  it('a staff-scoped client CAN read application_travel_info via RLS', async () => {
+  it('a staff-scoped client CANNOT read application_travel_info via RLS (narrowed 2026-10-25)', async () => {
     const anonClient = createClient<Database>(URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     const { error: signInErr } = await anonClient.auth.signInWithPassword({ email: 'staff-roles-live-sensitive-staff@test.local', password: 'password123' });
+    expect(signInErr).toBeNull();
+
+    const { data, error } = await anonClient.from('application_travel_info').select('*').eq('application_id', sensitiveApplicationId);
+    expect(error || (data ?? []).length === 0).toBeTruthy();
+    await anonClient.auth.signOut();
+  });
+
+  it('a staff-scoped client CANNOT read application_health_info via RLS (narrowed 2026-10-25)', async () => {
+    const anonClient = createClient<Database>(URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    await anonClient.auth.signInWithPassword({ email: 'staff-roles-live-sensitive-staff@test.local', password: 'password123' });
+
+    const { data, error } = await anonClient.from('application_health_info').select('*').eq('application_id', sensitiveApplicationId);
+    expect(error || (data ?? []).length === 0).toBeTruthy();
+    await anonClient.auth.signOut();
+  });
+
+  it('a super_admin-scoped client CAN still read application_travel_info via RLS (unaffected by the staff narrowing)', async () => {
+    const anonClient = createClient<Database>(URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    const { error: signInErr } = await anonClient.auth.signInWithPassword({ email: 'staff-roles-live-sensitive-super-admin@test.local', password: 'password123' });
     expect(signInErr).toBeNull();
 
     const { data, error } = await anonClient.from('application_travel_info').select('*').eq('application_id', sensitiveApplicationId);
@@ -196,9 +237,9 @@ describe('sensitive travel and health data: a staff account can read it (consoli
     await anonClient.auth.signOut();
   });
 
-  it('a staff-scoped client CAN read application_health_info via RLS', async () => {
+  it('a super_admin-scoped client CAN still read application_health_info via RLS (unaffected by the staff narrowing)', async () => {
     const anonClient = createClient<Database>(URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-    await anonClient.auth.signInWithPassword({ email: 'staff-roles-live-sensitive-staff@test.local', password: 'password123' });
+    await anonClient.auth.signInWithPassword({ email: 'staff-roles-live-sensitive-super-admin@test.local', password: 'password123' });
 
     const { data, error } = await anonClient.from('application_health_info').select('*').eq('application_id', sensitiveApplicationId);
     expect(error).toBeNull();

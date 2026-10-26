@@ -24,14 +24,14 @@ const applicantUserIds: string[] = [];
 const applicationIds: string[] = [];
 const notificationIds: string[] = [];
 
-async function createApplicant(label: string, role: 'participant' | 'staff' = 'participant') {
+async function createApplicant(label: string, role: 'participant' | 'staff' | 'super_admin' = 'participant') {
   const { data: user, error } = await admin.auth.admin.createUser({
     email: `notif-rpc-${runId}-${label}@test.local`, password: 'password123', email_confirm: true,
   });
   if (error || !user.user) throw new Error(`Failed to create ${label}: ${error?.message}`);
   applicantUserIds.push(user.user.id);
-  if (role === 'staff') {
-    await admin.from('profiles').update({ role: 'staff' }).eq('id', user.user.id);
+  if (role === 'staff' || role === 'super_admin') {
+    await admin.from('profiles').update({ role }).eq('id', user.user.id);
     return { userId: user.user.id, applicationId: null as string | null };
   }
   const { data: app, error: appError } = await admin
@@ -63,16 +63,31 @@ describe('create_notification', () => {
 });
 
 describe('create_announcement', () => {
-  it('a staff caller inserts exactly one is_broadcast=true row', async () => {
-    const { userId } = await createApplicant('announce-staff', 'staff');
+  // create_announcement was converted from is_staff() to is_super_admin()
+  // by supabase/migrations/20261025000500_narrow_staff_rls_to_super_admin.sql
+  // (2026-10-25 staff narrowing, Part 3's DO block target list) — a plain
+  // `staff` caller is now REJECTED, same as a participant. Only
+  // super_admin can create an announcement going forward.
+  it('a super_admin caller inserts exactly one is_broadcast=true row', async () => {
+    const { userId } = await createApplicant('announce-super-admin', 'super_admin');
     const client = createClient<Database>(URL, ANON_KEY);
-    await client.auth.signInWithPassword({ email: `notif-rpc-${runId}-announce-staff@test.local`, password: 'password123' });
+    await client.auth.signInWithPassword({ email: `notif-rpc-${runId}-announce-super-admin@test.local`, password: 'password123' });
     const { data, error } = await client.rpc('create_announcement' as never, { p_title: 'Welcome!', p_body: 'See you soon' } as never);
     expect(error).toBeNull();
     const row = data as unknown as { id: string; is_broadcast: boolean; application_id: string | null };
     notificationIds.push(row.id);
     expect(row.is_broadcast).toBe(true);
     expect(row.application_id).toBeNull();
+    void userId;
+  });
+
+  it('a staff caller is rejected with Not authorized (narrowed 2026-10-25)', async () => {
+    const { userId } = await createApplicant('announce-staff', 'staff');
+    const client = createClient<Database>(URL, ANON_KEY);
+    await client.auth.signInWithPassword({ email: `notif-rpc-${runId}-announce-staff@test.local`, password: 'password123' });
+    const { error } = await client.rpc('create_announcement' as never, { p_title: 'Should fail' } as never);
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain('Not authorized');
     void userId;
   });
 
@@ -86,7 +101,7 @@ describe('create_announcement', () => {
     void userId;
   });
 
-  it('an anonymous (unauthenticated) caller is rejected (coalesce(is_staff(), false) NULL-bypass guard)', async () => {
+  it('an anonymous (unauthenticated) caller is rejected (coalesce(is_super_admin(), false) NULL-bypass guard)', async () => {
     const anonClient = createClient<Database>(URL, ANON_KEY);
     const { error } = await anonClient.rpc('create_announcement' as never, { p_title: 'Should fail' } as never);
     expect(error).not.toBeNull();

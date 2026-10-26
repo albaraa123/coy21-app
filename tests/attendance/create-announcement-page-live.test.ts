@@ -33,11 +33,34 @@ const userIds: string[] = [];
 const notificationIds: string[] = [];
 
 // create_announcement is SECURITY DEFINER and derives the caller from
-// auth.uid() via coalesce(is_staff(), false), with no service_role
-// carve-out (supabase/migrations/20261008020000_notification_writer_rpcs.sql).
+// auth.uid() via coalesce(is_super_admin(), false) (converted from
+// is_staff() by the 2026-10-25 staff narrowing,
+// supabase/migrations/20261025000500_narrow_staff_rls_to_super_admin.sql),
+// with no service_role carve-out
+// (supabase/migrations/20261008020000_notification_writer_rpcs.sql).
 // `session` must therefore be a real signed-in anon-key client, not the
 // service-role client -- same pattern as
 // tests/participants/classification-controls-live.test.ts's createStaffFixture.
+async function createSuperAdminCaller(emailSlug: string) {
+  const email = `create-announcement-live-${runId}-${emailSlug}@test.local`;
+  const { data: user, error } = await admin.auth.admin.createUser({ email, password: 'password123', email_confirm: true });
+  if (error || !user.user) throw new Error(`Failed to create ${emailSlug}: ${error?.message}`);
+  userIds.push(user.user.id);
+  const { error: roleError } = await admin.from('profiles').update({ role: 'super_admin' }).eq('id', user.user.id);
+  if (roleError) throw new Error(`Failed to set super_admin role for ${emailSlug}: ${roleError.message}`);
+
+  const session = createClient<Database>(URL, ANON_KEY);
+  const { error: signInError } = await session.auth.signInWithPassword({ email, password: 'password123' });
+  if (signInError) throw new Error(`super_admin sign-in failed: ${signInError.message}`);
+
+  return { userId: user.user.id, session, service: admin };
+}
+
+// staff is no longer authorized to call create_announcement as of the
+// 2026-10-25 narrowing -- kept as its own helper (distinct from
+// createNonStaffCaller below) so the "staff specifically is rejected" case
+// is asserted explicitly, not just folded into "any non-super_admin is
+// rejected".
 async function createStaffCaller(emailSlug: string) {
   const email = `create-announcement-live-${runId}-${emailSlug}@test.local`;
   const { data: user, error } = await admin.auth.admin.createUser({ email, password: 'password123', email_confirm: true });
@@ -74,8 +97,8 @@ afterAll(async () => {
 });
 
 describe('createAnnouncementForCaller', () => {
-  it('a staff caller succeeds and creates exactly one is_broadcast=true row', async () => {
-    const caller = await createStaffCaller('staff');
+  it('a super_admin caller succeeds and creates exactly one is_broadcast=true row', async () => {
+    const caller = await createSuperAdminCaller('super-admin');
 
     const result = await createAnnouncementForCaller('Welcome!', 'See you soon', caller);
     expect(result.id).toBeTruthy();
@@ -94,6 +117,19 @@ describe('createAnnouncementForCaller', () => {
     expect(notifs[0].body).toBe('See you soon');
   });
 
+  it('a staff caller is rejected (create_announcement narrowed to super_admin, 2026-10-25)', async () => {
+    const caller = await createStaffCaller('staff');
+
+    await expect(createAnnouncementForCaller('Should fail', undefined, caller)).rejects.toThrow();
+
+    const { data: rows } = await admin
+      .from('notifications')
+      .select('id')
+      .eq('title', 'Should fail');
+    for (const r of rows ?? []) notificationIds.push(r.id);
+    expect(rows ?? []).toHaveLength(0);
+  });
+
   it('a non-staff caller is rejected', async () => {
     const caller = await createNonStaffCaller('non-staff');
 
@@ -108,7 +144,7 @@ describe('createAnnouncementForCaller', () => {
   });
 
   it('a whitespace-only title is rejected before the RPC call, not inserted as a blank row', async () => {
-    const caller = await createStaffCaller('whitespace-title');
+    const caller = await createSuperAdminCaller('whitespace-title');
 
     await expect(createAnnouncementForCaller('   ', undefined, caller)).rejects.toThrow('Title is required');
 

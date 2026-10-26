@@ -26,15 +26,18 @@ const runId = randomUUID().slice(0, 8);
 async function isAuthorizedAgendaStaffCaller(userId: string): Promise<boolean> {
   const { data: profile, error } = await admin.from('profiles').select('role').eq('id', userId).single();
   if (error || !profile) return false;
-  // Delegates to the same isStaffRole helper requireAgendaStaffCaller
-  // (src/lib/agenda/server-helpers.ts) uses, so this test exercises the real
-  // shared check rather than a re-implementation that could drift out of
-  // sync with it — matching Phase 2's admission-review-authorization.test.ts
-  // pattern. Post-consolidation, every former staff-domain role (agenda,
-  // admission, travel ops, etc.) has been migrated to the single 'staff'
-  // role, so there is no longer a "real staff, wrong module" rejection case
-  // to prove here — any migrated staff account is accepted.
-  return isStaffRole(profile.role);
+  // Mirrors requireAgendaStaffCaller's exact current authorization logic
+  // (src/lib/agenda/server-helpers.ts), not just isStaffRole alone — as of
+  // the 2026-10-25 staff narrowing (docs/superpowers/specs/2026-10-25-
+  // profile-accommodation-staff-narrowing-design.md), agenda management is
+  // out of scope for `staff`: the real helper now does
+  // `if (!isStaffRole(profile.role) || profile.role === 'staff') throw ...`.
+  // This re-implementation must track that exact condition, or it silently
+  // drifts out of sync with the real guard and asserts the opposite of
+  // its actual behavior (which is exactly what happened here before this
+  // fix — this test asserted staff was accepted after the real helper had
+  // already started rejecting it).
+  return isStaffRole(profile.role) && profile.role !== 'staff';
 }
 
 let participantId: string;
@@ -57,8 +60,8 @@ afterAll(async () => {
 });
 
 describe('requireAgendaStaffCaller role check', () => {
-  it('accepts staff', async () => {
-    expect(await isAuthorizedAgendaStaffCaller(agendaStaffId)).toBe(true);
+  it('rejects staff (agenda management narrowed out of scope for staff, 2026-10-25)', async () => {
+    expect(await isAuthorizedAgendaStaffCaller(agendaStaffId)).toBe(false);
   });
   it('rejects a plain participant', async () => {
     expect(await isAuthorizedAgendaStaffCaller(participantId)).toBe(false);
