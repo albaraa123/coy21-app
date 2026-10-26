@@ -114,8 +114,8 @@ async function createTravelReminderNotification(
     ? 'مطلوب إجراء: يرجى تقديم تفاصيل رحلتك لـ COY21'
     : 'Action required: submit your travel details for COY21';
   const body = recipient.locale === 'ar'
-    ? 'لم نستلم تفاصيل رحلتك بعد. يرجى تسجيل الدخول وتقديم معلومات رحلتك الجوية حتى يتمكن فريق اللوجستيات من التخطيط لاستقبالك في المطار.'
-    : 'We haven\'t received your travel details yet. Please log in and submit your flight information so our logistics team can plan airport reception.';
+    ? 'لم نستلم تفاصيل رحلتك بعد. يرجى تسجيل الدخول وتقديم معلومات رحلتك الجوية.'
+    : 'We haven\'t received your travel details yet. Please log in and submit your flight information.';
 
   const { error } = await service.rpc('create_notification' as never, {
     p_application_id: recipient.applicationId,

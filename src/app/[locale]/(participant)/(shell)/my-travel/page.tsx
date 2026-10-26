@@ -35,7 +35,7 @@ export default async function MyTravelPage() {
       <div>
         <h1 className="text-xl font-semibold text-charcoal dark:text-gray-100">My Travel</h1>
         <p className="mt-1 text-sm text-charcoal/60 dark:text-gray-400">
-          Enter your flight details so the logistics team can plan airport reception.
+          Enter your flight details for the organising team's records.
         </p>
       </div>
 
