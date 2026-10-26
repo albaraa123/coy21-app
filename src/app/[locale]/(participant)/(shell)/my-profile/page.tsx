@@ -8,7 +8,7 @@ import { getLocale } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
-import { EmergencyContactsForm, AccommodationForm } from './profile-forms';
+import { EmergencyContactsForm, AccommodationForm, IdentityForm } from './profile-forms';
 
 export default async function MyProfilePage() {
   const locale = await getLocale();
@@ -31,7 +31,7 @@ export default async function MyProfilePage() {
     return;
   }
 
-  const [{ data: contacts }, { data: accommodation }] = await Promise.all([
+  const [{ data: contacts }, { data: accommodation }, { data: identity }] = await Promise.all([
     supabase
       .from('emergency_contacts')
       .select('id, name, relationship, phone, email')
@@ -42,6 +42,11 @@ export default async function MyProfilePage() {
       .select('hotel_name, location_note, room_number')
       .eq('application_id', application.id)
       .maybeSingle(),
+    supabase
+      .from('profiles')
+      .select('full_name, email, phone, avatar_path')
+      .eq('id', user.id)
+      .single(),
   ]);
 
   return (
@@ -52,6 +57,19 @@ export default async function MyProfilePage() {
           Emergency contacts and accommodation details.
         </p>
       </div>
+
+      {/* Identity */}
+      <Card className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">
+            Identity
+          </h2>
+          <p className="mt-0.5 text-sm text-charcoal/60 dark:text-gray-400">
+            Your name, contact details, and profile picture.
+          </p>
+        </div>
+        <IdentityForm initial={identity ?? { full_name: '', email: user.email ?? '', phone: null, avatar_path: null }} />
+      </Card>
 
       {/* Emergency Contacts */}
       <Card className="flex flex-col gap-4">

@@ -1,11 +1,20 @@
 // tests/settings/email-settings-rls-live.test.ts
 //
 // Live RLS verification for the email_settings singleton table (see
-// supabase/migrations/20260930010000_add_email_settings_table.sql):
+// supabase/migrations/20260930010000_add_email_settings_table.sql and its
+// 2026-10-25 narrowing in
+// supabase/migrations/20261025000500_narrow_staff_rls_to_super_admin.sql):
 //
-//   - "staff can read email settings" — select using (is_staff())
+//   - "staff can read email settings" — select using (is_super_admin())
+//     as of 2026-10-25 (was is_staff() before the staff narrowing — see
+//     docs/superpowers/specs/2026-10-25-profile-accommodation-staff-
+//     narrowing-design.md). The policy's NAME was left unchanged by that
+//     migration (only its USING clause's helper was swapped), so a plain
+//     `staff` account can no longer actually read this table despite the
+//     policy's now-stale name.
 //   - "only super_admin can update email settings" — update using/with
-//     check (current_user_role() = 'super_admin')
+//     check (current_user_role() = 'super_admin') — unaffected by the
+//     narrowing, already super_admin-only.
 //   - no insert/delete policy at all
 //
 // This proves the DATABASE-level guarantee holds, independent of the
@@ -14,10 +23,10 @@
 // a side effect of documenting what the updateSandboxRecipient /
 // enableSandboxMode / disableSandboxMode actions delegate to; this file is
 // the dedicated, complete RLS matrix for the table — including the
-// staff-CAN-read case and the participant-CANNOT-read-at-all case that file
-// doesn't cover — following the exact fixture/sign-in/cleanup pattern
-// established in tests/auth/staff-roles-live.test.ts's sensitive-data-RLS
-// block ("sensitive travel and health data: a staff account can read it...").
+// staff-CANNOT-read case (narrowed 2026-10-25, previously CAN-read) and the
+// participant-CANNOT-read-at-all case that file doesn't cover — following
+// the exact fixture/sign-in/cleanup pattern established in
+// tests/auth/staff-roles-live.test.ts's sensitive-data-RLS block.
 //
 // This is a "live" test per this codebase's -live.test.ts convention: it
 // requires real Supabase env vars and FAILS (not skips) if they're missing.
@@ -114,14 +123,17 @@ describe('email_settings RLS policies (live, throwaway fixtures per role)', () =
     // update needed, but assert it below rather than assume it.
   }, 30000);
 
-  it('a staff-scoped client CAN select email_settings and gets the row back', async () => {
+  it('a staff-scoped client CANNOT select email_settings (narrowed 2026-10-25 — the "staff can read email settings" policy now checks is_super_admin())', async () => {
     const anonClient = createClient<Database>(URL, ANON_KEY);
     const { error: signInErr } = await anonClient.auth.signInWithPassword({ email: STAFF_EMAIL, password: FIXTURE_PASSWORD });
     expect(signInErr).toBeNull();
 
     const { data, error } = await anonClient.from('email_settings').select('*').eq('id', true);
-    expect(error).toBeNull();
-    expect(data ?? []).toHaveLength(1);
+    // RLS's default-deny SELECT semantics return an empty result set here
+    // rather than an explicit error, same shape as the participant-cannot-
+    // read assertion below.
+    expect(error || (data ?? []).length === 0).toBeTruthy();
+    expect(data ?? []).toHaveLength(0);
     await anonClient.auth.signOut();
   });
 

@@ -22,6 +22,7 @@
 // component, via role-label.ts + this module's own `t` call — the raw
 // user_role enum value is never passed to AppShell/Topbar/UserMenu (see
 // app-shell.tsx's and user-menu.tsx's doc comments on that boundary).
+import { headers } from 'next/headers';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
@@ -32,6 +33,7 @@ import { adminNavGroups } from '@/lib/nav/admin-nav-config';
 import { filterAdminNavGroups } from '@/lib/nav/admin-nav-visibility';
 import { buildNavTranslations } from '@/lib/nav/build-nav-translations';
 import { decideAdminAccess } from '@/lib/shell/admin-access';
+import { isRouteAllowedForStaff } from '@/lib/auth/staff-allowed-routes';
 import { roleLabelKey } from '@/lib/shell/role-label';
 import { fetchEmailSettings } from '@/lib/email/send-guarded';
 
@@ -61,6 +63,27 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ]);
 
   const decision = decideAdminAccess(user.id, profile?.role);
+
+  // 2026-10-25 staff narrowing: `staff` is authorized to enter the (admin)
+  // URL space at all (per decideAdminAccess above), but only onto
+  // /attendance/walk-in and /attendance/admissions -- see
+  // isRouteAllowedForStaff's doc comment and
+  // docs/superpowers/specs/2026-10-25-profile-accommodation-staff-narrowing-design.md.
+  // The real request pathname isn't otherwise available to a Server
+  // Component layout; src/proxy.ts forwards it via the x-pathname request
+  // header for exactly this purpose. Every other role (including
+  // super_admin and scanner_device, which never reaches this branch since
+  // decideAdminAccess only yields 'authorized' here for non-participant
+  // roles and scanner_device is routed to /scanner post-login, not here)
+  // is unaffected.
+  if (decision.kind === 'authorized' && profile?.role === 'staff') {
+    const pathname = (await headers()).get('x-pathname') ?? '';
+    if (!isRouteAllowedForStaff('staff', pathname)) {
+      redirect({ href: '/attendance/walk-in', locale });
+      return;
+    }
+  }
+
   const t = await getTranslations({ locale, namespace: 'shell' });
   const tNav = await getTranslations({ locale, namespace: 'nav' });
   // Hide sidebar links the signed-in role cannot actually open (each still

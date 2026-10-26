@@ -8,23 +8,30 @@
 // the exact same three-layer classification scheme as the scanner's
 // Route Handler, so every classified outcome (success, retryable,
 // non-retryable, including an UpstreamUnavailableError thrown by the
-// mocked requireAdmissionStaffCaller) must return HTTP 200 with the
+// mocked requireWalkInStaffCaller) must return HTTP 200 with the
 // outcome as the JSON body.
 //
-// Mocks requireAdmissionStaffCaller (the auth boundary) and the
+// Mocks requireWalkInStaffCaller (the auth boundary) and the
 // `service`/`session` clients it returns, so this test can drive the
 // identifier-lookup branches (accepted/ambiguous/not-found/transport-
 // failure) and the RPC call's own outcome independently, without a real
 // Supabase project.
+//
+// UPDATE (2026-10-25 staff narrowing): the route now imports
+// requireWalkInStaffCaller from src/lib/walk-in/server-helpers.ts, split
+// out of requireAdmissionStaffCaller (src/lib/admission/server-helpers.ts)
+// specifically so patching that shared helper to reject `staff` (Step 4.6)
+// would not also break walk-in admission. This test's mock target was
+// updated to match.
 import { randomUUID } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { requireAdmissionStaffCallerMock } = vi.hoisted(() => ({
-  requireAdmissionStaffCallerMock: vi.fn(),
+const { requireWalkInStaffCallerMock } = vi.hoisted(() => ({
+  requireWalkInStaffCallerMock: vi.fn(),
 }));
 
-vi.mock('@/lib/admission/server-helpers', () => ({
-  requireAdmissionStaffCaller: requireAdmissionStaffCallerMock,
+vi.mock('@/lib/walk-in/server-helpers', () => ({
+  requireWalkInStaffCaller: requireWalkInStaffCallerMock,
 }));
 
 import { POST } from '@/app/api/admit-walk-in/route';
@@ -74,7 +81,7 @@ describe('POST /api/admit-walk-in', () => {
   it('returns 200 with the bookingId in the JSON body on success', async () => {
     const applicationId = randomUUID();
     const bookingId = randomUUID();
-    requireAdmissionStaffCallerMock.mockResolvedValue({
+    requireWalkInStaffCallerMock.mockResolvedValue({
       userId: randomUUID(),
       service: fakeService({ data: [{ id: applicationId, status: 'accepted' }], error: null }),
       session: fakeSession({ data: bookingId, error: null }),
@@ -86,7 +93,7 @@ describe('POST /api/admit-walk-in', () => {
   });
 
   it('returns 200 retryable (upstream-unreachable) when requireAdmissionStaffCaller throws UpstreamUnavailableError', async () => {
-    requireAdmissionStaffCallerMock.mockRejectedValue(new UpstreamUnavailableError('profiles lookup failed transiently'));
+    requireWalkInStaffCallerMock.mockRejectedValue(new UpstreamUnavailableError('profiles lookup failed transiently'));
 
     const response = await POST(jsonRequest(validBody()));
     expect(response.status).toBe(200);
@@ -94,7 +101,7 @@ describe('POST /api/admit-walk-in', () => {
   });
 
   it('returns 200 non-retryable when requireAdmissionStaffCaller throws a genuine denial (plain Error)', async () => {
-    requireAdmissionStaffCallerMock.mockRejectedValue(new Error('Not authorized'));
+    requireWalkInStaffCallerMock.mockRejectedValue(new Error('Not authorized'));
 
     const response = await POST(jsonRequest(validBody()));
     expect(response.status).toBe(200);
@@ -102,7 +109,7 @@ describe('POST /api/admit-walk-in', () => {
   });
 
   it('returns 200 retryable (upstream-unreachable) when the identifier-lookup query itself fails (transport-shaped error)', async () => {
-    requireAdmissionStaffCallerMock.mockResolvedValue({
+    requireWalkInStaffCallerMock.mockResolvedValue({
       userId: randomUUID(),
       service: fakeService({ data: null, error: { code: '' } }),
       session: fakeSession({ data: null, error: null }),
@@ -114,7 +121,7 @@ describe('POST /api/admit-walk-in', () => {
   });
 
   it('returns 200 non-retryable when no accepted application matches the identifier', async () => {
-    requireAdmissionStaffCallerMock.mockResolvedValue({
+    requireWalkInStaffCallerMock.mockResolvedValue({
       userId: randomUUID(),
       service: fakeService({ data: [], error: null }),
       session: fakeSession({ data: null, error: null }),
@@ -129,7 +136,7 @@ describe('POST /api/admit-walk-in', () => {
   });
 
   it('returns 200 non-retryable when multiple accepted applications match the identifier', async () => {
-    requireAdmissionStaffCallerMock.mockResolvedValue({
+    requireWalkInStaffCallerMock.mockResolvedValue({
       userId: randomUUID(),
       service: fakeService({
         data: [
@@ -150,7 +157,7 @@ describe('POST /api/admit-walk-in', () => {
   });
 
   it('returns 200 non-retryable when the RPC call itself raises a deterministic error', async () => {
-    requireAdmissionStaffCallerMock.mockResolvedValue({
+    requireWalkInStaffCallerMock.mockResolvedValue({
       userId: randomUUID(),
       service: fakeService({ data: [{ id: randomUUID(), status: 'accepted' }], error: null }),
       session: fakeSession({ data: null, error: { code: 'P0001', message: 'This participant already has a booking for this session' } }),
@@ -166,7 +173,7 @@ describe('POST /api/admit-walk-in', () => {
   });
 
   it('returns 200 retryable when the RPC call itself fails transiently', async () => {
-    requireAdmissionStaffCallerMock.mockResolvedValue({
+    requireWalkInStaffCallerMock.mockResolvedValue({
       userId: randomUUID(),
       service: fakeService({ data: [{ id: randomUUID(), status: 'accepted' }], error: null }),
       session: fakeSession({ data: null, error: { code: '57014' } }),
@@ -182,7 +189,7 @@ describe('POST /api/admit-walk-in', () => {
     const bookingId = randomUUID();
     const service = fakeService({ data: [{ id: applicationId, status: 'accepted' }], error: null });
     const session = fakeSession({ data: bookingId, error: null });
-    requireAdmissionStaffCallerMock.mockResolvedValue({ userId: randomUUID(), service, session });
+    requireWalkInStaffCallerMock.mockResolvedValue({ userId: randomUUID(), service, session });
     // Service client has no rpc() at all in this mock -- if the handler
     // tried to call service.rpc(...), this would throw a TypeError.
     expect((service as unknown as { rpc?: unknown }).rpc).toBeUndefined();
@@ -209,7 +216,7 @@ describe('POST /api/admit-walk-in', () => {
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json).toEqual({ ok: false, retryable: false, message: 'Invalid request' });
-    expect(requireAdmissionStaffCallerMock).not.toHaveBeenCalled();
+    expect(requireWalkInStaffCallerMock).not.toHaveBeenCalled();
   });
 
   it('rejects a non-UUID sessionId before any auth/RPC call', async () => {
@@ -217,7 +224,7 @@ describe('POST /api/admit-walk-in', () => {
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json).toEqual({ ok: false, retryable: false, message: 'Invalid request' });
-    expect(requireAdmissionStaffCallerMock).not.toHaveBeenCalled();
+    expect(requireWalkInStaffCallerMock).not.toHaveBeenCalled();
   });
 
   it('rejects a non-UUID idempotencyKey before any auth/RPC call', async () => {
@@ -225,7 +232,7 @@ describe('POST /api/admit-walk-in', () => {
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json).toEqual({ ok: false, retryable: false, message: 'Invalid request' });
-    expect(requireAdmissionStaffCallerMock).not.toHaveBeenCalled();
+    expect(requireWalkInStaffCallerMock).not.toHaveBeenCalled();
   });
 
   it('rejects an empty/blank identifier before any auth/RPC call', async () => {
@@ -234,11 +241,11 @@ describe('POST /api/admit-walk-in', () => {
     const json = await response.json();
     expect(json.ok).toBe(false);
     expect(json.retryable).toBe(false);
-    expect(requireAdmissionStaffCallerMock).not.toHaveBeenCalled();
+    expect(requireWalkInStaffCallerMock).not.toHaveBeenCalled();
   });
 
   it('returns 200 non-retryable if the identifier-lookup query itself throws unexpectedly (not just rejects with an error object)', async () => {
-    requireAdmissionStaffCallerMock.mockResolvedValue({
+    requireWalkInStaffCallerMock.mockResolvedValue({
       userId: randomUUID(),
       service: {
         from: vi.fn(() => {

@@ -39,24 +39,37 @@
 
 import type { NavGroup } from './nav-types';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
-
-function isHrefVisible(role: string | null | undefined): boolean {
-  return isStaffRole(role);
-}
+import { isRouteAllowedForStaff } from '@/lib/auth/staff-allowed-routes';
 
 /**
  * Returns a new NavGroup[] containing only the items visible to `role`.
  * Groups that end up with zero visible items are dropped entirely (no
- * empty group headers rendered in the sidebar). Visibility no longer
- * varies by href (see this file's top doc comment), so every item within
- * a group is included or excluded uniformly based on `role` alone.
+ * empty group headers rendered in the sidebar).
+ *
+ * UPDATE (2026-10-25 staff narrowing): `staff` is now the one exception
+ * to the "visibility doesn't vary by href" statement above -- per
+ * docs/superpowers/specs/2026-10-25-profile-accommodation-staff-narrowing-design.md,
+ * a `staff` account's sidebar is filtered per-item down to
+ * isRouteAllowedForStaff's allowlist (/attendance/walk-in and
+ * /attendance/admissions only), reversing part of the 2026-09-29
+ * consolidation for this one role. super_admin (and every other
+ * isStaffRole-true role) is unaffected and still sees every item
+ * uniformly, exactly as before.
  */
 export function filterAdminNavGroups(
   navGroups: NavGroup[],
   role: string | null | undefined
 ): NavGroup[] {
-  if (!isHrefVisible(role)) {
+  if (!isStaffRole(role)) {
     return [];
+  }
+  if (role === 'staff') {
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => isRouteAllowedForStaff('staff', item.href)),
+      }))
+      .filter((group) => group.items.length > 0);
   }
   return navGroups.filter((group) => group.items.length > 0);
 }

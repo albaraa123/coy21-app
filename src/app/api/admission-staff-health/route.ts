@@ -5,9 +5,11 @@
 // sub-project 5b's Task 5 and the "Architecture — Client Side (Walk-In
 // Admin Page)" section of docs/superpowers/specs/2026-10-06-offline-
 // scanning-support-design.md). Scoped to this page's own auth boundary
-// (requireAdmissionStaffCaller) — it cannot share the scanner's health
-// check, which is gated on a different caller type entirely
-// (requireScannerDeviceCaller).
+// (requireWalkInStaffCaller, src/lib/walk-in/server-helpers.ts — split
+// out of requireAdmissionStaffCaller during the 2026-10-25 staff-
+// narrowing work; see that file's doc comment) — it cannot share the
+// scanner's health check, which is gated on a different caller type
+// entirely (requireScannerDeviceCaller).
 //
 // Same 200/401/503 response scheme as the scanner's
 // src/app/api/scanner-health/route.ts, distinguishing "stop and
@@ -18,13 +20,13 @@
 // - 503: either the auth check itself could not complete (transport-
 //   shaped failure, surfaced as UpstreamUnavailableError) or the
 //   database round-trip failed — retryable, keep polling.
-import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers';
+import { requireWalkInStaffCaller } from '@/lib/walk-in/server-helpers';
 import { UpstreamUnavailableError } from '@/lib/supabase/upstream-error';
 
 export async function GET() {
   let caller;
   try {
-    caller = await requireAdmissionStaffCaller();
+    caller = await requireWalkInStaffCaller();
   } catch (err) {
     if (err instanceof UpstreamUnavailableError) return new Response(null, { status: 503 });
     return new Response(null, { status: 401 });

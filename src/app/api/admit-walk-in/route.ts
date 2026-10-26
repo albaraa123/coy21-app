@@ -29,7 +29,7 @@
 // non-2xx or unparseable body means transport failure" rule never
 // misfires on a deterministic server-side denial.
 import { NextResponse } from 'next/server';
-import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers';
+import { requireWalkInStaffCaller } from '@/lib/walk-in/server-helpers';
 import { buildIlikeOrFilter } from '@/lib/validation/postgrest-search';
 import { isTransportShapedError } from '@/lib/supabase/upstream-error';
 import { UpstreamUnavailableError } from '@/lib/supabase/upstream-error';
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
     let caller;
     try {
-      caller = await requireAdmissionStaffCaller();
+      caller = await requireWalkInStaffCaller();
     } catch (err) {
       if (err instanceof UpstreamUnavailableError) {
         return NextResponse.json<AdmitWalkInOutcome>({ ok: false, retryable: true, message: 'Upstream unavailable' }, { status: 200 });

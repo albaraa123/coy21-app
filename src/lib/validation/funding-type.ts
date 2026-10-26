@@ -19,10 +19,17 @@ export type AttendanceConfirmation = (typeof ATTENDANCE_CONFIRMATION_VALUES)[num
 // same 'staff' role today. Kept as two named functions (rather than
 // deleting one) so call sites' intent stays self-documenting even
 // though they're now equivalent.
+// `&& role !== 'staff'` (2026-10-25 staff narrowing): the funding/
+// attendance-confirmation fields these two wrappers gate are now out of
+// scope for `staff` -- see docs/superpowers/specs/2026-10-25-profile-
+// accommodation-staff-narrowing-design.md. Patched here (not in
+// src/lib/funding/server-helpers.ts, which delegates to these wrappers
+// rather than calling isStaffRole directly) so both callers stay
+// consistent with each other.
 export function isFundingTypeStaffRole(role: string | null | undefined): boolean {
-  return isStaffRole(role);
+  return isStaffRole(role) && role !== 'staff';
 }
 
 export function canReadAttendanceConfirmation(role: string | null | undefined): boolean {
-  return isStaffRole(role);
+  return isStaffRole(role) && role !== 'staff';
 }

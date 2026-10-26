@@ -43,7 +43,12 @@ async function requireStaffCaller(): Promise<{ userId: string; session: Supabase
   // Single source of truth for this check is isStaffRole in
   // src/lib/auth/is-staff-role.ts, also used by page.tsx's page-level gate.
   // Update the helper, not this call site, if the allowed role set changes.
-  if (!isStaffRole(profile.role)) {
+  //
+  // `|| profile.role === 'staff'` (2026-10-25 staff narrowing):
+  // announcements are now out of scope for `staff` -- see
+  // docs/superpowers/specs/2026-10-25-profile-accommodation-staff-
+  // narrowing-design.md.
+  if (!isStaffRole(profile.role) || profile.role === 'staff') {
     throw new Error('Not authorized');
   }
 

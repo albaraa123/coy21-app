@@ -57,7 +57,16 @@ export async function requireAdmissionStaffCaller(): Promise<{ userId: string; s
   // by the /participants/accounts feature (never by /applications, which
   // has its own separate inline role check), so widening it here does not
   // affect application-review authorization.
-  if (!isStaffRole(profile.role)) {
+  //
+  // `|| profile.role === 'staff'` (2026-10-25 staff narrowing): the
+  // admission-REVIEW workflow this helper gates is now out of scope for
+  // `staff` -- kept to walk-in admission (requireWalkInStaffCaller,
+  // src/lib/walk-in/server-helpers.ts, split out specifically so this
+  // patch wouldn't also break it) and the attendance-correction console
+  // (requireProgramAttendanceStaffCaller, deliberately left unpatched)
+  // only. See docs/superpowers/specs/2026-10-25-profile-accommodation-
+  // staff-narrowing-design.md.
+  if (!isStaffRole(profile.role) || profile.role === 'staff') {
     throw new Error('Not authorized');
   }
 

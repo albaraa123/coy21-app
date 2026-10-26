@@ -18,17 +18,21 @@ const admin = createClient<Database>(URL, SERVICE_KEY);
 
 const runId = randomUUID().slice(0, 8);
 
-// Delegates to the same isStaffRole helper actions.ts's requireStaffCaller
-// and page.tsx's page-level gate use, so this test exercises the real
-// shared check rather than a re-implementation that could drift out of
-// sync with it. Post-consolidation, every former staff-domain role
-// (admission, agenda, travel ops, etc.) has been migrated to the single
-// 'staff' role, so there is no longer a "real staff, wrong module"
-// rejection case to prove here — any migrated staff account is accepted.
+// Mirrors the local requireStaffCaller's exact current authorization logic
+// (src/app/[locale]/(admin)/applications/[id]/actions.ts), not just
+// isStaffRole alone — as of the 2026-10-25 staff narrowing
+// (docs/superpowers/specs/2026-10-25-profile-accommodation-staff-narrowing-
+// design.md), the application-review workflow this helper gates
+// (updateApplicationStatus/assignReviewer/addNote) is out of scope for
+// `staff`: the real helper now does
+// `if (!isStaffRole(profile.role) || profile.role === 'staff') throw ...`.
+// This re-implementation must track that exact condition, or it drifts out
+// of sync with the real guard and asserts the opposite of its actual
+// behavior.
 async function isAuthorizedStaffCaller(userId: string): Promise<boolean> {
   const { data: profile, error } = await admin.from('profiles').select('role').eq('id', userId).single();
   if (error || !profile) return false;
-  return isStaffRole(profile.role);
+  return isStaffRole(profile.role) && profile.role !== 'staff';
 }
 
 let participantId: string;
@@ -55,8 +59,8 @@ afterAll(async () => {
 });
 
 describe('requireStaffCaller role check', () => {
-  it('accepts staff', async () => {
-    expect(await isAuthorizedStaffCaller(staffId)).toBe(true);
+  it('rejects staff (admission-review workflow narrowed out of scope for staff, 2026-10-25)', async () => {
+    expect(await isAuthorizedStaffCaller(staffId)).toBe(false);
   });
 
   it('rejects a plain participant', async () => {

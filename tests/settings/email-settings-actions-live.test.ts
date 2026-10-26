@@ -23,11 +23,12 @@
 //
 //   1. The authorization boundary these actions delegate to: RLS's
 //      "only super_admin can update email settings" policy (see
-//      supabase/migrations/20260930010000_add_email_settings_table.sql)
-//      — a super_admin-scoped client CAN update email_settings; a
-//      staff-scoped client CANNOT (RLS denies the write, mirroring what
-//      requireSuperAdmin()'s profile.role check enforces at the
-//      application layer for the exact same operation).
+//      supabase/migrations/20260930010000_add_email_settings_table.sql,
+//      unaffected by the later 2026-10-25 staff-narrowing migration —
+//      it was already super_admin-only) — a super_admin-scoped client CAN
+//      update email_settings; a staff-scoped client CANNOT (RLS denies the
+//      write, mirroring what requireSuperAdmin()'s profile.role check
+//      enforces at the application layer for the exact same operation).
 //   2. disableSandboxMode's server-side confirmation-phrase re-validation:
 //      re-implemented inline against the same DISABLE_CONFIRMATION_PHRASE
 //      contract the action enforces (the module only exports the async

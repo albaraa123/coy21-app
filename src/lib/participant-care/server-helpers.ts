@@ -32,7 +32,12 @@ export async function requireParticipantCareStaffCaller(): Promise<{ userId: str
   // Single source of truth for this check is isStaffRole in
   // src/lib/auth/is-staff-role.ts — update that helper, not this call site,
   // if the allowed role set changes.
-  if (!isStaffRole(profile.role)) {
+  //
+  // `|| profile.role === 'staff'` (2026-10-25 staff narrowing):
+  // participant care is now out of scope for `staff` -- see
+  // docs/superpowers/specs/2026-10-25-profile-accommodation-staff-
+  // narrowing-design.md.
+  if (!isStaffRole(profile.role) || profile.role === 'staff') {
     throw new Error('Not authorized');
   }
 

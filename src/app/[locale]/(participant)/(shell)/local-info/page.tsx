@@ -4,6 +4,7 @@ import { getLocale } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
+import { linkifyContactValue } from '@/lib/content/linkify-contact-value';
 import { MapEmbed } from './map-embed';
 
 export default async function LocalInfoPage() {
@@ -91,7 +92,15 @@ export default async function LocalInfoPage() {
                     {items.map((item) => (
                       <div key={item.id} className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
                         <dt className="w-44 shrink-0 text-sm font-medium text-charcoal dark:text-gray-200">{item.label}</dt>
-                        <dd className="text-sm text-charcoal/70 dark:text-gray-400">{item.value}</dd>
+                        <dd className="text-sm text-charcoal/70 dark:text-gray-400">
+                          {linkifyContactValue(item.value).map((seg, i) =>
+                            seg.type === 'link' ? (
+                              <a key={i} href={seg.href} className="text-turquoise hover:underline">{seg.value}</a>
+                            ) : (
+                              <span key={i}>{seg.value}</span>
+                            )
+                          )}
+                        </dd>
                       </div>
                     ))}
                   </dl>

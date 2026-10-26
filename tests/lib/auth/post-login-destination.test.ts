@@ -37,14 +37,22 @@ describe('resolvePostLoginDestination', () => {
     expect(resolvePostLoginDestination(undefined)).toEqual({ href: '/my-dashboard' });
   });
 
-  it('sends every staff role EXCEPT scanner_device to /dashboard (Task 11: the real admin dashboard)', () => {
+  it('sends every staff role EXCEPT scanner_device and staff to /dashboard (Task 11: the real admin dashboard)', () => {
     for (const role of NON_PARTICIPANT_ROLES) {
-      if (role === 'scanner_device') continue; // covered separately below
+      if (role === 'scanner_device' || role === 'staff') continue; // covered separately below
       expect(resolvePostLoginDestination(role)).toEqual({ href: '/dashboard' });
     }
   });
 
   it('sends scanner_device to /scanner, not the full admin dashboard (Phase 7 fix: a scanner terminal has no use for dashboard chrome, and previously required a second manual navigation after every login)', () => {
     expect(resolvePostLoginDestination('scanner_device')).toEqual({ href: '/scanner' });
+  });
+
+  it('sends staff to /attendance/walk-in, not the full admin dashboard (2026-10-25 narrowing: staff is kept to walk-in admission and the attendance-correction console only)', () => {
+    expect(resolvePostLoginDestination('staff')).toEqual({ href: '/attendance/walk-in' });
+  });
+
+  it('still sends super_admin to /dashboard (unaffected by the staff narrowing)', () => {
+    expect(resolvePostLoginDestination('super_admin')).toEqual({ href: '/dashboard' });
   });
 });
