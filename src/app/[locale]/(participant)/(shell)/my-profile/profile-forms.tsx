@@ -98,7 +98,13 @@ export function IdentityForm({ initial }: { initial: Identity }) {
         <Field label="Phone *" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} type="tel" />
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">Profile Picture *</label>
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarChange} disabled={uploading} />
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleAvatarChange}
+            disabled={uploading}
+            className="text-sm text-charcoal/70 dark:text-gray-400 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-turquoise file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-turquoise/85 file:disabled:opacity-50"
+          />
           {avatarPath && <p className="text-xs text-green-600 dark:text-green-400">Photo on file.</p>}
         </div>
       </div>
