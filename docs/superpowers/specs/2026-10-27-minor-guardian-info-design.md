@@ -37,25 +37,35 @@ No new RLS policy is needed: `applications` already has participant-care-domain 
 ```
 isMinor(application) =
   if age_group is not null: age_group === 'under_18'
-  else if birth_date is not null: age computed from birth_date < 18
-  else: false (never both null per registrationSchema's .refine)
+  else if birth_date is not null: age as of the conference start date (2026-11-05) < 18
+  else: false (never both null per registrationSchema's .refine for self-registered
+        applications; imported applications can bypass that schema, so the
+        all-null case must still resolve to false, not throw)
 ```
+
+Reference date for the `birth_date` branch is the **conference start date**, not "today" — a minor who turns 18 between now and the conference is still a minor (and needs a contactable guardian) while physically attending. No existing `CONFERENCE_START_DATE`-style constant exists in the codebase today, so the new `src/lib/participants/minor.ts` helper defines its own local constant for this.
 
 A small shared helper, `isApplicationMinor(application: { age_group: string | null; birth_date: string | null }): boolean`, added to `src/lib/participants/` (new file `minor.ts`), used identically by both the admin page and the My Profile page so the under-18 rule can't drift between the two surfaces.
 
 ## UI
 
 **Admin — `src/app/[locale]/(admin)/participants/[applicationId]/page.tsx`:**
-- New section/component `GuardianControls` (mirrors `ClassificationControls`'s shape: client component, local state, `run()` wrapper, `window.location.reload()` on success), rendered only when `isApplicationMinor(application)` is true.
+- Widen this page's existing service-role `applications` select (page.tsx:50) to add `guardian_name, guardian_phone` alongside the `age_group, birth_date` it already selects.
+- New section/component `GuardianControls` (mirrors `ClassificationControls`'s UI shape only: client component, local state, `run()` wrapper, `window.location.reload()` on success), rendered only when `isApplicationMinor(application)` is true.
 - Two inputs: name (plain text), phone (reuse the `PhoneField`/`react-phone-number-input` pattern already shipped on My Profile for consistency — single E.164 string).
-- New Server Action `updateGuardianInfoAction(applicationId, { guardianName, guardianPhone })` in `actions.ts`, following the existing `*ForCaller` / plain-wrapper split, using `requireParticipantCareStaffCaller`, with a `writeAuditLog` call (`action: 'guardian_info_updated'`).
+- **Server action placement does NOT mirror `[applicationId]/actions.ts`'s existing actions** — every action in that file (`sendInvitationAction`, `updateParticipantTypeAction`, etc.) uses `requireAgendaStaffCaller`, not `requireParticipantCareStaffCaller`; introducing the latter there would be a new, unprecedented mix of two different staff-domain gates in one file. Instead, follow the real existing `requireParticipantCareStaffCaller` precedent: `src/app/[locale]/(admin)/participants/care/actions.ts` + `src/lib/participant-care/health-info-management.ts`. Concretely:
+  - Add `updateGuardianInfoForCaller(caller: Caller, applicationId: string, input: GuardianUpdateInput)` to `src/lib/participant-care/health-info-management.ts` (or a sibling file in the same directory if it's cleaner to keep guardian logic separate from health info — implementer's call), writing `guardian_name`/`guardian_phone` on `applications` and calling `writeAuditLog` (imported from `@/lib/agenda/server-helpers`, matching `health-info-management.ts`'s own existing import — that module name is a historical artifact of where audit logging was first built, not a signal this is agenda-domain work) with `action: 'guardian_info_updated'`.
+  - Add a one-line thin wrapper `updateGuardianInfo(applicationId, input)` to `src/app/[locale]/(admin)/participants/care/actions.ts`, calling `requireParticipantCareStaffCaller()` then `updateGuardianInfoForCaller(caller, ...)` — matching that file's existing `updateHealthInfo` wrapper exactly.
+  - `GuardianControls` (rendered from the `[applicationId]` page) imports and calls this action from `participants/care/actions.ts`, not from its own local `actions.ts`. Cross-route-group server action imports are already normal Next.js App Router usage; no new pattern here, just importing a function from a different file.
 
 **Participant — `src/app/[locale]/(participant)/(shell)/my-profile/page.tsx`:**
+- Widen this page's existing RLS-respecting `applications` select (page.tsx:23-27, currently just `'id, status'`) to add `age_group, birth_date, guardian_name, guardian_phone`. Verified: `applications_select_own` RLS policy is a plain row-level policy with no column restriction and the `authenticated` grant is table-level, so this is a pure select-list change — no new RLS policy or grant needed.
 - New read-only card "Guardian / Companion", rendered only when `isApplicationMinor(application)` is true AND at least one of `guardian_name`/`guardian_phone` is set (don't show an empty card to a minor whose guardian info hasn't been entered yet).
 - No new form component — plain display, no edit affordance (team is the source of truth).
 
 ## Testing
 
-- Unit test for `isApplicationMinor` covering: `age_group = 'under_18'`, `age_group` = any other bucket, `age_group` null + `birth_date` under/over 18 years ago, both null (defensive — should not occur given the registration schema's refine, but the helper must not throw).
-- Server action test: `super_admin` can write guardian info; plain `staff` is rejected (`Not authorized`), matching the existing pattern in `*ForCaller` tests for sibling actions in this file.
+- Unit test for `isApplicationMinor` covering: `age_group = 'under_18'`, `age_group` = any other bucket, `age_group` null + `birth_date` under/over 18 years old as of the conference start date, both null (defensive — should not occur for self-registered applications given the registration schema's refine, but imported applications can bypass that schema, so the helper must resolve this case to `false` rather than throw).
+- `requireParticipantCareStaffCaller`'s rejection of plain `staff` is **not** currently covered by any direct-invocation test — `tests/participants/participant-care-live.test.ts` only ever constructs a caller manually (`{ userId, service: admin }`) and never exercises the auth check itself, and the real helper can't be invoked directly in a test anyway since it reaches `next/headers`' `cookies()` outside a request context. Do not write a test that expects `updateGuardianInfoForCaller` itself to throw on a `staff` caller — it won't, by design (the auth check lives one layer up, in the thin wrapper). Instead, mirror `tests/agenda/authorization.test.ts`'s **logic-replication** approach: a new test (or an addition to an existing participant-care test file) that re-implements the exact `isStaffRole(role) && role !== 'staff'` condition against real `profiles.role` values fetched from the live test database, asserting `staff` fails and `super_admin` passes the same boolean check `requireParticipantCareStaffCaller` performs.
+- `updateGuardianInfoForCaller` itself: direct-call test (same style as the existing `updateHealthInfoForCaller` tests in `participant-care-live.test.ts`) verifying it writes `guardian_name`/`guardian_phone` onto the right `applications` row and calls `writeAuditLog`.
 - Component/page test (or manual verification, matching this session's established pattern for small UI additions): guardian card only renders for `under_18` applications, never for others, and never when both guardian fields are empty.
