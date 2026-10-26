@@ -43,7 +43,7 @@ import { UserMenu } from './user-menu';
 export interface TopbarProps {
   locale: string;
   pageTitle?: string;
-  userDisplay: { name: string; roleLabel: string };
+  userDisplay: { name: string; roleLabel: string; avatarUrl?: string };
   logoutLabel: string;
   mobileDrawerTrigger: ReactNode;
   /** Pre-rendered <NotificationBell /> slot, rendered in the right-side gap-3 div before UserMenu. Omitted entirely when undefined. */
@@ -76,7 +76,7 @@ export function Topbar({ locale, pageTitle, userDisplay, logoutLabel, mobileDraw
       </div>
       <div className="flex items-center gap-3">
         {notificationBell}
-        <UserMenu name={userDisplay.name} roleLabel={userDisplay.roleLabel} logoutLabel={logoutLabel} />
+        <UserMenu name={userDisplay.name} roleLabel={userDisplay.roleLabel} avatarUrl={userDisplay.avatarUrl} logoutLabel={logoutLabel} />
       </div>
     </header>
   );

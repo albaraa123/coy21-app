@@ -100,7 +100,7 @@ import { BottomTabBarClientWrapper } from './bottom-tab-bar-client-wrapper';
 export interface AppShellProps {
   navGroups: NavGroup[];
   storageKey: string;
-  userDisplay: { name: string; roleLabel: string };
+  userDisplay: { name: string; roleLabel: string; avatarUrl?: string };
   locale: string;
   pageTitle?: string;
   logoutLabel: string;

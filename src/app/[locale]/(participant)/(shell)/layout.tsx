@@ -72,7 +72,7 @@ export default async function ParticipantShellLayout({ children }: { children: R
   const service = createServiceRoleClient();
   const { data: profile } = await service
     .from('profiles')
-    .select('role, full_name, must_change_password')
+    .select('role, full_name, must_change_password, avatar_path')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -110,9 +110,25 @@ export default async function ParticipantShellLayout({ children }: { children: R
   // children.
   const navTranslations = buildNavTranslations(participantNavGroups, tNav);
   const key = roleLabelKey(profile?.role);
+
+  // Avatars bucket is private (see 20261025000100_avatars_bucket.sql) --
+  // a signed URL is required, not getPublicUrl (which the local-info
+  // bucket's own actions use, since that bucket is public). 1 hour is
+  // long enough to cover a normal shell navigation session without
+  // re-signing on every single page load, short enough that a leaked
+  // URL doesn't stay valid indefinitely.
+  let avatarUrl: string | undefined;
+  if (profile?.avatar_path) {
+    const { data: signed } = await service.storage
+      .from('avatars')
+      .createSignedUrl(profile.avatar_path, 60 * 60);
+    avatarUrl = signed?.signedUrl;
+  }
+
   const userDisplay = {
     name: profile?.full_name || user.email || '',
     roleLabel: key ? t(key) : t('roles.participant'),
+    avatarUrl,
   };
 
   return (

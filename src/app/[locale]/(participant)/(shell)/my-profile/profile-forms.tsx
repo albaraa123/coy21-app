@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import {
   saveEmergencyContact,
   deleteEmergencyContact,
@@ -28,13 +30,19 @@ type Identity = {
 const AVATAR_ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
-export function IdentityForm({ initial }: { initial: Identity }) {
+export function IdentityForm({ initial, initialAvatarUrl }: { initial: Identity; initialAvatarUrl?: string }) {
   const [form, setForm] = useState({
     fullName: initial.full_name,
     email: initial.email,
     phone: initial.phone ?? '',
   });
   const [avatarPath, setAvatarPath] = useState<string | null>(initial.avatar_path);
+  // Preview shown in the form itself. Starts as the server-signed URL for
+  // an already-saved photo; replaced with an instant local object URL the
+  // moment a new file is picked (before the upload even finishes), so the
+  // user sees what they're about to save without waiting on a round trip.
+  // Object URLs are revoked on unmount/replacement to avoid leaking memory.
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(initialAvatarUrl);
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +65,13 @@ export function IdentityForm({ initial }: { initial: Identity }) {
       setError('Image must be 5 MB or smaller.');
       return;
     }
+    // Instant local preview, before any network round trip -- revoke the
+    // previous object URL first so selecting several files in a row
+    // doesn't leak one blob URL per selection.
+    setPreviewUrl((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
     setUploading(true);
     setError(null);
     try {
@@ -95,16 +110,22 @@ export function IdentityForm({ initial }: { initial: Identity }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Name *" value={form.fullName} onChange={(v) => setForm({ ...form, fullName: v })} />
         <Field label="Email *" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
-        <Field label="Phone *" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} type="tel" />
+        <PhoneField label="Phone *" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">Profile Picture *</label>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={handleAvatarChange}
-            disabled={uploading}
-            className="text-sm text-charcoal/70 dark:text-gray-400 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-turquoise file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-turquoise/85 file:disabled:opacity-50"
-          />
+          <div className="flex items-center gap-3">
+            {previewUrl && (
+              // eslint-disable-next-line @next/next/no-img-element -- transient blob:/signed URL, not a static asset next/image can cache
+              <img src={previewUrl} alt="" className="h-12 w-12 rounded-full object-cover" />
+            )}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleAvatarChange}
+              disabled={uploading}
+              className="text-sm text-charcoal/70 dark:text-gray-400 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-turquoise file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-turquoise/85 file:disabled:opacity-50"
+            />
+          </div>
           {avatarPath && <p className="text-xs text-green-600 dark:text-green-400">Photo on file.</p>}
         </div>
       </div>
@@ -232,7 +253,7 @@ function ContactEditFields({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Name *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Full name" />
         <Field label="Relationship *" value={form.relationship} onChange={(v) => setForm({ ...form, relationship: v })} placeholder="e.g. Parent, Sibling" />
-        <Field label="Phone *" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+1234567890" type="tel" />
+        <PhoneField label="Phone *" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
         <Field label="Email" value={form.email ?? ''} onChange={(v) => setForm({ ...form, email: v })} placeholder="optional" type="email" />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -324,6 +345,37 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full rounded-md border border-charcoal/20 bg-transparent px-3 py-2 text-sm text-charcoal outline-none focus:border-turquoise focus:ring-1 focus:ring-turquoise dark:border-white/20 dark:text-gray-100"
+      />
+    </div>
+  );
+}
+
+// Phone input with a searchable country/dial-code dropdown (flags +
+// names), via react-phone-number-input. Stores the full E.164 value
+// (e.g. "+96877148883") in the same plain string field every other
+// phone input in this file already uses -- no schema/type change
+// needed anywhere a phone number is read. The library's own default
+// select/input markup is overridden with classNames matching this
+// file's existing Field styling (border-charcoal/20, focus:border-
+// turquoise, rounded-md) so it doesn't look like a foreign component.
+function PhoneField({
+  label, value, onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{label}</label>
+      <PhoneInput
+        international
+        countryCallingCodeEditable={false}
+        defaultCountry="TR"
+        value={value}
+        onChange={(v) => onChange(v ?? '')}
+        className="coy21-phone-input flex w-full items-center gap-2 rounded-md border border-charcoal/20 bg-transparent px-3 py-2 text-sm text-charcoal focus-within:border-turquoise focus-within:ring-1 focus-within:ring-turquoise dark:border-white/20 dark:text-gray-100"
+        numberInputProps={{ className: 'flex-1 bg-transparent outline-none' }}
       />
     </div>
   );

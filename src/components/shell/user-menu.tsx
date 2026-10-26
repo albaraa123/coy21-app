@@ -33,6 +33,10 @@ import { isEscapeKey } from './mobile-drawer-logic';
 export interface UserMenuProps {
   name: string;
   roleLabel: string;
+  /** Signed URL to the user's uploaded avatar (participants only -- see
+   * (participant)/(shell)/layout.tsx). Omitted/undefined falls back to
+   * the existing letter-circle placeholder. */
+  avatarUrl?: string;
   logoutLabel: string;
 }
 
@@ -49,7 +53,7 @@ function LogoutSubmitButton({ label }: { label: string }) {
   );
 }
 
-export function UserMenu({ name, roleLabel, logoutLabel }: UserMenuProps) {
+export function UserMenu({ name, roleLabel, avatarUrl, logoutLabel }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [state, formAction] = useActionState<LogOutActionState, FormData>(logOutAction, {});
   // Wraps BOTH the toggle button and the menu panel (not just the panel),
@@ -96,9 +100,14 @@ export function UserMenu({ name, roleLabel, logoutLabel }: UserMenuProps) {
         aria-expanded={open}
         className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-charcoal hover:bg-charcoal/5"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-charcoal/10 text-xs font-semibold uppercase">
-          {name.charAt(0) || '?'}
-        </span>
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- signed URL expires hourly, not a static asset next/image can cache
+          <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-charcoal/10 text-xs font-semibold uppercase">
+            {name.charAt(0) || '?'}
+          </span>
+        )}
         <span className="hidden text-start sm:flex sm:flex-col sm:leading-tight">
           <span>{name}</span>
           <span className="text-xs font-normal text-charcoal/60">{roleLabel}</span>

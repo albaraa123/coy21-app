@@ -49,6 +49,19 @@ export default async function MyProfilePage() {
       .single(),
   ]);
 
+  // avatars bucket is private (20261025000100_avatars_bucket.sql) -- a
+  // signed URL is required to actually display the uploaded photo. The
+  // owner's own regular (RLS-respecting) client can sign their own file
+  // directly -- avatars_all_own covers every storage.objects operation
+  // for the caller's own folder, this isn't service-role-only.
+  let avatarUrl: string | undefined;
+  if (identity?.avatar_path) {
+    const { data: signed } = await supabase.storage
+      .from('avatars')
+      .createSignedUrl(identity.avatar_path, 60 * 60);
+    avatarUrl = signed?.signedUrl;
+  }
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 md:p-10">
       <div>
@@ -68,7 +81,10 @@ export default async function MyProfilePage() {
             Your name, contact details, and profile picture.
           </p>
         </div>
-        <IdentityForm initial={identity ?? { full_name: '', email: user.email ?? '', phone: null, avatar_path: null }} />
+        <IdentityForm
+          initial={identity ?? { full_name: '', email: user.email ?? '', phone: null, avatar_path: null }}
+          initialAvatarUrl={avatarUrl}
+        />
       </Card>
 
       {/* Emergency Contacts */}
