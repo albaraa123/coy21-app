@@ -13,7 +13,9 @@ import {
   searchParticipantsForCareForCaller,
   fetchHealthInfoForCaller,
   updateHealthInfoForCaller,
+  updateGuardianInfoForCaller,
   type HealthInfoUpdateInput,
+  type GuardianUpdateInput,
 } from '@/lib/participant-care/health-info-management';
 
 export async function searchParticipantsForCare(term: string) {
@@ -31,4 +33,9 @@ export async function updateHealthInfo(applicationId: string, input: HealthInfoU
   return updateHealthInfoForCaller(caller, applicationId, input);
 }
 
-export type { ParticipantSearchResult, HealthInfo, HealthInfoUpdateInput } from '@/lib/participant-care/health-info-management';
+export async function updateGuardianInfo(applicationId: string, input: GuardianUpdateInput) {
+  const caller = await requireParticipantCareStaffCaller();
+  return updateGuardianInfoForCaller(caller, applicationId, input);
+}
+
+export type { ParticipantSearchResult, HealthInfo, HealthInfoUpdateInput, GuardianInfo, GuardianUpdateInput } from '@/lib/participant-care/health-info-management';

@@ -126,3 +126,49 @@ export async function updateHealthInfoForCaller(caller: Caller, applicationId: s
 
   return data;
 }
+
+export type GuardianInfo = {
+  guardian_name: string | null;
+  guardian_phone: string | null;
+};
+
+export type GuardianUpdateInput = {
+  guardian_name: string | null;
+  guardian_phone: string | null;
+};
+
+// Plain update (not upsert, unlike updateHealthInfoForCaller): unlike
+// application_health_info, applications always has exactly one row per
+// application already -- there is no "row doesn't exist yet" case to
+// handle here.
+export async function updateGuardianInfoForCaller(
+  caller: Caller,
+  applicationId: string,
+  input: GuardianUpdateInput
+): Promise<GuardianInfo> {
+  const { service, userId } = caller;
+  const { data: before } = await service
+    .from('applications')
+    .select('guardian_name, guardian_phone')
+    .eq('id', applicationId)
+    .maybeSingle();
+
+  const { data, error } = await service
+    .from('applications')
+    .update(input)
+    .eq('id', applicationId)
+    .select('guardian_name, guardian_phone')
+    .single();
+  if (error) throw new Error(error.message);
+
+  await writeAuditLog(service, {
+    entityType: 'applications',
+    entityId: applicationId,
+    action: 'guardian_info_updated',
+    actorId: userId,
+    oldValues: before,
+    newValues: data,
+  });
+
+  return data;
+}
