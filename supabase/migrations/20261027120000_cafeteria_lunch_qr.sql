@@ -13,7 +13,7 @@ create table cafeteria_credentials (
   id uuid primary key default gen_random_uuid(),
   application_id uuid references applications(id) on delete cascade,
   profile_id uuid references profiles(id) on delete cascade,
-  token_hash bytea not null unique check (octet_length(token_hash) = 32),
+  token_hash bytea not null check (octet_length(token_hash) = 32),
   -- The rendered PNG QR image, stored so the owner's page can redisplay
   -- their code on every later visit -- token_hash is a one-way hash, so
   -- the raw token/payload can't be re-derived from it. See the design
@@ -34,11 +34,16 @@ create table cafeteria_credentials (
   constraint cafeteria_credentials_one_owner check (
     (application_id is not null and profile_id is null) or
     (application_id is null and profile_id is not null)
-  )
+  ),
+  constraint cafeteria_credentials_token_hash_unique unique (token_hash)
 );
 
-create unique index cafeteria_credentials_application_idx on cafeteria_credentials (application_id) where application_id is not null;
-create unique index cafeteria_credentials_profile_idx on cafeteria_credentials (profile_id) where profile_id is not null;
+create unique index cafeteria_credentials_application_idx
+  on cafeteria_credentials (application_id)
+  where application_id is not null;
+create unique index cafeteria_credentials_profile_idx
+  on cafeteria_credentials (profile_id)
+  where profile_id is not null;
 
 alter table cafeteria_credentials enable row level security;
 
@@ -77,10 +82,16 @@ create unique index cafeteria_lunch_scans_one_per_day on cafeteria_lunch_scans (
 
 alter table cafeteria_lunch_scans enable row level security;
 -- No client-facing policy at all: written exclusively by the scan RPC
--- (service-role, SECURITY DEFINER-equivalent via service_role grant) and
--- read by nothing in this phase. Default-deny matches resend_webhook_events'
--- existing precedent for a table with no client-facing read/write need.
+-- (service-role, which already has full privileges on this table via the
+-- default ACL -- see the grants note below) and read by nothing in this
+-- phase. Default-deny matches resend_webhook_events' existing precedent
+-- for a table with no client-facing read/write need.
 
 revoke all on cafeteria_lunch_scans from authenticated, anon;
-grant select, insert on cafeteria_lunch_scans to service_role;
-grant select, insert on cafeteria_credentials to service_role;
+
+-- No explicit service_role grant needed here: every table created after
+-- 20261006080000_fix_missing_service_role_grants.sql (which this migration
+-- postdates) already picks up full privileges on service_role via that
+-- migration's `alter default privileges in schema public grant all on
+-- tables to service_role`. Both tables above already have everything
+-- (not just SELECT/INSERT) before this migration even runs.
