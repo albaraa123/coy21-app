@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   graphql_public: {
     Tables: {
@@ -913,6 +913,90 @@ export type Database = {
           {
             foreignKeyName: "audit_logs_actor_id_fkey"
             columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cafeteria_credentials: {
+        Row: {
+          application_id: string | null
+          created_at: string
+          id: string
+          profile_id: string | null
+          qr_image_data_uri: string
+          token_hash: string
+        }
+        Insert: {
+          application_id?: string | null
+          created_at?: string
+          id?: string
+          profile_id?: string | null
+          qr_image_data_uri: string
+          token_hash: string
+        }
+        Update: {
+          application_id?: string | null
+          created_at?: string
+          id?: string
+          profile_id?: string | null
+          qr_image_data_uri?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cafeteria_credentials_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cafeteria_credentials_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cafeteria_lunch_scans: {
+        Row: {
+          credential_id: string
+          id: string
+          result: string
+          scan_date: string
+          scanned_at: string
+          scanned_by: string | null
+        }
+        Insert: {
+          credential_id: string
+          id?: string
+          result: string
+          scan_date: string
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Update: {
+          credential_id?: string
+          id?: string
+          result?: string
+          scan_date?: string
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cafeteria_lunch_scans_credential_id_fkey"
+            columns: ["credential_id"]
+            isOneToOne: false
+            referencedRelation: "cafeteria_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cafeteria_lunch_scans_scanned_by_fkey"
+            columns: ["scanned_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -3964,6 +4048,7 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       join_waitlist: {
         Args: { p_application_id: string; p_session_id: string }
         Returns: string
