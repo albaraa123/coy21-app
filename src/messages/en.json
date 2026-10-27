@@ -596,6 +596,8 @@
       "name": "Name",
       "email": "Email",
       "country": "Country",
+      "age": "Age",
+      "gender": "Gender",
       "status": "Status",
       "reviewer": "Reviewer",
       "submitted": "Submitted",

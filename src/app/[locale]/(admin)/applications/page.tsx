@@ -8,6 +8,7 @@ import { isSelfRegistrationEnabled } from '@/lib/feature-flags';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { calculateAge } from '@/lib/participants/age';
 
 const PAGE_SIZE = 50;
 
@@ -72,7 +73,7 @@ export default async function ApplicationsListPage({
   let dataQuery = service
     .from('applications')
     .select(
-      'id, application_number, participant_type, status, submitted_at, country, applicant_id, assigned_reviewer_id, profiles!applications_applicant_id_fkey!inner(full_name, email), reviewer:profiles!applications_assigned_reviewer_id_fkey(full_name)'
+      'id, application_number, participant_type, status, submitted_at, country, birth_date, gender, applicant_id, assigned_reviewer_id, profiles!applications_applicant_id_fkey!inner(full_name, email), reviewer:profiles!applications_assigned_reviewer_id_fkey(full_name)'
     )
     .neq('status', 'draft')
     .not('profiles.email', 'ilike', '%@test.local')
@@ -172,6 +173,8 @@ export default async function ApplicationsListPage({
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-charcoal/60 dark:text-gray-400">
                   <Badge variant={STATUS_BADGE_VARIANT[app.status] ?? 'neutral'}>{app.status}</Badge>
                   <span>{app.country}</span>
+                  {calculateAge(app.birth_date) !== null && <span>{t('age')}: {calculateAge(app.birth_date)}</span>}
+                  {app.gender && <span>{t('gender')}: {app.gender}</span>}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-charcoal/60 dark:text-gray-400">
                   <span>{t('reviewer')}: {app.reviewer?.full_name ?? t('unassigned')}</span>
@@ -193,6 +196,8 @@ export default async function ApplicationsListPage({
                   <th scope="col" className="px-4 py-2 text-start font-medium">{t('name')}</th>
                   <th scope="col" className="px-4 py-2 text-start font-medium">{t('email')}</th>
                   <th scope="col" className="px-4 py-2 text-start font-medium">{t('country')}</th>
+                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('age')}</th>
+                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('gender')}</th>
                   <th scope="col" className="px-4 py-2 text-start font-medium">{t('status')}</th>
                   <th scope="col" className="px-4 py-2 text-start font-medium">{t('reviewer')}</th>
                   <th scope="col" className="px-4 py-2 text-start font-medium">{t('submitted')}</th>
@@ -212,6 +217,8 @@ export default async function ApplicationsListPage({
                     <td className="px-4 py-2 text-charcoal dark:text-gray-100">{app.profiles?.full_name}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{app.profiles?.email}</td>
                     <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{app.country}</td>
+                    <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{calculateAge(app.birth_date) ?? '—'}</td>
+                    <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{app.gender ?? '—'}</td>
                     <td className="px-4 py-2">
                       <Badge variant={STATUS_BADGE_VARIANT[app.status] ?? 'neutral'}>{app.status}</Badge>
                     </td>
