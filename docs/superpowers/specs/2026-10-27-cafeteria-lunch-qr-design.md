@@ -25,6 +25,11 @@ create table cafeteria_credentials (
   application_id uuid references applications(id) on delete cascade,
   profile_id uuid references profiles(id) on delete cascade,
   token_hash bytea not null unique check (octet_length(token_hash) = 32),
+  -- The rendered PNG QR image (data URI), stored so the owner's page can
+  -- redisplay their code on every later visit -- see "Redisplay" below
+  -- for why this is stored instead of leaving the raw token
+  -- unrecoverable after first issuance.
+  qr_image_data_uri text not null,
   created_at timestamptz not null default now(),
   -- Exactly one of application_id/profile_id is set: a participant's
   -- credential is keyed to their application (consistent with
@@ -66,6 +71,10 @@ Non-`admitted` rows (denials) are still logged for the same audit-trail reason `
 Simple hashed random token, not the attendance system's encrypted-envelope scheme (confirmed: lunch risk is "a stolen free lunch," not identity fraud/credential forgery — doesn't justify the attendance system's AES-GCM/key-rotation machinery). `crypto.randomBytes(32)` → SHA-256 hash stored in `token_hash`; the raw token (base64url-encoded, prefixed e.g. `cafe:v1:<token>`) is what's rendered into the QR image and is never stored in plaintext, mirroring the attendance system's own "never persist the raw bearer token" rule even though the encryption layer itself isn't reused. New small module `src/lib/cafeteria/token.ts` (generate, hash, canonical-encode/parse) — deliberately not added to `qr-token-crypto.ts`, which is scoped to the `rcoy:v1:` attendance format specifically.
 
 `renderQrDataUri` (`src/lib/attendance/qr-image.ts`) is reused as-is — it's a pure `string -> PNG data URI` function with no attendance-specific coupling.
+
+### Redisplay
+
+`token_hash` is a one-way hash — the raw token is never recoverable from it, so the raw payload cannot simply be re-derived on a later page visit. Rather than leave this unresolved (an earlier draft of this plan deferred the decision to implementation time, which a plan review correctly flagged as a gap that should be settled here, before schema/crypto work is built against an unstated assumption): **the rendered PNG (`qr_image_data_uri`, a `data:image/png;base64,...` string) is stored alongside the hash at issuance time** and simply re-read on every later visit — no re-derivation needed, no raw token ever persisted. This is a deliberate, narrow exception to the "never persist the raw bearer token" rule stated above: the image is a rendering of the token, not the token's byte sequence itself, and is only ever returned to its own owner (gated by the same RLS policy as the rest of the row) — acceptable given this feature's already-stated low risk profile (a stolen free lunch, not credential forgery). Storing it is simpler and more robust than any alternative (e.g. a reversible encoding, which would just reintroduce the complexity this feature deliberately avoided by not reusing `qr-token-crypto.ts`).
 
 ## Credential issuance
 
