@@ -1987,11 +1987,26 @@
     "cafeteria": {
       "scanNext": "مسح التالي",
       "result": {
-        "admitted": "تم القبول",
-        "already_used_today": "تم الاستخدام اليوم مسبقًا",
-        "ineligible": "غير مؤهل",
-        "invalid_qr": "رمز QR غير صالح",
-        "error": "حدث خطأ — حاول مرة أخرى"
+        "admitted": {
+          "headline": "تم القبول",
+          "instruction": "يمكن للمشارك استلام وجبته."
+        },
+        "already_used_today": {
+          "headline": "تم الاستخدام اليوم مسبقًا",
+          "instruction": "تم استخدام رمز QR الخاص بالكافتيريا لهذا المشارك اليوم مسبقًا."
+        },
+        "ineligible": {
+          "headline": "غير مؤهل",
+          "instruction": "هذا المشارك غير مؤهل للوصول إلى الكافتيريا."
+        },
+        "invalid_qr": {
+          "headline": "رمز QR غير صالح",
+          "instruction": "يرجى طلب رمز QR الحالي الخاص بالكافتيريا من المشارك."
+        },
+        "error": {
+          "headline": "حدث خطأ",
+          "instruction": "حدث خطأ ما. يرجى إعادة المحاولة."
+        }
       }
     }
   },
