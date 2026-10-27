@@ -1983,6 +1983,16 @@
       },
       "countryLabel": "Country",
       "nationalityLabel": "Nationality"
+    },
+    "cafeteria": {
+      "scanNext": "Scan next",
+      "result": {
+        "admitted": "Admitted",
+        "already_used_today": "Already used today",
+        "ineligible": "Not eligible",
+        "invalid_qr": "Invalid QR",
+        "error": "Error — try again"
+      }
     }
   },
   "settings": {

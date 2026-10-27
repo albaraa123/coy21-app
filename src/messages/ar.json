@@ -1983,6 +1983,16 @@
       },
       "countryLabel": "الدولة",
       "nationalityLabel": "الجنسية"
+    },
+    "cafeteria": {
+      "scanNext": "مسح التالي",
+      "result": {
+        "admitted": "تم القبول",
+        "already_used_today": "تم الاستخدام اليوم مسبقًا",
+        "ineligible": "غير مؤهل",
+        "invalid_qr": "رمز QR غير صالح",
+        "error": "حدث خطأ — حاول مرة أخرى"
+      }
     }
   },
   "settings": {
