@@ -37,6 +37,11 @@ create table cafeteria_credentials (
   application_id uuid references applications(id) on delete cascade,
   profile_id uuid references profiles(id) on delete cascade,
   token_hash bytea not null unique check (octet_length(token_hash) = 32),
+  -- The rendered PNG QR image, stored so the owner's page can redisplay
+  -- their code on every later visit -- token_hash is a one-way hash, so
+  -- the raw token/payload can't be re-derived from it. See the design
+  -- spec's "Redisplay" section.
+  qr_image_data_uri text not null,
   created_at timestamptz not null default now(),
   -- Exactly one of application_id/profile_id is set: a participant's
   -- credential is keyed to their application (consistent with
@@ -406,19 +411,21 @@ declare
   v_attendance_confirmation text;
   v_profile_role text;
 begin
+  -- credential_id on cafeteria_lunch_scans is NOT NULL, so this function
+  -- has no row to write for a token that resolves to no credential at
+  -- all -- the caller (src/lib/cafeteria/lunch-scan.ts) always resolves
+  -- the credential BEFORE calling this RPC and returns 'invalid_qr'
+  -- directly, without an RPC round-trip, for that case (see Task 4).
+  -- These two guards are therefore purely defensive against a
+  -- programming error in the caller, not a real operational path; a
+  -- bare raise (no insert) is correct here -- unlike
+  -- scan_qr_attempt_transactional's own unresolved-credential branches,
+  -- which CAN write a row because scan_attempts.application_id is
+  -- nullable. Do not try to insert a row here: credential_id's NOT NULL
+  -- constraint makes it impossible, and attempting it then raising would
+  -- roll back the insert anyway, producing a misleading dead branch.
   if p_token_hash is null or octet_length(p_token_hash) <> 32 then
-    insert into cafeteria_lunch_scans (credential_id, scanned_by, scan_date, result)
-    -- No credential row exists for an unparseable/unknown token, so
-    -- credential_id can't be populated -- but the column is NOT NULL.
-    -- Resolve this the same way scan_attempts does for an unresolved
-    -- credential: there is no cafeteria_lunch_scans row written at all
-    -- for an invalid_qr with no matching credential; the Route Handler
-    -- returns 'invalid_qr' to the operator directly without an RPC
-    -- round-trip for this case (see Task 4's parse-first flow). This
-    -- branch should therefore be unreachable in practice -- kept only
-    -- as a defensive guard; if hit, raise rather than violate NOT NULL.
-    values (null, p_scanned_by, (now() at time zone 'Europe/Istanbul')::date, 'invalid_qr');
-    raise exception 'cafeteria_lunch_scan_transactional called with an unresolvable token_hash -- caller must resolve the credential before calling this function';
+    raise exception 'cafeteria_lunch_scan_transactional called with a malformed token_hash -- caller must resolve the credential before calling this function';
   end if;
 
   select * into v_credential from cafeteria_credentials where token_hash = p_token_hash;
@@ -718,12 +725,13 @@ describe('issueCafeteriaCredentialForCaller', () => {
     expect(result.outcome).toBe('issued');
   });
 
-  it('is idempotent — a second call returns the existing credential', async () => {
+  it('is idempotent — a second call returns the existing credential and the SAME QR image', async () => {
     const first = await issueCafeteriaCredentialForCaller({ userId: delegateUserId, service: admin });
     const second = await issueCafeteriaCredentialForCaller({ userId: delegateUserId, service: admin });
     expect(second.outcome).toBe('already_exists');
     if (first.outcome === 'issued' && second.outcome === 'already_exists') {
       expect(second.credentialId).toBe(first.credentialId);
+      expect(second.qrImageDataUri).toBe(first.qrImageDataUri);
     }
   });
 
@@ -754,12 +762,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import { generateCafeteriaToken, hashCafeteriaToken } from './token';
 import { isLunchEligible } from './eligibility';
+import { renderQrDataUri } from '@/lib/attendance/qr-image';
 
 type ServiceClient = SupabaseClient<Database>;
 
 export type IssueCafeteriaCredentialResult =
-  | { outcome: 'issued'; credentialId: string; qrPayload: string }
-  | { outcome: 'already_exists'; credentialId: string }
+  | { outcome: 'issued'; credentialId: string; qrImageDataUri: string }
+  | { outcome: 'already_exists'; credentialId: string; qrImageDataUri: string }
   | { outcome: 'not_eligible' }
   | { outcome: 'error'; message: string };
 
@@ -788,34 +797,40 @@ export async function issueCafeteriaCredentialForCaller(
 
   const { data: existing, error: existingError } = await service
     .from('cafeteria_credentials')
-    .select('id')
+    .select('id, qr_image_data_uri')
     .eq(ownerColumn, ownerValue)
     .maybeSingle();
   if (existingError) return { outcome: 'error', message: existingError.message };
-  if (existing) return { outcome: 'already_exists', credentialId: existing.id };
+  if (existing) return { outcome: 'already_exists', credentialId: existing.id, qrImageDataUri: existing.qr_image_data_uri };
 
   const { rawToken, payload } = generateCafeteriaToken();
   const tokenHash = hashCafeteriaToken(rawToken);
+  // The rendered PNG is stored (not just the hash) specifically so a
+  // returning visit can redisplay the same code — token_hash is a
+  // one-way hash and the raw payload is never recoverable from it. See
+  // the design spec's "Redisplay" section.
+  const qrImageDataUri = await renderQrDataUri(payload);
 
   const { data: inserted, error: insertError } = await service
     .from('cafeteria_credentials')
     .insert({
       [ownerColumn]: ownerValue,
       token_hash: tokenHash as unknown as never,
+      qr_image_data_uri: qrImageDataUri,
     })
-    .select('id')
+    .select('id, qr_image_data_uri')
     .single();
   if (insertError || !inserted) {
     // A unique_violation here means a concurrent request already
     // inserted one (race between this check and this insert) — treat
     // as success, not failure, same idempotent-by-construction
     // reasoning as issueMyQrCredential's own handling.
-    const { data: retryExisting } = await service.from('cafeteria_credentials').select('id').eq(ownerColumn, ownerValue).maybeSingle();
-    if (retryExisting) return { outcome: 'already_exists', credentialId: retryExisting.id };
+    const { data: retryExisting } = await service.from('cafeteria_credentials').select('id, qr_image_data_uri').eq(ownerColumn, ownerValue).maybeSingle();
+    if (retryExisting) return { outcome: 'already_exists', credentialId: retryExisting.id, qrImageDataUri: retryExisting.qr_image_data_uri };
     return { outcome: 'error', message: insertError?.message ?? 'Insert failed' };
   }
 
-  return { outcome: 'issued', credentialId: inserted.id, qrPayload: payload };
+  return { outcome: 'issued', credentialId: inserted.id, qrImageDataUri: inserted.qr_image_data_uri };
 }
 ```
 
@@ -826,11 +841,10 @@ Expected: PASS (3/3)
 
 - [ ] **Step 5: Wire a server action into the My QR Code page**
 
-Add to `src/app/[locale]/(participant)/(shell)/my-qr/actions.ts` (same file, same `requireParticipantCaller` helper already defined there):
+Add to `src/app/[locale]/(participant)/(shell)/my-qr/actions.ts` (same file, same `requireParticipantCaller` helper already defined there). Note this action now always has a `qrImageDataUri` to return for both `issued` and `already_exists` (the image is stored, not re-rendered from an unrecoverable hash) — no more missing-image case to handle:
 
 ```typescript
 import { issueCafeteriaCredentialForCaller } from '@/lib/cafeteria/credential-issuance';
-import { renderQrDataUri } from '@/lib/attendance/qr-image';
 
 export interface CafeteriaQrActionResult {
   outcome: 'issued' | 'already_exists' | 'not_eligible' | 'error';
@@ -840,22 +854,12 @@ export interface CafeteriaQrActionResult {
 export async function requestCafeteriaCredential(): Promise<CafeteriaQrActionResult> {
   const { userId, service } = await requireParticipantCaller();
   const result = await issueCafeteriaCredentialForCaller({ userId, service });
-  if (result.outcome === 'issued') {
-    return { outcome: 'issued', qrImageDataUri: await renderQrDataUri(result.qrPayload) };
-  }
-  if (result.outcome === 'already_exists') {
-    // Re-fetch to render the existing credential's QR — issuance itself
-    // doesn't return the raw payload for an already-existing row (it's
-    // never re-derivable from the stored hash), so the page must track
-    // whether it has already rendered one this session; see Task 5's
-    // client component for how this is handled (fetchMyCafeteriaQrImage).
-    return { outcome: 'already_exists', qrImageDataUri: null };
+  if (result.outcome === 'issued' || result.outcome === 'already_exists') {
+    return { outcome: result.outcome, qrImageDataUri: result.qrImageDataUri };
   }
   return { outcome: result.outcome, qrImageDataUri: null };
 }
 ```
-
-**Important note for the implementer:** because `token_hash` is a one-way hash, the raw QR payload can only ever be shown once — at the moment of issuance. Task 5 must account for this: either (a) store the QR image (not just the hash) server-side after first issuance so it can be redisplayed, or (b) accept that a user who navigates away and back before Task 5's page caches the image client-side will see "already issued" with no way to redisplay the actual scannable code, which would be a real usability bug. **Resolve this explicitly in Task 5 — do not ship behavior (b).** The simplest fix: also store the rendered PNG data URI (or just re-render from a newly-added `qr_image_cache` style column is overkill — instead render on EVERY page load for an existing credential using a reversible scheme, OR simplest of all: don't hash the token at rest — store it in a way the page can always redisplay it). Flag this to the user/reviewer before implementing Task 5 — it's a real design decision this plan's spec review did not fully resolve.
 
 - [ ] **Step 6: Commit**
 
@@ -868,8 +872,6 @@ git commit -m "feat: add cafeteria credential self-service issuance"
 
 ### Task 5: My QR Code page — Cafeteria QR card
 
-**STOP before starting this task — resolve Task 4 Step 5's flagged design gap first** (how the QR payload is redisplayed on a later page visit, given the token is only stored hashed). Confirm the chosen approach with the user before writing this task's code; this plan does not prescribe one, since it's a real tradeoff (storing the plaintext payload server-side weakens the "never persist the raw bearer token" property from the design spec, even though the security stakes are low — the user should make this call explicitly, it's exactly the kind of judgment call the design spec's own "Token scheme" section didn't fully specify).
-
 **Files:**
 - Modify: `src/app/[locale]/(participant)/(shell)/my-qr/page.tsx`
 - Modify: `src/app/[locale]/(participant)/(shell)/my-qr/my-qr-client.tsx`
@@ -877,7 +879,7 @@ git commit -m "feat: add cafeteria credential self-service issuance"
 
 - [ ] **Step 1: Server-side eligibility + existing-credential check**
 
-In `page.tsx`, alongside the existing `getMyQrState` call, add a lunch-eligibility check (reusing `isLunchEligible` against the already-fetched application/profile data) and pass an `isLunchEligible: boolean` + any existing-credential display state down to the client component. Card renders only when `true`.
+`getMyQrState` (the existing call already in `page.tsx`) returns a `ParticipantQrState` union — it does NOT expose raw `participant_type`/`status`/`attendance_confirmation`/`role` fields, so `isLunchEligible` cannot be fed from its result directly. Add a SEPARATE, small read in `page.tsx` alongside the existing `getMyQrState` call: fetch the caller's own `profiles.role` and (if any) their `applications` row's `participant_type`/`status`/`attendance_confirmation`, call `isLunchEligible(application, profile)` on that, and pass the boolean result plus any existing `cafeteria_credentials` row's `qr_image_data_uri` down to the client component. Card renders only when eligible is `true`.
 
 - [ ] **Step 2: Add the Cafeteria QR card to `my-qr-client.tsx`**
 
@@ -1033,7 +1035,7 @@ Explicitly simple per the confirmed scope decision (no offline retry, no wake-lo
 // src/components/scanner/cafeteria-scanner-client.tsx
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQrScanner } from './use-qr-scanner';
 import { Button } from '@/components/ui/button';
@@ -1071,7 +1073,22 @@ export function CafeteriaScannerClient() {
     }
   }, [busy]);
 
-  const { videoRef, status } = useQrScanner(handleDecode);
+  // use-qr-scanner.ts's actual return shape is { videoRef, status, start,
+  // stop, destroy } — start()/stop() are NOT called automatically by the
+  // hook itself (confirmed by reading its source: no mount-time effect).
+  // Camera is requested once, on mount, and released on unmount, mirroring
+  // scanner-client.tsx's own identical useEffect(() => { start(); return
+  // stop; }, []) pattern exactly. Omitting this call means the camera
+  // never activates at all.
+  const { videoRef, status, start, stop } = useQrScanner(handleDecode);
+
+  useEffect(() => {
+    start();
+    return () => {
+      stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -1089,8 +1106,6 @@ export function CafeteriaScannerClient() {
   );
 }
 ```
-
-(Implementer note: check `useQrScanner`'s actual exported shape against `src/components/scanner/use-qr-scanner.ts` before wiring this up — confirm it returns `videoRef`/`status` as named here, or adjust to match its real API. Confirmed in this plan's background research that its signature is `useQrScanner(onDecode: (payload: string) => void)`, but its full return shape wasn't re-verified against the latest file state — do that first.)
 
 - [ ] **Step 5: Manual verification**
 
