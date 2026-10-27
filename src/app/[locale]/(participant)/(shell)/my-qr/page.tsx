@@ -29,7 +29,22 @@ export default async function MyQrPage() {
   }
 
   const service = createServiceRoleClient();
-  const state = await getMyQrState({ userId: user.id, service });
+
+  // getMyQrState and the two Cafeteria-QR-card reads below (profiles,
+  // applications) have no dependency on each other, so they run
+  // concurrently. The cafeteria_credentials lookup further down DOES
+  // depend on `application`'s result (it needs to know whether to look
+  // up by application_id or profile_id), so it stays sequential after
+  // this resolves.
+  const [state, { data: profile }, { data: application }] = await Promise.all([
+    getMyQrState({ userId: user.id, service }),
+    service.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+    service
+      .from('applications')
+      .select('id, participant_type, status, attendance_confirmation')
+      .eq('applicant_id', user.id)
+      .maybeSingle(),
+  ]);
 
   const t = await getTranslations({ locale, namespace: 'myQr' });
 
@@ -37,19 +52,12 @@ export default async function MyQrPage() {
   // exists — never speculatively, never for any other state.
   const qrImageDataUri = state.kind === 'QR_AVAILABLE' ? await renderQrDataUri(state.qrPayload) : null;
 
-  // Separate, small read for the Cafeteria QR card: getMyQrState's own
+  // isLunchEligible — the single source of truth for lunch eligibility
+  // per the design spec — is fed from its own independent lookup above,
+  // never re-derived from the attendance state. getMyQrState's own
   // ParticipantQrState union deliberately doesn't expose raw
   // participant_type/status/attendance_confirmation/role fields (it's
-  // scoped to the attendance-QR eligibility rule only), so
-  // isLunchEligible — the single source of truth for lunch eligibility
-  // per the design spec — is fed from its own independent lookup here,
-  // never re-derived from the attendance state above.
-  const { data: profile } = await service.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const { data: application } = await service
-    .from('applications')
-    .select('id, participant_type, status, attendance_confirmation')
-    .eq('applicant_id', user.id)
-    .maybeSingle();
+  // scoped to the attendance-QR eligibility rule only).
   const isCafeteriaEligible = isLunchEligible(application, profile);
 
   // If eligible, also check for an existing cafeteria credential so a

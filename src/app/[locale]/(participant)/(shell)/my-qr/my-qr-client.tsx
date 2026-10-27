@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -124,130 +124,125 @@ export default function MyQrClient({
     </Card>
   ) : null;
 
+  // Attendance-QR section — exactly one branch per ParticipantQrState
+  // kind, each producing only its own content (no outer layout div, no
+  // cafeteriaCard reference). The single top-level return below is the
+  // only place that supplies the shared "flex flex-col gap-4" wrapper and
+  // appends {cafeteriaCard}, so a future kind added to the union has no
+  // way to silently skip either one.
+  let attendanceSection: ReactNode;
+
   if (state.kind === 'ERROR') {
-    return (
-      <div className="flex flex-col gap-4">
-        <Card>
-          <p role="alert" className="text-sm text-red-700 dark:text-red-300">
-            {t('states.error')}
-          </p>
-        </Card>
-        {cafeteriaCard}
-      </div>
+    attendanceSection = (
+      <Card>
+        <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+          {t('states.error')}
+        </p>
+      </Card>
     );
-  }
-
-  if (state.kind === 'NOT_ELIGIBLE') {
-    return (
-      <div className="flex flex-col gap-4">
-        <Card>
-          <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notEligible')}</p>
-        </Card>
-        {cafeteriaCard}
-      </div>
+  } else if (state.kind === 'NOT_ELIGIBLE') {
+    attendanceSection = (
+      <Card>
+        <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notEligible')}</p>
+      </Card>
     );
-  }
-
-  if (state.kind === 'CREDENTIAL_REVOKED') {
+  } else if (state.kind === 'CREDENTIAL_REVOKED') {
     // Unreachable today — getMyQrState never returns this kind (see its
     // own doc comment: no backend workflow sets a staff/security
     // revocation reason yet). Kept only for type exhaustiveness against
     // a future staff-revocation feature.
-    return (
-      <div className="flex flex-col gap-4">
-        <Card>
-          <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.revoked')}</p>
-        </Card>
-        {cafeteriaCard}
-      </div>
-    );
-  }
-
-  if (state.kind === 'NOT_YET_AVAILABLE') {
-    return (
-      <div className="flex flex-col gap-4">
-        <Card className="flex flex-col gap-4 items-center text-center">
-          <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notYetAvailable')}</p>
-          {/* Only rendered because Phase 6.1's participant_self_service
-              issuance channel already exists and is the approved,
-              production-intended path for an accepted participant with no
-              credential yet — not a newly invented capability. */}
-          <Button onClick={handleRequestQr} disabled={busy}>
-            {busy ? t('requesting') : t('requestButton')}
-          </Button>
-          {actionError && (
-            <p role="alert" className="text-sm text-red-700 dark:text-red-300">
-              {actionError}
-            </p>
-          )}
-        </Card>
-        {cafeteriaCard}
-      </div>
-    );
-  }
-
-  // state.kind === 'QR_AVAILABLE'
-  return (
-    <div className="flex flex-col gap-4">
-      <Card className="flex flex-col items-center gap-3 text-center">
-        <p className="text-base font-medium text-charcoal dark:text-gray-100">{state.participant.fullName}</p>
-        {state.participant.attendeeCode && (
-          <div className="flex items-center gap-2 rounded-md bg-turquoise/10 px-3 py-1">
-            <span className="font-mono text-sm font-bold tracking-widest text-turquoise">
-              {state.participant.attendeeCode}
-            </span>
-          </div>
-        )}
-        {qrImageDataUri && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={qrImageDataUri}
-            alt={t('qrAltText')}
-            className="w-full max-w-[280px] rounded-lg bg-white p-2"
-            width={600}
-            height={600}
-          />
-        )}
-        <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('instruction')}</p>
-        {(state.participant.country || state.participant.nationality) && (
-          <p className="text-xs text-charcoal/60 dark:text-gray-400">
-            {[state.participant.country, state.participant.nationality].filter(Boolean).join(' · ')}
-          </p>
-        )}
+    attendanceSection = (
+      <Card>
+        <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.revoked')}</p>
       </Card>
-
-      <p className="text-center text-xs text-charcoal/50 dark:text-gray-500">{t('brightnessHint')}</p>
-
-      <div className="flex flex-col items-center gap-2">
-        {!confirmingReissue ? (
-          <button
-            type="button"
-            onClick={() => setConfirmingReissue(true)}
-            disabled={busy}
-            className="text-xs font-medium text-charcoal/60 underline hover:text-charcoal dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            {t('reissueLink')}
-          </button>
-        ) : (
-          <div className="flex flex-col items-center gap-2 rounded-md border border-amber-600/40 bg-amber-50 p-3 text-center dark:border-amber-400/30 dark:bg-amber-950/30">
-            <p className="text-xs text-amber-800 dark:text-amber-300">{t('reissueWarning')}</p>
-            <div className="flex gap-2">
-              <Button size="sm" variant="destructive" onClick={handleReissue} disabled={busy}>
-                {busy ? t('requesting') : t('reissueConfirm')}
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => setConfirmingReissue(false)} disabled={busy}>
-                {t('cancel')}
-              </Button>
-            </div>
-          </div>
-        )}
+    );
+  } else if (state.kind === 'NOT_YET_AVAILABLE') {
+    attendanceSection = (
+      <Card className="flex flex-col gap-4 items-center text-center">
+        <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notYetAvailable')}</p>
+        {/* Only rendered because Phase 6.1's participant_self_service
+            issuance channel already exists and is the approved,
+            production-intended path for an accepted participant with no
+            credential yet — not a newly invented capability. */}
+        <Button onClick={handleRequestQr} disabled={busy}>
+          {busy ? t('requesting') : t('requestButton')}
+        </Button>
         {actionError && (
           <p role="alert" className="text-sm text-red-700 dark:text-red-300">
             {actionError}
           </p>
         )}
-      </div>
+      </Card>
+    );
+  } else {
+    // state.kind === 'QR_AVAILABLE'
+    attendanceSection = (
+      <>
+        <Card className="flex flex-col items-center gap-3 text-center">
+          <p className="text-base font-medium text-charcoal dark:text-gray-100">{state.participant.fullName}</p>
+          {state.participant.attendeeCode && (
+            <div className="flex items-center gap-2 rounded-md bg-turquoise/10 px-3 py-1">
+              <span className="font-mono text-sm font-bold tracking-widest text-turquoise">
+                {state.participant.attendeeCode}
+              </span>
+            </div>
+          )}
+          {qrImageDataUri && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={qrImageDataUri}
+              alt={t('qrAltText')}
+              className="w-full max-w-[280px] rounded-lg bg-white p-2"
+              width={600}
+              height={600}
+            />
+          )}
+          <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('instruction')}</p>
+          {(state.participant.country || state.participant.nationality) && (
+            <p className="text-xs text-charcoal/60 dark:text-gray-400">
+              {[state.participant.country, state.participant.nationality].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </Card>
 
+        <p className="text-center text-xs text-charcoal/50 dark:text-gray-500">{t('brightnessHint')}</p>
+
+        <div className="flex flex-col items-center gap-2">
+          {!confirmingReissue ? (
+            <button
+              type="button"
+              onClick={() => setConfirmingReissue(true)}
+              disabled={busy}
+              className="text-xs font-medium text-charcoal/60 underline hover:text-charcoal dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              {t('reissueLink')}
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-2 rounded-md border border-amber-600/40 bg-amber-50 p-3 text-center dark:border-amber-400/30 dark:bg-amber-950/30">
+              <p className="text-xs text-amber-800 dark:text-amber-300">{t('reissueWarning')}</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="destructive" onClick={handleReissue} disabled={busy}>
+                  {busy ? t('requesting') : t('reissueConfirm')}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setConfirmingReissue(false)} disabled={busy}>
+                  {t('cancel')}
+                </Button>
+              </div>
+            </div>
+          )}
+          {actionError && (
+            <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+              {actionError}
+            </p>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {attendanceSection}
       {cafeteriaCard}
     </div>
   );
