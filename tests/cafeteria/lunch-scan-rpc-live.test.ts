@@ -100,8 +100,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const credentialIds = [credentialId, ineligibleCredentialId, concurrentCredentialId].filter(Boolean);
-  const applicationIds = [applicationId, ineligibleApplicationId, concurrentApplicationId].filter(Boolean);
+  const credentialIds = [credentialId, ineligibleCredentialId, concurrentCredentialId].filter(Boolean) as string[];
+  const applicationIds = [applicationId, ineligibleApplicationId, concurrentApplicationId].filter(Boolean) as string[];
   const userIds = [scannerUserId, applicantUserId, ineligibleApplicantUserId, concurrentApplicantUserId].filter(Boolean) as string[];
 
   await admin.from('cafeteria_lunch_scans').delete().in('credential_id', credentialIds);
