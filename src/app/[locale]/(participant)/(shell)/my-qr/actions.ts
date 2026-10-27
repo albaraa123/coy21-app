@@ -7,6 +7,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getMyQrState, type ParticipantQrState } from '@/lib/attendance/participant-qr';
 import { issueMyQrCredential, reissueMyQrCredential } from '@/lib/attendance/qr-credential-issuance';
 import { renderQrDataUri } from '@/lib/attendance/qr-image';
+import { issueCafeteriaCredentialForCaller } from '@/lib/cafeteria/credential-issuance';
 
 export interface MyQrActionResult {
   state: ParticipantQrState;
@@ -88,4 +89,30 @@ export async function reissueMyQrCredentialAction(input: z.infer<typeof reissueS
     console.error('reissueMyQrCredentialAction: unexpected reissue outcome', { userId, outcome: result.outcome });
   }
   return toActionResult(await getMyQrState({ userId, service }));
+}
+
+export interface CafeteriaQrActionResult {
+  outcome: 'issued' | 'already_exists' | 'not_eligible' | 'error';
+  qrImageDataUri: string | null;
+}
+
+/**
+ * Self-service issuance for the cafeteria lunch QR — a separate
+ * credential from the attendance QR above (see
+ * src/lib/cafeteria/credential-issuance.ts). Idempotent: a repeat call
+ * for a caller who already has a credential returns the SAME stored QR
+ * image rather than erroring or regenerating it, since token_hash is a
+ * one-way hash and the raw payload can't be re-derived for a fresh
+ * render (design spec's "Redisplay" section).
+ */
+export async function requestCafeteriaCredential(): Promise<CafeteriaQrActionResult> {
+  const { userId, service } = await requireParticipantCaller();
+  const result = await issueCafeteriaCredentialForCaller({ userId, service });
+  if (result.outcome === 'issued' || result.outcome === 'already_exists') {
+    return { outcome: result.outcome, qrImageDataUri: result.qrImageDataUri };
+  }
+  if (result.outcome === 'error') {
+    console.error('requestCafeteriaCredential: issuance failed', { userId, message: result.message });
+  }
+  return { outcome: result.outcome, qrImageDataUri: null };
 }

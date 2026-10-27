@@ -229,6 +229,13 @@
       "notEligible": "A QR is not available for your account.",
       "revoked": "Your QR is no longer valid. Please request a new one below.",
       "error": "We couldn't load your QR right now. Please try again shortly."
+    },
+    "cafeteria": {
+      "title": "Cafeteria QR",
+      "instruction": "Present this QR at the cafeteria for lunch, once per day.",
+      "qrAltText": "Your cafeteria lunch QR code",
+      "notYetAvailable": "Get your QR code to check in for lunch at the cafeteria.",
+      "requestButton": "Get my cafeteria QR"
     }
   },
   "changePassword": {
@@ -1976,6 +1983,31 @@
       },
       "countryLabel": "Country",
       "nationalityLabel": "Nationality"
+    },
+    "cafeteria": {
+      "scanNext": "Scan next",
+      "result": {
+        "admitted": {
+          "headline": "Admitted",
+          "instruction": "Participant may collect their meal."
+        },
+        "already_used_today": {
+          "headline": "Already used today",
+          "instruction": "This participant's cafeteria QR has already been used today."
+        },
+        "ineligible": {
+          "headline": "Not eligible",
+          "instruction": "This participant is not eligible for cafeteria access."
+        },
+        "invalid_qr": {
+          "headline": "Invalid QR",
+          "instruction": "Ask the participant to show their current cafeteria QR."
+        },
+        "error": {
+          "headline": "Error",
+          "instruction": "Something went wrong. Please try scanning again."
+        }
+      }
     }
   },
   "settings": {
