@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { requestMyQrCredential, reissueMyQrCredentialAction } from './actions';
+import { requestMyQrCredential, reissueMyQrCredentialAction, requestCafeteriaCredential } from './actions';
 import type { ParticipantQrState } from '@/lib/attendance/participant-qr';
 
 // Never persisted, never read from localStorage/sessionStorage — this
@@ -14,9 +14,13 @@ import type { ParticipantQrState } from '@/lib/attendance/participant-qr';
 export default function MyQrClient({
   initialState,
   initialQrImageDataUri,
+  isCafeteriaEligible,
+  initialCafeteriaCredential,
 }: {
   initialState: ParticipantQrState;
   initialQrImageDataUri: string | null;
+  isCafeteriaEligible: boolean;
+  initialCafeteriaCredential: { qrImageDataUri: string } | null;
 }) {
   const t = useTranslations('myQr');
   const [state, setState] = useState(initialState);
@@ -24,6 +28,32 @@ export default function MyQrClient({
   const [busy, setBusy] = useState(false);
   const [confirmingReissue, setConfirmingReissue] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Cafeteria QR card state — deliberately separate from the attendance
+  // QR state above (a distinct credential, per the design spec's
+  // "Why a separate credential" section). No reissue flow here: neither
+  // Task 4's issuance action nor the design spec describe one for the
+  // cafeteria credential, only issue-once-and-redisplay.
+  const [cafeteriaQrImageDataUri, setCafeteriaQrImageDataUri] = useState(initialCafeteriaCredential?.qrImageDataUri ?? null);
+  const [cafeteriaBusy, setCafeteriaBusy] = useState(false);
+  const [cafeteriaActionError, setCafeteriaActionError] = useState<string | null>(null);
+
+  const handleRequestCafeteriaQr = useCallback(async () => {
+    setCafeteriaBusy(true);
+    setCafeteriaActionError(null);
+    try {
+      const result = await requestCafeteriaCredential();
+      if (result.outcome === 'issued' || result.outcome === 'already_exists') {
+        setCafeteriaQrImageDataUri(result.qrImageDataUri);
+      } else {
+        setCafeteriaActionError(t('actionError'));
+      }
+    } catch {
+      setCafeteriaActionError(t('actionError'));
+    } finally {
+      setCafeteriaBusy(false);
+    }
+  }, [t]);
 
   const handleRequestQr = useCallback(async () => {
     setBusy(true);
@@ -55,21 +85,66 @@ export default function MyQrClient({
     }
   }, [state, t]);
 
+  // Cafeteria QR card — a second, independent card (not a replacement
+  // for the attendance-QR card above), rendered only for an eligible
+  // caller regardless of the attendance-QR state (e.g. staff may be
+  // lunch-eligible while having no application/attendance QR at all).
+  // Follows the same NOT_YET_AVAILABLE -> request-button -> QR_AVAILABLE
+  // shape as the attendance card, but with no reissue flow, per the
+  // design spec's "Credential issuance" section (issue-once-and-redisplay
+  // only).
+  const cafeteriaCard = isCafeteriaEligible ? (
+    <Card className="flex flex-col gap-4 items-center text-center">
+      <p className="text-base font-medium text-charcoal dark:text-gray-100">{t('cafeteria.title')}</p>
+      {cafeteriaQrImageDataUri ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={cafeteriaQrImageDataUri}
+            alt={t('cafeteria.qrAltText')}
+            className="w-full max-w-[280px] rounded-lg bg-white p-2"
+            width={600}
+            height={600}
+          />
+          <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('cafeteria.instruction')}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('cafeteria.notYetAvailable')}</p>
+          <Button onClick={handleRequestCafeteriaQr} disabled={cafeteriaBusy}>
+            {cafeteriaBusy ? t('requesting') : t('cafeteria.requestButton')}
+          </Button>
+        </>
+      )}
+      {cafeteriaActionError && (
+        <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+          {cafeteriaActionError}
+        </p>
+      )}
+    </Card>
+  ) : null;
+
   if (state.kind === 'ERROR') {
     return (
-      <Card>
-        <p role="alert" className="text-sm text-red-700 dark:text-red-300">
-          {t('states.error')}
-        </p>
-      </Card>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+            {t('states.error')}
+          </p>
+        </Card>
+        {cafeteriaCard}
+      </div>
     );
   }
 
   if (state.kind === 'NOT_ELIGIBLE') {
     return (
-      <Card>
-        <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notEligible')}</p>
-      </Card>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notEligible')}</p>
+        </Card>
+        {cafeteriaCard}
+      </div>
     );
   }
 
@@ -79,29 +154,35 @@ export default function MyQrClient({
     // revocation reason yet). Kept only for type exhaustiveness against
     // a future staff-revocation feature.
     return (
-      <Card>
-        <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.revoked')}</p>
-      </Card>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.revoked')}</p>
+        </Card>
+        {cafeteriaCard}
+      </div>
     );
   }
 
   if (state.kind === 'NOT_YET_AVAILABLE') {
     return (
-      <Card className="flex flex-col gap-4 items-center text-center">
-        <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notYetAvailable')}</p>
-        {/* Only rendered because Phase 6.1's participant_self_service
-            issuance channel already exists and is the approved,
-            production-intended path for an accepted participant with no
-            credential yet — not a newly invented capability. */}
-        <Button onClick={handleRequestQr} disabled={busy}>
-          {busy ? t('requesting') : t('requestButton')}
-        </Button>
-        {actionError && (
-          <p role="alert" className="text-sm text-red-700 dark:text-red-300">
-            {actionError}
-          </p>
-        )}
-      </Card>
+      <div className="flex flex-col gap-4">
+        <Card className="flex flex-col gap-4 items-center text-center">
+          <p className="text-sm text-charcoal/80 dark:text-gray-300">{t('states.notYetAvailable')}</p>
+          {/* Only rendered because Phase 6.1's participant_self_service
+              issuance channel already exists and is the approved,
+              production-intended path for an accepted participant with no
+              credential yet — not a newly invented capability. */}
+          <Button onClick={handleRequestQr} disabled={busy}>
+            {busy ? t('requesting') : t('requestButton')}
+          </Button>
+          {actionError && (
+            <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+              {actionError}
+            </p>
+          )}
+        </Card>
+        {cafeteriaCard}
+      </div>
     );
   }
 
@@ -166,6 +247,8 @@ export default function MyQrClient({
           </p>
         )}
       </div>
+
+      {cafeteriaCard}
     </div>
   );
 }

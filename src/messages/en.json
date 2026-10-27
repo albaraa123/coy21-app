@@ -229,6 +229,13 @@
       "notEligible": "A QR is not available for your account.",
       "revoked": "Your QR is no longer valid. Please request a new one below.",
       "error": "We couldn't load your QR right now. Please try again shortly."
+    },
+    "cafeteria": {
+      "title": "Cafeteria QR",
+      "instruction": "Present this QR at the cafeteria for lunch, once per day.",
+      "qrAltText": "Your cafeteria lunch QR code",
+      "notYetAvailable": "Get your QR code to check in for lunch at the cafeteria.",
+      "requestButton": "Get my cafeteria QR"
     }
   },
   "changePassword": {
