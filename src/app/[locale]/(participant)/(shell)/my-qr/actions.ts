@@ -111,5 +111,8 @@ export async function requestCafeteriaCredential(): Promise<CafeteriaQrActionRes
   if (result.outcome === 'issued' || result.outcome === 'already_exists') {
     return { outcome: result.outcome, qrImageDataUri: result.qrImageDataUri };
   }
+  if (result.outcome === 'error') {
+    console.error('requestCafeteriaCredential: issuance failed', { userId, message: result.message });
+  }
   return { outcome: result.outcome, qrImageDataUri: null };
 }

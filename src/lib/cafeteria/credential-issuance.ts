@@ -87,9 +87,16 @@ export async function issueCafeteriaCredentialForCaller(
     // A unique_violation here means a concurrent request already
     // inserted one (race between this check and this insert) — treat
     // as success, not failure, same idempotent-by-construction
-    // reasoning as issueMyQrCredential's own handling.
-    const { data: retryExisting } = await findExisting();
+    // reasoning as issueMyQrCredential's own handling. Deliberately not
+    // branching on the Postgres error code (e.g. 23505 unique_violation
+    // vs. anything else): any insert failure triggers this recheck, and
+    // the recheck itself is authoritative either way, so distinguishing
+    // error codes here would add complexity without changing behavior.
+    const { data: retryExisting, error: retryError } = await findExisting();
     if (retryExisting) return { outcome: 'already_exists', credentialId: retryExisting.id, qrImageDataUri: retryExisting.qr_image_data_uri };
+    if (retryError) {
+      return { outcome: 'error', message: `Insert failed (${insertError?.message ?? 'no row returned'}); recheck also failed: ${retryError.message}` };
+    }
     return { outcome: 'error', message: insertError?.message ?? 'Insert failed' };
   }
 
