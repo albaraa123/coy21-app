@@ -3802,6 +3802,23 @@ export type Database = {
         Args: { p_application_id: string; p_session_id: string }
         Returns: string
       }
+      cafeteria_lunch_scan_transactional: {
+        Args: { p_scanned_by: string; p_token_hash: string }
+        Returns: {
+          credential_id: string
+          id: string
+          result: string
+          scan_date: string
+          scanned_at: string
+          scanned_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cafeteria_lunch_scans"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cancel_booking: {
         Args: { p_application_id: string; p_booking_id: string }
         Returns: undefined
