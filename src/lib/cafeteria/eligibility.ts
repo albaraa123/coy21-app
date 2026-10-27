@@ -4,11 +4,16 @@
 // account). Used identically at credential issuance, My QR Code card
 // visibility, and scan-time re-check — never re-derived elsewhere.
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import type { Database } from '@/types/database';
 
 const ELIGIBLE_PARTICIPANT_TYPES = ['delegate', 'volunteer'] as const;
 
 export function isLunchEligible(
-  application: { participant_type: string | null; status: string; attendance_confirmation: string } | null,
+  application: {
+    participant_type: Database['public']['Enums']['participant_type'] | null;
+    status: Database['public']['Enums']['application_status'];
+    attendance_confirmation: Database['public']['Enums']['attendance_confirmation_status'];
+  } | null,
   profile: { role: string | null } | null
 ): boolean {
   if (profile && isStaffRole(profile.role)) return true;

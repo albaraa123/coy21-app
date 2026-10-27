@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { isLunchEligible } from './eligibility';
+import type { Database } from '@/types/database';
 
 describe('isLunchEligible', () => {
-  const baseApp = { participant_type: null as string | null, status: 'accepted', attendance_confirmation: 'confirmed' };
+  const baseApp = {
+    participant_type: null as Database['public']['Enums']['participant_type'] | null,
+    status: 'accepted' as Database['public']['Enums']['application_status'],
+    attendance_confirmation: 'confirmed' as Database['public']['Enums']['attendance_confirmation_status'],
+  };
 
   it('delegate accepted+confirmed is eligible', () => {
     expect(isLunchEligible({ ...baseApp, participant_type: 'delegate' }, null)).toBe(true);
@@ -39,5 +44,9 @@ describe('isLunchEligible', () => {
   });
   it('both null is NOT eligible', () => {
     expect(isLunchEligible(null, null)).toBe(false);
+  });
+  it('an unrecognized participant_type is NOT eligible (fails closed)', () => {
+    // @ts-expect-error -- deliberately testing runtime behavior for a value outside the real enum, e.g. DB/generated-type drift
+    expect(isLunchEligible({ ...baseApp, participant_type: 'some_future_type' }, null)).toBe(false);
   });
 });
