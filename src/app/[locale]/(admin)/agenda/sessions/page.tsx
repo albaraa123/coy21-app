@@ -78,7 +78,7 @@ export default async function SessionsListPage({
       'id, session_code, title_en, start_time, end_time, status, capacity, conference_day:conference_days(label_en), track:tracks(name_en), room:rooms(name_en)'
     )
     .order('start_time', { ascending: true })
-    .order('id', { ascending: true });
+    .order('session_code', { ascending: true });
 
   // All four filters below are ID/enum exact-match filters (dropdown-driven,
   // not free text), so Phase 2's `.or()` comma/paren sanitization lesson
