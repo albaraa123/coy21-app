@@ -94,19 +94,6 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
     [t('preferredLanguage'), application.preferred_language ?? ''],
   ];
 
-  const conferenceFields: Array<[label: string, value: string]> = [
-    [t('interests'), (application.interests ?? []).join(', ')],
-    [t('climateExperience'), application.climate_experience ?? ''],
-    [t('experienceLevel'), application.experience_level ?? ''],
-    [t('pastInitiatives'), application.past_initiatives ?? ''],
-    [t('participationGoals'), application.participation_goals ?? ''],
-    [t('topicsToLearn'), application.topics_to_learn ?? ''],
-    [t('contentTypePref'), application.content_type_pref ?? ''],
-    [t('trackInterests'), (application.track_interests ?? []).join(', ')],
-    [t('prioritySessions'), application.priority_sessions ?? ''],
-    [t('specialNeeds'), application.special_needs ?? ''],
-  ];
-
   const submissionFields: Array<[label: string, value: string]> = [
     [t('submittedAt'), application.submitted_at ? new Date(application.submitted_at).toLocaleString(locale) : ''],
     [t('createdAt'), application.created_at ? new Date(application.created_at).toLocaleString(locale) : ''],
@@ -165,19 +152,11 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         </Card>
       </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('conferenceTitle')}</h2>
-        <Card className="p-0">
-          <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
-            {conferenceFields.map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
-                <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
-                <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-      </section>
+      {/* Conference information section (interests, climate experience,
+          etc.) is temporarily hidden per explicit decision — only the
+          core identity/personal fields above matter for now; a follow-up
+          form will determine what, if anything, replaces this. The
+          underlying data/columns are untouched. */}
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('submissionTitle')}</h2>
