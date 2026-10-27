@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCafeteriaToken, hashCafeteriaToken, canonicalEncodeCafeteriaToken, parseCanonicalCafeteriaPayload } from './token';
+import { generateCafeteriaToken, hashCafeteriaToken, parseCanonicalCafeteriaPayload } from './token';
 
 describe('cafeteria token', () => {
   it('generates a 32-byte raw token and a matching canonical payload', () => {
