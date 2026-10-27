@@ -26,7 +26,16 @@ declare
   v_retry_delay_seconds constant numeric := 0.05;
   v_credential cafeteria_credentials%rowtype;
   v_scan_date date;
-  v_eligible boolean;
+  -- Fail-closed default: if the eligibility branches below somehow leave
+  -- this NULL (e.g. the one-owner CHECK constraint were ever bypassed
+  -- AND profile_id were also null), `false` -- not NULL -- is what the
+  -- gate below sees. Three-valued logic means `if not v_eligible` alone
+  -- would silently skip the ineligible-rejection branch when v_eligible
+  -- is NULL (same failure class as this codebase's known
+  -- `if not is_staff()` NULL-bypass pattern), so this default is paired
+  -- with the `coalesce(..., false)` in the gate itself -- either one
+  -- alone leaves a path reachable if the other is edited away later.
+  v_eligible boolean := false;
   v_already_today boolean;
   v_result text;
   v_scan cafeteria_lunch_scans%rowtype;
@@ -67,7 +76,7 @@ begin
   end loop;
 
   if not v_lock_acquired then
-    raise exception 'LOCK_CONTENTION: Another scan for this credential is still being processed after % retries', v_max_retries;
+    raise exception 'LOCK_CONTENTION: Another scan for this credential is still being processed after % retries — please retry manually', v_max_retries;
   end if;
 
   v_scan_date := (now() at time zone 'Europe/Istanbul')::date;
@@ -86,7 +95,9 @@ begin
     v_eligible := v_profile_role in ('staff', 'super_admin');
   end if;
 
-  if not v_eligible then
+  -- Fail closed on NULL, not just false: see v_eligible's declaration
+  -- comment above.
+  if coalesce(v_eligible, false) = false then
     insert into cafeteria_lunch_scans (credential_id, scanned_by, scan_date, result)
     values (v_credential.id, p_scanned_by, v_scan_date, 'ineligible')
     returning * into v_scan;

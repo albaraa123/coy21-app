@@ -38,6 +38,16 @@ let ineligibleApplicantUserId: string;
 let ineligibleApplicationId: string;
 let ineligibleCredentialId: string;
 let ineligibleRawToken: Buffer;
+// Concurrent-scan test's fixtures: created inline inside that `it(...)`
+// block (not beforeAll, since this credential must be fresh/untouched),
+// but assigned here the moment each is created so the unconditional
+// afterAll sweep below can still clean them up even if an assertion in
+// that test throws before its own inline cleanup would otherwise run —
+// see tests/attendance/scan-attempt-concurrency-live.test.ts for the
+// precedent of module-level accumulators swept in one afterAll.
+let concurrentApplicantUserId: string | undefined;
+let concurrentApplicationId: string | undefined;
+let concurrentCredentialId: string | undefined;
 
 beforeAll(async () => {
   const { data: scanner, error: scannerError } = await admin.auth.admin.createUser({
@@ -90,10 +100,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await admin.from('cafeteria_lunch_scans').delete().in('credential_id', [credentialId, ineligibleCredentialId].filter(Boolean));
-  await admin.from('cafeteria_credentials').delete().in('id', [credentialId, ineligibleCredentialId].filter(Boolean));
-  await admin.from('applications').delete().in('id', [applicationId, ineligibleApplicationId].filter(Boolean));
-  for (const id of [scannerUserId, applicantUserId, ineligibleApplicantUserId].filter(Boolean)) {
+  const credentialIds = [credentialId, ineligibleCredentialId, concurrentCredentialId].filter(Boolean);
+  const applicationIds = [applicationId, ineligibleApplicationId, concurrentApplicationId].filter(Boolean);
+  const userIds = [scannerUserId, applicantUserId, ineligibleApplicantUserId, concurrentApplicantUserId].filter(Boolean) as string[];
+
+  await admin.from('cafeteria_lunch_scans').delete().in('credential_id', credentialIds);
+  await admin.from('cafeteria_credentials').delete().in('id', credentialIds);
+  await admin.from('applications').delete().in('id', applicationIds);
+  for (const id of userIds) {
     await admin.auth.admin.deleteUser(id);
   }
 });
@@ -132,13 +146,19 @@ describe('cafeteria_lunch_scan_transactional', () => {
       email: `cafe-scan-${runId}-concur@test.local`, password: 'password123', email_confirm: true,
     });
     if (a2Error || !applicant2.user) throw new Error('concurrent fixture setup failed');
+    // Assign to the module-level tracking var immediately on creation
+    // (not batched at the end) so the afterAll sweep can still find and
+    // clean this up even if an assertion below throws first.
+    concurrentApplicantUserId = applicant2.user.id;
     const { data: app2 } = await admin.from('applications').insert({
       applicant_id: applicant2.user.id, status: 'accepted', participant_type: 'volunteer', attendance_confirmation: 'confirmed',
     }).select('id').single();
+    concurrentApplicationId = app2!.id;
     const { data: cred2 } = await admin.from('cafeteria_credentials').insert({
       application_id: app2!.id, token_hash: toByteaHex(hashCafeteriaToken(tok.rawToken)) as unknown as never,
       qr_image_data_uri: 'data:image/png;base64,TEST',
     }).select('id').single();
+    concurrentCredentialId = cred2!.id;
 
     const [r1, r2] = await Promise.all([
       admin.rpc('cafeteria_lunch_scan_transactional', { p_token_hash: toByteaHex(hashCafeteriaToken(tok.rawToken)), p_scanned_by: scannerUserId }),
@@ -148,10 +168,5 @@ describe('cafeteria_lunch_scan_transactional', () => {
     expect(r2.error).toBeNull();
     const results = [r1.data?.result, r2.data?.result].sort();
     expect(results).toEqual(['admitted', 'already_used_today']);
-
-    await admin.from('cafeteria_lunch_scans').delete().eq('credential_id', cred2!.id);
-    await admin.from('cafeteria_credentials').delete().eq('id', cred2!.id);
-    await admin.from('applications').delete().eq('id', app2!.id);
-    await admin.auth.admin.deleteUser(applicant2.user.id);
   });
 });
