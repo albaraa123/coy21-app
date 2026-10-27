@@ -135,6 +135,7 @@ describe('cafeteria schema', () => {
       application_id: '00000000-0000-0000-0000-000000000000',
       profile_id: '00000000-0000-0000-0000-000000000000',
       token_hash: Buffer.alloc(32, 1) as unknown as never,
+      qr_image_data_uri: 'data:image/png;base64,TEST',
     });
     expect(error).not.toBeNull();
     expect(error?.message).toMatch(/cafeteria_credentials_one_owner|violates/i);
@@ -143,6 +144,7 @@ describe('cafeteria schema', () => {
   it('cafeteria_credentials rejects a row with neither set', async () => {
     const { error } = await admin.from('cafeteria_credentials').insert({
       token_hash: Buffer.alloc(32, 2) as unknown as never,
+      qr_image_data_uri: 'data:image/png;base64,TEST',
     });
     expect(error).not.toBeNull();
   });
@@ -556,6 +558,7 @@ beforeAll(async () => {
   credentialRawToken = tok.rawToken;
   const { data: cred, error: credError } = await admin.from('cafeteria_credentials').insert({
     application_id: applicationId, token_hash: hashCafeteriaToken(tok.rawToken) as unknown as never,
+    qr_image_data_uri: 'data:image/png;base64,TEST',
   }).select('id').single();
   if (credError || !cred) throw new Error(`credential setup failed: ${credError?.message}`);
   credentialId = cred.id;
@@ -576,6 +579,7 @@ beforeAll(async () => {
   ineligibleRawToken = kpTok.rawToken;
   const { data: kpCred, error: kpCredError } = await admin.from('cafeteria_credentials').insert({
     application_id: ineligibleApplicationId, token_hash: hashCafeteriaToken(kpTok.rawToken) as unknown as never,
+    qr_image_data_uri: 'data:image/png;base64,TEST',
   }).select('id').single();
   if (kpCredError || !kpCred) throw new Error(`kp credential setup failed: ${kpCredError?.message}`);
   ineligibleCredentialId = kpCred.id;
@@ -629,6 +633,7 @@ describe('cafeteria_lunch_scan_transactional', () => {
     }).select('id').single();
     const { data: cred2 } = await admin.from('cafeteria_credentials').insert({
       application_id: app2!.id, token_hash: hashCafeteriaToken(tok.rawToken) as unknown as never,
+      qr_image_data_uri: 'data:image/png;base64,TEST',
     }).select('id').single();
 
     const [r1, r2] = await Promise.all([
