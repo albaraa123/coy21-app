@@ -145,6 +145,18 @@ export function CafeteriaScannerClient() {
 // nothing, matching scanner-client.tsx's own precedent of never
 // rendering camera-status text once the camera is live (or before
 // start() has been called at all).
+// Maps CameraStatus's snake_case 'permission_denied' value to the
+// camelCase 'permissionDenied' key actually used under scanner.camera.*
+// in en.json/ar.json. Interpolating `status` directly into the
+// translation key (as this used to do) silently broke the
+// permission_denied case only — 'unavailable' and 'error' are single
+// words so they happened to match either way, masking the bug.
+const CAMERA_MESSAGE_KEY: Record<'permission_denied' | 'unavailable' | 'error', string> = {
+  permission_denied: 'permissionDenied',
+  unavailable: 'unavailable',
+  error: 'error',
+};
+
 function CameraStatusMessage({ t, status }: { t: ReturnType<typeof useTranslations>; status: CameraStatus }) {
   if (status === 'active' || status === 'idle') return null;
   if (status === 'requesting') {
@@ -152,10 +164,11 @@ function CameraStatusMessage({ t, status }: { t: ReturnType<typeof useTranslatio
   }
   // 'permission_denied' | 'unavailable' | 'error' — all share the same
   // {title, description} shape under scanner.camera.*.
+  const messageKey = CAMERA_MESSAGE_KEY[status];
   return (
     <div className="text-center text-sm text-charcoal/70">
-      <p className="font-medium">{t(`camera.${status}.title`)}</p>
-      <p>{t(`camera.${status}.description`)}</p>
+      <p className="font-medium">{t(`camera.${messageKey}.title`)}</p>
+      <p>{t(`camera.${messageKey}.description`)}</p>
     </div>
   );
 }
