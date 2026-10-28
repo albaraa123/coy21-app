@@ -50,6 +50,7 @@ export const KNOWN_FIELDS: KnownField[] = [
   { key: 'primary_track', kind: 'core_field', isCriticalIdentity: false, aliases: ['primary track', 'المحور الرئيسي'] },
   { key: 'secondary_track', kind: 'core_field', isCriticalIdentity: false, aliases: ['secondary track', 'المحور الثانوي'] },
   { key: 'participant_type', kind: 'core_field', isCriticalIdentity: false, aliases: ['participant type', 'type', 'role', 'attendee type', 'delegate type', 'نوع المشارك', 'نوع المتقدم', 'فئة المشارك'] },
+  { key: 'external_delegate_code', kind: 'core_field', isCriticalIdentity: true, aliases: ['delegate code', 'كود المندوب'] },
   { key: 'funding_type', kind: 'core_field', isCriticalIdentity: false, aliases: ['funding type', 'funding', 'sponsorship', 'support level', 'نوع التمويل', 'التمويل'] },
   { key: 'attendance_confirmation', kind: 'core_field', isCriticalIdentity: false, aliases: ['attendance confirmation', 'attendance', 'confirmation status', 'تأكيد الحضور', 'الحضور'] },
 

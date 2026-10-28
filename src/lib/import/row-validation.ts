@@ -1,5 +1,6 @@
 // src/lib/import/row-validation.ts
 import { normalizeEmail, isValidEmail, normalizePhone, normalizeYesNo, splitMultiSelect, normalizeTrackLabel, normalizeFundingType, normalizeAttendanceConfirmation } from './normalization';
+import { classifyDelegateCode } from './delegate-code-classification';
 
 export interface ColumnMapping {
   sourceColumnIndex: number;
@@ -192,6 +193,29 @@ export function validateRow(
       }
     }
     normalizedRow[col.targetKey] = value;
+  }
+
+  // Delegate/volunteer CSV import: classify participant_type/
+  // registration_category from external_delegate_code's prefix, when
+  // present. This OVERRIDES whatever the column mapping separately
+  // produced for participant_type (if the admin also mapped some other
+  // column to participant_type -- unlikely for this source file, since
+  // it has no such column, but this precedence avoids ambiguity if it
+  // ever does). An external_delegate_code present but matching no known
+  // prefix is a hard validation error, never a guessed classification.
+  const externalDelegateCode = normalizedRow.external_delegate_code as string | undefined;
+  if (externalDelegateCode && externalDelegateCode.trim() !== '') {
+    const classification = classifyDelegateCode(externalDelegateCode);
+    if (classification) {
+      normalizedRow.participant_type = classification.participantType;
+      normalizedRow.registration_category = classification.registrationCategory;
+    } else {
+      errors.push({
+        column: 'external_delegate_code',
+        originalValue: externalDelegateCode,
+        error: `Unrecognized delegate code prefix: "${externalDelegateCode}"`,
+      });
+    }
   }
 
   // Required-field checks: full_name and email are the baseline per the

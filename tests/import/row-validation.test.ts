@@ -183,3 +183,32 @@ describe('classifyDuplicateStatus', () => {
     expect(result).toEqual({ status: 'duplicate_in_file', duplicateOfRowIndex: 0 });
   });
 });
+
+describe('validateRow — external_delegate_code prefix classification', () => {
+  const delegateCodeMapping: ColumnMapping[] = [
+    { sourceColumnIndex: 0, targetKind: 'core_field', targetKey: 'full_name' },
+    { sourceColumnIndex: 1, targetKind: 'core_field', targetKey: 'email' },
+    { sourceColumnIndex: 2, targetKind: 'core_field', targetKey: 'external_delegate_code' },
+  ];
+
+  it('classifies a known-prefix delegate code, setting participant_type/registration_category and leaving the row valid', () => {
+    const result = validateRow(['Jane Doe', 'jane@example.com', 'DEL-INT-005'], delegateCodeMapping, { uniqueIdentifierColumnIndex: 1 });
+    expect(result.status).not.toBe('invalid');
+    expect(result.normalizedRow.participant_type).toBe('delegate');
+    expect(result.normalizedRow.registration_category).toBe('Delegates');
+  });
+
+  it('rejects an unrecognized delegate code prefix with a blocking error on the external_delegate_code column', () => {
+    const result = validateRow(['Jane Doe', 'jane@example.com', 'XYZ-001'], delegateCodeMapping, { uniqueIdentifierColumnIndex: 1 });
+    expect(result.status).toBe('invalid');
+    expect(result.errors.some((e) => e.column === 'external_delegate_code')).toBe(true);
+  });
+
+  it('has no participant_type/registration_category side-effect when external_delegate_code is not mapped at all', () => {
+    // Proves this logic is purely additive -- every other import that
+    // doesn't map external_delegate_code is unaffected.
+    const result = validateRow(['Jane Doe', 'jane@example.com', ''], baseMapping, { uniqueIdentifierColumnIndex: 1 });
+    expect(result.normalizedRow.participant_type).toBeUndefined();
+    expect(result.normalizedRow.registration_category).toBeUndefined();
+  });
+});
