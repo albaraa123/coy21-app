@@ -62,6 +62,32 @@ async function fetchExistingApplicationsByEmail(
   return byEmail;
 }
 
+// Cross-batch external_delegate_code collision check (design spec:
+// "Cross-Batch external_delegate_code Collision Check"). Mirrors
+// fetchExistingApplicationsByEmail's exact shape/batching above --
+// applications_external_delegate_code_unique (added alongside the column
+// itself) protects this at the database level, but on its own it would
+// surface as an ungraceful raw Postgres unique-violation at apply/confirm
+// time rather than a clean, per-row `invalid` message in preview, for the
+// realistic scenario of re-uploading a corrected file where a row's email
+// changed but its delegate code didn't.
+async function fetchExistingApplicationsByExternalDelegateCode(
+  service: ServiceClient,
+  codes: string[]
+): Promise<Map<string, { id: string }>> {
+  const byCode = new Map<string, { id: string }>();
+  if (codes.length === 0) return byCode;
+  const rows = await chunkedIn(codes, LOOKUP_CHUNK, async (slice) => {
+    const { data, error } = await service.from('applications').select('id, external_delegate_code').in('external_delegate_code', slice);
+    if (error) throw new Error(`Failed to look up existing applications by delegate code: ${error.message}`);
+    return data ?? [];
+  });
+  for (const r of rows) {
+    if (r.external_delegate_code) byCode.set(r.external_delegate_code, { id: r.id });
+  }
+  return byCode;
+}
+
 // Checks all five independent table families that reference an application
 // downstream of import: feature extraction, clustering, allocation,
 // schedule publication, and schedule-publication drafting. Each table's
@@ -184,6 +210,15 @@ export async function runValidationForCaller(batchIdInput: unknown, caller: { us
   const matchedApplicationIds = [...new Set([...existingByEmail.values()].map((a) => a.id))];
   const applicationIdsWithDownstreamReference = await fetchApplicationIdsWithDownstreamReference(service, matchedApplicationIds);
 
+  const distinctExternalDelegateCodes = [
+    ...new Set(
+      perRowResults
+        .map((r) => r.normalizedRow.external_delegate_code as string | undefined)
+        .filter((c): c is string => !!c && c.trim() !== '')
+    ),
+  ];
+  const existingByExternalDelegateCode = await fetchExistingApplicationsByExternalDelegateCode(service, distinctExternalDelegateCodes);
+
   // Pass 2: classify duplicates and build the insert rows, now purely from
   // in-memory data (perRowResults, existingByEmail,
   // applicationIdsWithDownstreamReference) — no DB I/O in this loop.
@@ -237,6 +272,25 @@ export async function runValidationForCaller(batchIdInput: unknown, caller: { us
         }
       }
       seenEmailsInFile.set(email, i);
+    }
+
+    // Cross-batch external_delegate_code collision check (design spec:
+    // "Cross-Batch external_delegate_code Collision Check"). Deliberately
+    // NOT inside validateRow() -- that function is pure/single-row/
+    // in-memory with no slot for a batch-level lookup Map. This mutates the
+    // same RowValidationResult object validateRow() returned in pass 1
+    // (errors/status are plain mutable fields, not readonly), and must run
+    // before the status-counting block and rowsToInsert.push(...) below,
+    // both of which read result.status/result.errors directly off this
+    // object.
+    const externalDelegateCode = result.normalizedRow.external_delegate_code as string | undefined;
+    if (externalDelegateCode && externalDelegateCode.trim() !== '' && existingByExternalDelegateCode.has(externalDelegateCode)) {
+      result.errors.push({
+        column: 'external_delegate_code',
+        originalValue: externalDelegateCode,
+        error: `Delegate code "${externalDelegateCode}" is already assigned to an existing application`,
+      });
+      result.status = 'invalid';
     }
 
     if (result.status === 'valid') validCount++;

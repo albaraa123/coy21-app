@@ -383,3 +383,127 @@ describe('runValidation (live)', () => {
     expect(byRow.get(8)?.destination_application_id).toBe(downstreamBlockedApplicationId);
   }, 30000);
 });
+
+// Cross-batch external_delegate_code collision check (Task 3, design spec:
+// "Cross-Batch external_delegate_code Collision Check"). Separate fixture
+// set/batch/describe block from the suite above -- this one pre-seeds a
+// real `applications` row carrying a known external_delegate_code, then
+// proves that a brand-new batch containing a row with that same code comes
+// back `invalid` with the "already assigned" error message, through the
+// real fetchExistingApplicationsByExternalDelegateCode lookup and pass-2
+// mutation in runValidationForCaller -- not just through validateRow's
+// static prefix classification (Task 2), which is pure/in-memory and would
+// pass even if this batch-level check were never wired in.
+describe('runValidation (live) — external_delegate_code collision', () => {
+  const STAFF_EMAIL_2 = 'import-validation-live-delcode-staff@test.local';
+  const COLLIDING_CODE = 'DEL-INT-COLLIDE-001';
+  const COLLIDING_EMAIL = 'import-validation-live-delcode-colliding@example.com';
+  const NEW_EMAIL = 'import-validation-live-delcode-new@example.com';
+
+  let staffId2: string;
+  let existingApplicationId: string;
+  let importBatchId2: string;
+  let importColumnMappingIds2: string[] = [];
+  let storagePath2: string;
+
+  async function buildDelegateCodeWorkbookBuffer(): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Participants');
+    ws.addRow(['Delegate Code', 'Full Name', 'Email']);
+    // Row 2: external_delegate_code collides with the pre-seeded existing
+    // application below, even though the email is different (the realistic
+    // re-upload scenario this check exists for -- an email typo fix between
+    // an initial partial upload and a corrected re-upload, same code).
+    ws.addRow([COLLIDING_CODE, 'Colliding Delegate', COLLIDING_EMAIL]);
+    const arrayBuffer = await wb.xlsx.writeBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  beforeAll(async () => {
+    staffId2 = await getOrCreateFixedUser(STAFF_EMAIL_2);
+    await admin.from('profiles').update({ role: 'agenda_allocation_manager' }).eq('id', staffId2);
+
+    const { data: existingApp, error: existingAppError } = await admin
+      .from('applications')
+      .insert({ applicant_id: null, imported_email: NEW_EMAIL, external_delegate_code: COLLIDING_CODE, status: 'accepted' })
+      .select('id')
+      .single();
+    if (existingAppError || !existingApp) throw new Error(`existing application fixture setup failed: ${existingAppError?.message}`);
+    existingApplicationId = existingApp.id;
+
+    const buffer = await buildDelegateCodeWorkbookBuffer();
+    storagePath2 = `import-validation-live-delcode-test/${Date.now()}.xlsx`;
+    const { error: uploadError } = await admin.storage.from('import-uploads').upload(storagePath2, buffer, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    if (uploadError) throw new Error(`Failed to upload test workbook: ${uploadError.message}`);
+
+    const { data: batch, error: batchError } = await admin
+      .from('import_batches')
+      .insert({
+        uploaded_by: staffId2,
+        original_filename: 'import-validation-live-delcode-test.xlsx',
+        file_checksum: 'import-validation-live-delcode-test-checksum',
+        storage_path: storagePath2,
+        sheet_name: 'Participants',
+        status: 'validating',
+        unique_identifier_column_index: 2,
+      })
+      .select('id')
+      .single();
+    if (batchError || !batch) throw new Error(`import batch fixture setup failed: ${batchError?.message}`);
+    importBatchId2 = batch.id;
+
+    const { data: mappings } = await admin
+      .from('import_column_mappings')
+      .insert([
+        { import_batch_id: importBatchId2, source_column_index: 0, source_column_header: 'Delegate Code', target_kind: 'core_field', target_key: 'external_delegate_code' },
+        { import_batch_id: importBatchId2, source_column_index: 1, source_column_header: 'Full Name', target_kind: 'core_field', target_key: 'full_name' },
+        { import_batch_id: importBatchId2, source_column_index: 2, source_column_header: 'Email', target_kind: 'core_field', target_key: 'email' },
+      ])
+      .select('id');
+    importColumnMappingIds2 = (mappings ?? []).map((m) => m.id);
+  });
+
+  afterAll(async () => {
+    const { data: rowsToDelete } = await admin.from('import_rows').select('id').eq('import_batch_id', importBatchId2);
+    if (rowsToDelete && rowsToDelete.length > 0) {
+      await admin.from('import_rows').delete().in('id', rowsToDelete.map((r) => r.id));
+    }
+    if (importColumnMappingIds2.length > 0) {
+      await admin.from('import_column_mappings').delete().in('id', importColumnMappingIds2);
+    }
+    if (importBatchId2) {
+      await admin.from('import_batches').delete().eq('id', importBatchId2);
+    }
+    await admin.storage.from('import-uploads').remove([storagePath2]).catch(() => undefined);
+
+    if (existingApplicationId) await admin.from('applications').delete().eq('id', existingApplicationId);
+
+    if (staffId2) {
+      await admin.from('audit_logs').delete().eq('actor_id', staffId2);
+      const { error } = await admin.auth.admin.deleteUser(staffId2);
+      if (error) console.error('afterAll cleanup: auth user delete returned an error', error);
+    }
+  });
+
+  it('flags a row whose external_delegate_code matches an existing application as invalid', async () => {
+    const result = await runValidationForCaller(importBatchId2, { userId: staffId2, service: admin });
+    expect(result.errorCount).toBe(1);
+    expect(result.validCount).toBe(0);
+
+    const { data: rows } = await admin
+      .from('import_rows')
+      .select('validation_status, errors')
+      .eq('import_batch_id', importBatchId2)
+      .order('excel_row_number', { ascending: true });
+    expect(rows).toHaveLength(1);
+    expect(rows![0].validation_status).toBe('invalid');
+    const errors = rows![0].errors as { column: string; originalValue: string | null; error: string }[];
+    expect(errors).toContainEqual({
+      column: 'external_delegate_code',
+      originalValue: COLLIDING_CODE,
+      error: `Delegate code "${COLLIDING_CODE}" is already assigned to an existing application`,
+    });
+  }, 30000);
+});
