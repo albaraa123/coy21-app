@@ -628,10 +628,13 @@ export type Database = {
           created_at: string
           education_level: string | null
           experience_level: string | null
+          external_delegate_code: string | null
           field_of_work: string | null
           full_name: string | null
           funding_type: Database["public"]["Enums"]["funding_type"] | null
           gender: string | null
+          guardian_name: string | null
+          guardian_phone: string | null
           id: string
           import_batch_id: string | null
           imported_email: string | null
@@ -650,6 +653,7 @@ export type Database = {
           preferred_language: string | null
           primary_track: string | null
           priority_sessions: string | null
+          registration_category: string | null
           secondary_track: string | null
           session_languages: string[] | null
           special_needs: string | null
@@ -677,10 +681,13 @@ export type Database = {
           created_at?: string
           education_level?: string | null
           experience_level?: string | null
+          external_delegate_code?: string | null
           field_of_work?: string | null
           full_name?: string | null
           funding_type?: Database["public"]["Enums"]["funding_type"] | null
           gender?: string | null
+          guardian_name?: string | null
+          guardian_phone?: string | null
           id?: string
           import_batch_id?: string | null
           imported_email?: string | null
@@ -699,6 +706,7 @@ export type Database = {
           preferred_language?: string | null
           primary_track?: string | null
           priority_sessions?: string | null
+          registration_category?: string | null
           secondary_track?: string | null
           session_languages?: string[] | null
           special_needs?: string | null
@@ -726,10 +734,13 @@ export type Database = {
           created_at?: string
           education_level?: string | null
           experience_level?: string | null
+          external_delegate_code?: string | null
           field_of_work?: string | null
           full_name?: string | null
           funding_type?: Database["public"]["Enums"]["funding_type"] | null
           gender?: string | null
+          guardian_name?: string | null
+          guardian_phone?: string | null
           id?: string
           import_batch_id?: string | null
           imported_email?: string | null
@@ -748,6 +759,7 @@ export type Database = {
           preferred_language?: string | null
           primary_track?: string | null
           priority_sessions?: string | null
+          registration_category?: string | null
           secondary_track?: string | null
           session_languages?: string[] | null
           special_needs?: string | null
