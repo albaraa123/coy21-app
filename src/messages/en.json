@@ -233,6 +233,7 @@
     "cafeteria": {
       "title": "Cafeteria QR",
       "instruction": "Present this QR at the cafeteria for lunch, once per day.",
+      "instructionCoffeeOnly": "Present this QR at coffee breaks.",
       "qrAltText": "Your cafeteria lunch QR code",
       "notYetAvailable": "Get your QR code to check in for lunch at the cafeteria.",
       "requestButton": "Get my cafeteria QR"
@@ -2014,6 +2015,36 @@
         "error": {
           "headline": "Error",
           "instruction": "Something went wrong. Please try scanning again."
+        }
+      },
+      "coffee": {
+        "scanInstruction": "Scan the participant's QR to check their coffee-break balance.",
+        "eligibleBalance": "Remaining today: {amount} TL",
+        "noBalanceRemaining": "No coffee-break balance remaining today.",
+        "amountLabel": "Amount (TL)",
+        "confirmButton": "Confirm deduction",
+        "scanNext": "Scan next",
+        "result": {
+          "deducted": {
+            "headline": "Deducted",
+            "instruction": "{amount} TL deducted. New balance: {remaining} TL."
+          },
+          "insufficient_balance": {
+            "headline": "Insufficient balance",
+            "instruction": "This participant does not have enough balance remaining today for this amount."
+          },
+          "ineligible": {
+            "headline": "Not eligible",
+            "instruction": "This participant is not eligible for coffee-break credit."
+          },
+          "invalid_qr": {
+            "headline": "Invalid QR",
+            "instruction": "Ask the participant to show their current cafeteria QR."
+          },
+          "error": {
+            "headline": "Error",
+            "instruction": "Something went wrong. Please try again."
+          }
         }
       }
     }

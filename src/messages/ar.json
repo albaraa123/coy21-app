@@ -233,6 +233,7 @@
     "cafeteria": {
       "title": "رمز QR للكافتيريا",
       "instruction": "اعرض هذا الرمز في الكافتيريا للحصول على الغداء، مرة واحدة يوميًا.",
+      "instructionCoffeeOnly": "قدّم هذا الرمز في استراحات القهوة.",
       "qrAltText": "رمز QR الخاص بك لغداء الكافتيريا",
       "notYetAvailable": "احصل على رمز QR لتسجيل حضورك للغداء في الكافتيريا.",
       "requestButton": "احصل على رمز الكافتيريا"
@@ -2014,6 +2015,36 @@
         "error": {
           "headline": "حدث خطأ",
           "instruction": "حدث خطأ ما. يرجى إعادة المحاولة."
+        }
+      },
+      "coffee": {
+        "scanInstruction": "امسح رمز QR الخاص بالمشارك للتحقق من رصيد استراحة القهوة.",
+        "eligibleBalance": "المتبقي اليوم: {amount} ليرة",
+        "noBalanceRemaining": "لا يوجد رصيد متبقٍ لاستراحة القهوة اليوم.",
+        "amountLabel": "المبلغ (ليرة)",
+        "confirmButton": "تأكيد الخصم",
+        "scanNext": "مسح التالي",
+        "result": {
+          "deducted": {
+            "headline": "تم الخصم",
+            "instruction": "تم خصم {amount} ليرة. الرصيد الجديد: {remaining} ليرة."
+          },
+          "insufficient_balance": {
+            "headline": "رصيد غير كافٍ",
+            "instruction": "لا يملك هذا المشارك رصيدًا كافيًا اليوم لهذا المبلغ."
+          },
+          "ineligible": {
+            "headline": "غير مؤهل",
+            "instruction": "هذا المشارك غير مؤهل لرصيد استراحة القهوة."
+          },
+          "invalid_qr": {
+            "headline": "رمز QR غير صالح",
+            "instruction": "اطلب من المشارك إظهار رمز الكافتيريا الحالي."
+          },
+          "error": {
+            "headline": "خطأ",
+            "instruction": "حدث خطأ ما. حاول مرة أخرى."
+          }
         }
       }
     }
