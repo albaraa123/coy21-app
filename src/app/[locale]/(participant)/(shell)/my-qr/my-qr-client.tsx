@@ -15,11 +15,13 @@ export default function MyQrClient({
   initialState,
   initialQrImageDataUri,
   isCafeteriaEligible,
+  isLunchCapable,
   initialCafeteriaCredential,
 }: {
   initialState: ParticipantQrState;
   initialQrImageDataUri: string | null;
   isCafeteriaEligible: boolean;
+  isLunchCapable: boolean;
   initialCafeteriaCredential: { qrImageDataUri: string } | null;
 }) {
   const t = useTranslations('myQr');
@@ -106,7 +108,9 @@ export default function MyQrClient({
             width={600}
             height={600}
           />
-          <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('cafeteria.instruction')}</p>
+          <p className="text-sm text-charcoal/70 dark:text-gray-400">
+            {t(isLunchCapable ? 'cafeteria.instruction' : 'cafeteria.instructionCoffeeOnly')}
+          </p>
         </>
       ) : (
         <>

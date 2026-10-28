@@ -14,7 +14,7 @@ import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getMyQrState } from '@/lib/attendance/participant-qr';
 import { renderQrDataUri } from '@/lib/attendance/qr-image';
-import { isLunchEligible } from '@/lib/cafeteria/eligibility';
+import { isLunchEligible, isCoffeeEligible } from '@/lib/cafeteria/eligibility';
 import MyQrClient from './my-qr-client';
 
 export default async function MyQrPage() {
@@ -58,7 +58,14 @@ export default async function MyQrPage() {
   // ParticipantQrState union deliberately doesn't expose raw
   // participant_type/status/attendance_confirmation/role fields (it's
   // scoped to the attendance-QR eligibility rule only).
-  const isCafeteriaEligible = isLunchEligible(application, profile);
+  // isCoffeeEligible is a strict superset of isLunchEligible (adds only
+  // the speaker case) -- widening the card's gate to this means nobody
+  // currently shown the card loses visibility; it only ever gains one
+  // more case (speakers, who are coffee-eligible but not lunch-eligible).
+  const isCafeteriaEligible = isCoffeeEligible(application, profile);
+  // Separately track lunch eligibility too, so the client component can
+  // pick the right instruction copy (lunch-capable vs. coffee-only).
+  const isLunchCapable = isLunchEligible(application, profile);
 
   // If eligible, also check for an existing cafeteria credential so a
   // returning visit can redisplay the stored QR image immediately,
@@ -88,6 +95,7 @@ export default async function MyQrPage() {
         initialState={state}
         initialQrImageDataUri={qrImageDataUri}
         isCafeteriaEligible={isCafeteriaEligible}
+        isLunchCapable={isLunchCapable}
         initialCafeteriaCredential={initialCafeteriaCredential}
       />
     </div>
