@@ -104,7 +104,8 @@ describe('updateGeneralInfoForCaller', () => {
       .from('audit_logs')
       .select('id, old_values, new_values')
       .eq('entity_id', applicationId)
-      .eq('action', 'general_info_updated');
+      .eq('action', 'general_info_updated')
+      .order('created_at', { ascending: true });
     for (const row of after ?? []) auditLogIds.push(row.id);
     expect((after?.length ?? 0)).toBe(beforeCount + 1);
     const latest = after![after!.length - 1];
