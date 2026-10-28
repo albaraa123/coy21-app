@@ -4,11 +4,12 @@
 // Emergency contacts + accommodation details.
 // Only available to accepted participants.
 
-import { getLocale } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { EmergencyContactsForm, AccommodationForm, IdentityForm } from './profile-forms';
+import { isApplicationMinor } from '@/lib/participants/minor';
 
 export default async function MyProfilePage() {
   const locale = await getLocale();
@@ -22,7 +23,7 @@ export default async function MyProfilePage() {
 
   const { data: application } = await supabase
     .from('applications')
-    .select('id, status')
+    .select('id, status, age_group, birth_date, guardian_name, guardian_phone')
     .eq('applicant_id', user.id)
     .single();
 
@@ -30,6 +31,8 @@ export default async function MyProfilePage() {
     redirect({ href: '/my-dashboard', locale });
     return;
   }
+
+  const t = await getTranslations({ locale, namespace: 'participants.guardian' });
 
   const [{ data: contacts }, { data: accommodation }, { data: identity }] = await Promise.all([
     supabase
@@ -86,6 +89,25 @@ export default async function MyProfilePage() {
           initialAvatarUrl={avatarUrl}
         />
       </Card>
+
+      {/* Guardian / Companion (read-only, minors only) */}
+      {isApplicationMinor(application) && (application.guardian_name || application.guardian_phone) && (
+        <Card className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">{t('title')}</h2>
+          {application.guardian_name && (
+            <p className="text-sm">
+              <span className="text-charcoal/60 dark:text-gray-400">{t('name')}: </span>
+              {application.guardian_name}
+            </p>
+          )}
+          {application.guardian_phone && (
+            <p className="text-sm">
+              <span className="text-charcoal/60 dark:text-gray-400">{t('phone')}: </span>
+              {application.guardian_phone}
+            </p>
+          )}
+        </Card>
+      )}
 
       {/* Emergency Contacts */}
       <Card className="flex flex-col gap-4">
