@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@/types/database';
+import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { updateGeneralInfoForCaller } from '@/app/[locale]/(admin)/participants/[applicationId]/actions';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -110,5 +111,29 @@ describe('updateGeneralInfoForCaller', () => {
     expect((after?.length ?? 0)).toBe(beforeCount + 1);
     const latest = after![after!.length - 1];
     expect((latest.new_values as Record<string, unknown>).full_name).toBe('Second Update');
+  });
+});
+
+describe('requireAgendaStaffCaller auth condition (logic replication)', () => {
+  it('rejects plain staff', async () => {
+    const { data: staffUser, error } = await admin.auth.admin.createUser({
+      email: `general-info-auth-${runId}-plain-staff@test.local`,
+      password: 'password123',
+      email_confirm: true,
+    });
+    if (error || !staffUser.user) throw new Error(`plain-staff fixture setup failed: ${error?.message}`);
+    await admin.from('profiles').update({ role: 'staff' }).eq('id', staffUser.user.id);
+    const { data: profile } = await admin.from('profiles').select('role').eq('id', staffUser.user.id).single();
+
+    const isAuthorized = isStaffRole(profile!.role) && profile!.role !== 'staff';
+    expect(isAuthorized).toBe(false);
+
+    await admin.auth.admin.deleteUser(staffUser.user.id);
+  });
+
+  it('accepts super_admin', async () => {
+    const { data: profile } = await admin.from('profiles').select('role').eq('id', staffUserId).single();
+    const isAuthorized = isStaffRole(profile!.role) && profile!.role !== 'staff';
+    expect(isAuthorized).toBe(true);
   });
 });
