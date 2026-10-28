@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/card';
 import InvitationControls from './invitation-controls';
 import ClassificationControls from './classification-controls';
 import GuardianControls from './guardian-controls';
+import GeneralInfoControls from './general-info-controls';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { isApplicationMinor } from '@/lib/participants/minor';
 
@@ -49,7 +50,7 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
   const { data: application } = await service
     .from('applications')
     .select(
-      'id, applicant_id, imported_email, status, application_number, participant_type, phone, country, nationality, birth_date, age_group, guardian_name, guardian_phone, city, organization, field_of_work, preferred_language, interests, climate_experience, experience_level, past_initiatives, participation_goals, topics_to_learn, content_type_pref, track_interests, priority_sessions, special_needs, submitted_at, created_at, import_batch_id'
+      'id, applicant_id, imported_email, status, application_number, participant_type, phone, country, nationality, birth_date, age_group, guardian_name, guardian_phone, city, organization, field_of_work, preferred_language, interests, climate_experience, experience_level, past_initiatives, participation_goals, topics_to_learn, content_type_pref, track_interests, priority_sessions, special_needs, submitted_at, created_at, import_batch_id, full_name, whatsapp_number, gender, education_level, institution_or_workplace, linkedin_url, primary_track, secondary_track, session_languages, track_1_focus_areas, track_2_focus_areas, track_3_focus_areas'
     )
     .eq('id', applicationId)
     .maybeSingle();
@@ -191,6 +192,45 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
           applicationId={application.id}
           guardianName={application.guardian_name}
           guardianPhone={application.guardian_phone}
+        />
+      )}
+
+      {canSeeSensitive && (
+        <GeneralInfoControls
+          applicationId={applicationId}
+          initialValues={{
+            full_name: application.full_name,
+            phone: application.phone,
+            whatsapp_number: application.whatsapp_number,
+            country: application.country,
+            nationality: application.nationality,
+            city: application.city,
+            gender: application.gender,
+            birth_date: application.birth_date,
+            age_group: application.age_group,
+            education_level: application.education_level,
+            institution_or_workplace: application.institution_or_workplace,
+            field_of_work: application.field_of_work,
+            organization: application.organization,
+            preferred_language: application.preferred_language,
+            linkedin_url: application.linkedin_url,
+            primary_track: application.primary_track,
+            secondary_track: application.secondary_track,
+            topics_to_learn: application.topics_to_learn,
+            content_type_pref: application.content_type_pref,
+            experience_level: application.experience_level,
+            climate_experience: application.climate_experience,
+            past_initiatives: application.past_initiatives,
+            participation_goals: application.participation_goals,
+            priority_sessions: application.priority_sessions,
+            special_needs: application.special_needs,
+            interests: application.interests,
+            track_interests: application.track_interests,
+            session_languages: application.session_languages,
+            track_1_focus_areas: application.track_1_focus_areas,
+            track_2_focus_areas: application.track_2_focus_areas,
+            track_3_focus_areas: application.track_3_focus_areas,
+          }}
         />
       )}
     </div>
