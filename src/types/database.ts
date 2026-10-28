@@ -3859,6 +3859,31 @@ export type Database = {
         Args: { p_application_id: string; p_session_id: string }
         Returns: string
       }
+      cafeteria_coffee_check_balance: {
+        Args: { p_token_hash: string }
+        Returns: {
+          eligible: boolean
+          remaining_balance: number
+        }[]
+      }
+      cafeteria_coffee_deduct_transactional: {
+        Args: { p_amount: number; p_scanned_by: string; p_token_hash: string }
+        Returns: {
+          amount_deducted: number | null
+          credential_id: string
+          id: string
+          result: string
+          scan_date: string
+          scanned_at: string
+          scanned_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cafeteria_coffee_scans"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cafeteria_lunch_scan_transactional: {
         Args: { p_scanned_by: string; p_token_hash: string }
         Returns: {
