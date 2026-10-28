@@ -12,7 +12,9 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import InvitationControls from './invitation-controls';
 import ClassificationControls from './classification-controls';
+import GuardianControls from './guardian-controls';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { isApplicationMinor } from '@/lib/participants/minor';
 
 export default async function ParticipantDetailPage({ params }: { params: Promise<{ applicationId: string }> }) {
   const locale = await getLocale();
@@ -47,7 +49,7 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
   const { data: application } = await service
     .from('applications')
     .select(
-      'id, applicant_id, imported_email, status, application_number, participant_type, phone, country, nationality, birth_date, age_group, city, organization, field_of_work, preferred_language, interests, climate_experience, experience_level, past_initiatives, participation_goals, topics_to_learn, content_type_pref, track_interests, priority_sessions, special_needs, submitted_at, created_at, import_batch_id'
+      'id, applicant_id, imported_email, status, application_number, participant_type, phone, country, nationality, birth_date, age_group, guardian_name, guardian_phone, city, organization, field_of_work, preferred_language, interests, climate_experience, experience_level, past_initiatives, participation_goals, topics_to_learn, content_type_pref, track_interests, priority_sessions, special_needs, submitted_at, created_at, import_batch_id'
     )
     .eq('id', applicationId)
     .maybeSingle();
@@ -183,6 +185,14 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
         applicationStatus={application.status}
         hasActiveQrCredential={!!activeCredential}
       />
+
+      {isApplicationMinor(application) && (
+        <GuardianControls
+          applicationId={application.id}
+          guardianName={application.guardian_name}
+          guardianPhone={application.guardian_phone}
+        />
+      )}
     </div>
   );
 }

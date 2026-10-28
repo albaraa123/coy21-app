@@ -321,6 +321,14 @@
         "speaker": "Speaker"
       }
     },
+    "guardian": {
+      "title": "Guardian / Companion",
+      "name": "Name",
+      "phone": "Phone",
+      "save": "Save",
+      "saving": "Saving…",
+      "genericError": "Action failed"
+    },
     "import": {
       "upload": {
         "title": "Import Accepted Participants",
