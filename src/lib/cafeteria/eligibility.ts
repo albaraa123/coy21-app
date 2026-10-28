@@ -28,3 +28,25 @@ export function isLunchEligible(
   }
   return false;
 }
+
+// Coffee-break eligibility (design spec: 2026-10-28-cafeteria-coffee-break-credit-design.md).
+// Strict superset of lunch eligibility, plus speaker — the one
+// participant_type excluded from lunch but included here per the
+// organizing team's explicit decision. Nobody isLunchEligible already
+// admits loses eligibility here; this only ever adds one more case.
+export function isCoffeeEligible(
+  application: {
+    participant_type: Database['public']['Enums']['participant_type'] | null;
+    status: Database['public']['Enums']['application_status'];
+    attendance_confirmation: Database['public']['Enums']['attendance_confirmation_status'];
+  } | null,
+  profile: { role: string | null } | null
+): boolean {
+  if (isLunchEligible(application, profile)) return true;
+  return (
+    application != null &&
+    application.participant_type === 'speaker' &&
+    application.status === 'accepted' &&
+    application.attendance_confirmation === 'confirmed'
+  );
+}

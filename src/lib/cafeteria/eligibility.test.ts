@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLunchEligible } from './eligibility';
+import { isLunchEligible, isCoffeeEligible } from './eligibility';
 import type { Database } from '@/types/database';
 
 describe('isLunchEligible', () => {
@@ -48,5 +48,49 @@ describe('isLunchEligible', () => {
   it('an unrecognized participant_type is NOT eligible (fails closed)', () => {
     // @ts-expect-error -- deliberately testing runtime behavior for a value outside the real enum, e.g. DB/generated-type drift
     expect(isLunchEligible({ ...baseApp, participant_type: 'some_future_type' }, null)).toBe(false);
+  });
+});
+
+describe('isCoffeeEligible', () => {
+  it('returns true for everyone isLunchEligible already covers (delegate/volunteer/staff)', () => {
+    expect(isCoffeeEligible(
+      { participant_type: 'delegate', status: 'accepted', attendance_confirmation: 'confirmed' },
+      null
+    )).toBe(true);
+    expect(isCoffeeEligible(
+      { participant_type: 'volunteer', status: 'accepted', attendance_confirmation: 'confirmed' },
+      null
+    )).toBe(true);
+    expect(isCoffeeEligible(null, { role: 'staff' })).toBe(true);
+    expect(isCoffeeEligible(null, { role: 'super_admin' })).toBe(true);
+  });
+
+  it('returns true for an accepted+confirmed speaker (the one case isLunchEligible excludes)', () => {
+    expect(isCoffeeEligible(
+      { participant_type: 'speaker', status: 'accepted', attendance_confirmation: 'confirmed' },
+      null
+    )).toBe(true);
+  });
+
+  it('returns false for a speaker not yet accepted+confirmed', () => {
+    expect(isCoffeeEligible(
+      { participant_type: 'speaker', status: 'accepted', attendance_confirmation: 'not_confirmed' },
+      null
+    )).toBe(false);
+    expect(isCoffeeEligible(
+      { participant_type: 'speaker', status: 'draft', attendance_confirmation: 'confirmed' },
+      null
+    )).toBe(false);
+  });
+
+  it('returns false for a knowledge_partner (ineligible for both lunch and coffee)', () => {
+    expect(isCoffeeEligible(
+      { participant_type: 'knowledge_partner', status: 'accepted', attendance_confirmation: 'confirmed' },
+      null
+    )).toBe(false);
+  });
+
+  it('returns false when both application and profile are null', () => {
+    expect(isCoffeeEligible(null, null)).toBe(false);
   });
 });
