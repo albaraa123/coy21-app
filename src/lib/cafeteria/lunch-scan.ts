@@ -6,25 +6,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import { parseCanonicalCafeteriaPayload, hashCafeteriaToken } from './token';
+import { toByteaHex } from '@/lib/supabase/bytea-hex';
 
 type ServiceClient = SupabaseClient<Database>;
 
 export interface CafeteriaScanResult {
   result: 'admitted' | 'already_used_today' | 'ineligible' | 'invalid_qr';
   scanId: string | null;
-}
-
-// PostgREST bytea encoding: supabase-js JSON-serializes a raw Node Buffer
-// as {"type":"Buffer","data":[...]}, which is NOT a valid bytea literal.
-// Same `\x` + hex convention this codebase already uses in
-// src/lib/attendance/qr-credential-issuance.ts's toByteaHex,
-// src/lib/attendance/scan-qr-attempt.ts's toByteaHexOrNull, and
-// src/lib/cafeteria/credential-issuance.ts's own copy of it. Required for
-// BOTH the .eq('token_hash', ...) filter below and the p_token_hash RPC
-// argument — passing the raw Buffer to either would silently produce a
-// hash that matches no row.
-function toByteaHex(buf: Buffer): string {
-  return `\\x${buf.toString('hex')}`;
 }
 
 export async function confirmCafeteriaLunchScanForCaller(

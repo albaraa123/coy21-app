@@ -21,6 +21,7 @@ import type { Database } from '@/types/database';
 import { parseCanonicalQrPayload, hashQrToken } from './qr-token-crypto';
 import { getScannerParticipantSummary, type ScannerParticipantSummary } from './participant-summary';
 import { isTransportShapedError, isLockContentionError } from '@/lib/supabase/upstream-error';
+import { toByteaHexOrNull } from '@/lib/supabase/bytea-hex';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -76,10 +77,6 @@ async function verifyScannerScope(
     return { ok: false, outcome: { ok: false, retryable: false, message: 'Not authorized for this session/room' } };
   }
   return { ok: true };
-}
-
-function toByteaHexOrNull(buf: Buffer | null): string | null {
-  return buf ? `\\x${buf.toString('hex')}` : null;
 }
 
 /**

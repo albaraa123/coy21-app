@@ -11,6 +11,7 @@ import type { Database } from '@/types/database';
 import { generateCafeteriaToken, hashCafeteriaToken } from './token';
 import { isLunchEligible } from './eligibility';
 import { renderQrDataUri } from '@/lib/attendance/qr-image';
+import { toByteaHex } from '@/lib/supabase/bytea-hex';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -19,15 +20,6 @@ export type IssueCafeteriaCredentialResult =
   | { outcome: 'already_exists'; credentialId: string; qrImageDataUri: string }
   | { outcome: 'not_eligible' }
   | { outcome: 'error'; message: string };
-
-// PostgREST bytea encoding: supabase-js JSON-serializes a raw Node Buffer
-// as {"type":"Buffer","data":[...]}, which is NOT a valid bytea literal.
-// Same `\x` + hex convention this codebase already uses in
-// src/lib/attendance/qr-credential-issuance.ts's toByteaHex and
-// tests/cafeteria/lunch-scan-rpc-live.test.ts's own copy of it.
-function toByteaHex(buf: Buffer): string {
-  return `\\x${buf.toString('hex')}`;
-}
 
 export async function issueCafeteriaCredentialForCaller(
   caller: { userId: string; service: ServiceClient }

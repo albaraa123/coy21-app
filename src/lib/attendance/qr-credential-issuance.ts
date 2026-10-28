@@ -27,6 +27,7 @@ import {
   QR_TOKEN_VERSION,
 } from './qr-token-crypto';
 import { resolveQrEncryptionKey } from './qr-encryption-keys';
+import { toByteaHex, fromByteaHex } from '@/lib/supabase/bytea-hex';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -45,16 +46,6 @@ type ServiceClient = SupabaseClient<Database>;
 // mirrors the real production shape: a participant's own browser session
 // reserves; trusted server-side code then generates/encrypts/finalizes.
 type AuthenticatedClient = SupabaseClient<Database>;
-
-function toByteaHex(buf: Buffer): string {
-  return `\\x${buf.toString('hex')}`;
-}
-
-function fromByteaHex(value: string): Buffer {
-  // PostgREST bytea JSON encoding: "\x" followed by hex.
-  const hex = value.startsWith('\\x') ? value.slice(2) : value;
-  return Buffer.from(hex, 'hex');
-}
 
 async function getActiveEncryptionKeyVersion(service: ServiceClient): Promise<number> {
   const { data, error } = await service

@@ -7,6 +7,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import { parseCanonicalCafeteriaPayload, hashCafeteriaToken } from './token';
+import { toByteaHex } from '@/lib/supabase/bytea-hex';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -19,15 +20,6 @@ export interface CoffeeDeductionResult {
   result: 'deducted' | 'insufficient_balance' | 'ineligible' | 'invalid_qr';
   amountDeducted: number | null;
   scanId: string | null;
-}
-
-// Same bytea-encoding convention this codebase has in four other places
-// (src/lib/cafeteria/lunch-scan.ts, credential-issuance.ts,
-// src/lib/attendance/qr-credential-issuance.ts, scan-qr-attempt.ts) --
-// NOT consolidated here, per the design spec's explicit scope note
-// (already-known, already-deferred cleanup).
-function toByteaHex(buf: Buffer): string {
-  return `\\x${buf.toString('hex')}`;
 }
 
 // Note (implementer choice, per plan footnote): lunch-scan.ts does not
