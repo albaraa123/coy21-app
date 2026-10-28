@@ -931,6 +931,51 @@ export type Database = {
           },
         ]
       }
+      cafeteria_coffee_scans: {
+        Row: {
+          amount_deducted: number | null
+          credential_id: string
+          id: string
+          result: string
+          scan_date: string
+          scanned_at: string
+          scanned_by: string | null
+        }
+        Insert: {
+          amount_deducted?: number | null
+          credential_id: string
+          id?: string
+          result: string
+          scan_date: string
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Update: {
+          amount_deducted?: number | null
+          credential_id?: string
+          id?: string
+          result?: string
+          scan_date?: string
+          scanned_at?: string
+          scanned_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cafeteria_coffee_scans_credential_id_fkey"
+            columns: ["credential_id"]
+            isOneToOne: false
+            referencedRelation: "cafeteria_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cafeteria_coffee_scans_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cafeteria_credentials: {
         Row: {
           application_id: string | null
