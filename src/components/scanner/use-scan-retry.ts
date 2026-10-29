@@ -127,13 +127,10 @@ export function createScanRetryController(deps: ScanRetryDeps) {
         else if (outcome.retryable) deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
         else deps.dispatch({ type: 'SUBMIT_REJECTED', message: outcome.message });
       })
-      .catch((err) => {
+      .catch(() => {
         clearTimeout(timeout);
         if (submitController === controller) submitController = null;
         if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, attemptSeq)) return;
-        // TEMP DEBUG - remove before merge
-        (window as unknown as { __lastScanFetchError?: string }).__lastScanFetchError =
-          `${err?.name ?? 'unknown'}: ${err?.message ?? String(err)}`;
         deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
       });
   }
@@ -222,6 +219,21 @@ export function useScanRetry(dispatch: (action: ScanAction) => void): ScanRetryC
   // construct a value once without a render-time ref read, and the
   // state value itself is never subsequently set again, so this never
   // triggers a re-render of its own.
-  const [controller] = useState<ScanRetryController>(() => createScanRetryController({ dispatch, fetchImpl: fetch }));
+  // fetch bound to window: WebKit (Safari, and Chrome/Firefox-on-iOS,
+  // which are WebKit under the hood per Apple's App Store policy)
+  // throws "Can only call Window.fetch on instances of Window" when
+  // fetch is invoked as a detached function reference rather than as
+  // window.fetch(...) or an explicitly bound call — unlike V8
+  // (Chrome/Edge on desktop/Android), which tolerates the unbound call.
+  // createScanRetryController stores fetchImpl and calls it as
+  // deps.fetchImpl(...), i.e. with `deps` as the receiver, not
+  // `window` — passing the bare `fetch` reference here reproduces
+  // exactly that illegal-invocation error on every iOS browser, while
+  // working fine everywhere else. Confirmed via a live production
+  // repro (gate scanner's retry submission silently failed on iOS
+  // Chrome/Safari; the sibling coffee-scanner component, which calls
+  // `fetch(...)` directly inline rather than through a stored
+  // reference, was unaffected).
+  const [controller] = useState<ScanRetryController>(() => createScanRetryController({ dispatch, fetchImpl: fetch.bind(window) }));
   return controller;
 }

@@ -440,11 +440,6 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
             <p role="status" aria-live="polite" className="text-sm font-medium text-charcoal dark:text-gray-100">
               {t('retrying.message')}
             </p>
-            {/* TEMP DEBUG - remove before merge */}
-            <p className="break-all text-[10px] text-red-600">
-              DEBUG seq={state.attemptSeq} key={state.idempotencyKey.slice(0, 8)} session={sessionId.slice(0, 8)} payload={state.qrPayload.slice(0, 20)} err=
-              {typeof window !== 'undefined' ? (window as unknown as { __lastScanFetchError?: string }).__lastScanFetchError ?? 'none-yet' : 'ssr'}
-            </p>
             {showRetryPersistentMessage && (
               <p className="text-xs text-charcoal/70 dark:text-gray-400">{t('retrying.persistentMessage')}</p>
             )}
