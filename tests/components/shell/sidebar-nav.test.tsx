@@ -98,8 +98,15 @@ describe('SidebarNav', () => {
     const html = renderToStaticMarkup(
       <SidebarNav navGroups={groups} storageKey="rcoy-admin-nav-v1" navTranslations={buildTranslations(groups)} />
     );
-    // The participants group is not active, so its item link should not render.
-    expect(html).not.toContain('href="/participants"');
+    // The participants group is not active, so it renders collapsed. The
+    // group's items now stay mounted (grid-rows 0fr->1fr animates the
+    // collapse/expand, replacing an earlier `{expanded && ...}`
+    // unmount/remount — see sidebar-nav.tsx's doc comment), so "collapsed"
+    // is now proven by the inert attribute making the subtree
+    // non-interactive/untabbable rather than by the link's absence from
+    // the markup; href="/participants" is expected to still be present.
+    expect(html).toContain('href="/participants"');
+    expect(html).toMatch(/<div class="mt-1 flex flex-col gap-1" inert(=""|\s)[^>]*><a href="\/participants"/);
   });
 
   it('marks the active item with aria-current="page"', () => {

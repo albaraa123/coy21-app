@@ -5,8 +5,19 @@ import { Link } from '@/i18n/routing';
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
+// hover:-translate-y-0.5/active:translate-y-0 scoped to primary/destructive
+// only (not secondary/ghost) — these are the "doing something" actions
+// (submit, confirm, delete), so a lift-on-hover cue reinforces the
+// existing visual hierarchy rather than making every button on a page
+// bounce equally regardless of weight. disabled:pointer-events-none above
+// already prevents this from firing on a disabled button via mouse; the
+// transform is also skipped entirely under prefers-reduced-motion, same
+// as every other transform-based animation in this codebase (see
+// globals.css's reduced-motion block for the equivalent public-site
+// treatment — this one is plain Tailwind's motion-reduce: variant instead
+// since it's a hover micro-interaction, not a named keyframe animation).
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-turquoise text-white hover:bg-turquoise/85',
+  primary: 'bg-turquoise text-white hover:bg-turquoise/85 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:hover:translate-y-0',
   secondary: 'border border-charcoal text-charcoal bg-transparent hover:bg-charcoal/5',
   ghost: 'bg-transparent text-charcoal hover:bg-charcoal/5',
   // Irreversible/security-consequential actions (e.g. revoking an
@@ -16,7 +27,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   // already established elsewhere (see invitation-controls.tsx's
   // text-red-700 dark:text-red-300 alert text, badge.tsx's dark cancelled
   // variant).
-  destructive: 'border border-red-700 text-red-700 bg-transparent hover:bg-red-50 dark:border-red-400 dark:text-red-300 dark:hover:bg-red-950/40',
+  destructive: 'border border-red-700 text-red-700 bg-transparent hover:bg-red-50 dark:border-red-400 dark:text-red-300 dark:hover:bg-red-950/40 hover:-translate-y-0.5 active:translate-y-0 motion-reduce:hover:translate-y-0',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -26,7 +37,7 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
 };
 
 const BASE_CLASSES =
-  'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
+  'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-[background-color,transform,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
 
 interface CommonProps {
   children: ReactNode;

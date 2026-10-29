@@ -154,12 +154,50 @@ body {
   transform: translateY(-1px) scale(0.98);
 }
 
+/* Mobile nav drawer enter animation (see components/shell/mobile-drawer.tsx).
+   The panel is logically positioned (inset-inline-start) for RTL support,
+   so its slide-in must use a logical transform too -- a fixed translateX
+   would slide the wrong direction in RTL locales. Both keyframe directions
+   are defined here; the component picks which animation-name applies via
+   a plain `rtl:` Tailwind utility class on the element itself (this
+   codebase's existing convention for direction-dependent transforms --
+   see e.g. sidebar-nav.tsx's rtl:hover:-translate-x-0.5), not a custom CSS
+   class/selector. No exit animation: the component unmounts immediately
+   on close (returns null), matching its pre-existing open/close model --
+   this only animates the mount that already happens fresh each time the
+   drawer opens. */
+@keyframes drawer-panel-enter-ltr {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes drawer-panel-enter-rtl {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes drawer-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-drawer-panel-enter-ltr {
+  animation: drawer-panel-enter-ltr 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-drawer-panel-enter-rtl {
+  animation: drawer-panel-enter-rtl 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-drawer-backdrop-enter {
+  animation: drawer-backdrop-enter 0.2s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-gradient-drift,
   .animate-blob,
   .animate-soft-pulse,
   .animate-count-settle,
-  .animate-page-enter {
+  .animate-page-enter,
+  .animate-drawer-panel-enter-ltr,
+  .animate-drawer-panel-enter-rtl,
+  .animate-drawer-backdrop-enter {
     animation: none !important;
   }
   .btn-magnetic,

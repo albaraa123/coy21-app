@@ -88,10 +88,10 @@ function NavLink({
       href={item.href}
       aria-current={active ? 'page' : undefined}
       data-active={active ? 'true' : undefined}
-      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-out ${
         active
           ? 'bg-turquoise text-white shadow-sm'
-          : 'text-charcoal/60 hover:bg-charcoal/6 hover:text-charcoal'
+          : 'text-charcoal/60 hover:translate-x-0.5 hover:bg-charcoal/6 hover:text-charcoal rtl:hover:-translate-x-0.5'
       }`}
     >
       {Icon ? <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-white' : 'text-charcoal/40'}`} aria-hidden="true" /> : null}
@@ -189,17 +189,38 @@ export function SidebarNav({ navGroups, storageKey, navTranslations }: SidebarNa
               className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-charcoal/40 hover:text-charcoal/60"
             >
               <span>{resolveLabel(navTranslations, group.labelKey)}</span>
-              <span aria-hidden="true" className={`transition-transform ${expanded ? 'rotate-90' : ''}`}>
+              <span aria-hidden="true" className={`transition-transform duration-200 ease-out ${expanded ? 'rotate-90' : ''}`}>
                 {'›'}
               </span>
             </button>
-            {expanded && (
-              <div id={groupId} className="mt-1 flex flex-col gap-1">
-                {group.items.map((item) => (
-                  <NavLink key={item.href} item={item} pathname={pathname} navTranslations={navTranslations} />
-                ))}
+            {/* grid-rows 0fr->1fr animates height without knowing content
+                height up front (a plain max-height transition would need a
+                guessed cap); the inner div's overflow-hidden clips content
+                during the transition. Group contents stay mounted either
+                way (not unmount/remount per toggleGroup click, unlike the
+                previous `{expanded && ...}`), so this replaces an instant
+                show/hide with an animated one — but that also means the
+                links are now present in the DOM while visually collapsed,
+                which inert (collapsed ? true : undefined, not the string
+                'true'/'false' — inert is a boolean HTML attribute) exists
+                specifically to fix: it removes the subtree from the tab
+                order and from find-in-page/AT traversal while collapsed,
+                matching what unmounting used to do for keyboard users,
+                without reintroducing the unmount/remount this change is
+                meant to replace. */}
+            <div
+              id={groupId}
+              className="grid transition-[grid-template-rows] duration-200 ease-out"
+              style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+            >
+              <div className="overflow-hidden">
+                <div className="mt-1 flex flex-col gap-1" inert={expanded ? undefined : true}>
+                  {group.items.map((item) => (
+                    <NavLink key={item.href} item={item} pathname={pathname} navTranslations={navTranslations} />
+                  ))}
+                </div>
               </div>
-            )}
+            </div>
           </div>
         );
       })}

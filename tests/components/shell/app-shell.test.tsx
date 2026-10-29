@@ -8,7 +8,15 @@ vi.mock('@/i18n/routing', () => ({
   useRouter: () => ({ replace: vi.fn() }),
   routing: { locales: ['ar', 'en'], defaultLocale: 'ar' },
 }));
-vi.mock('next/navigation', () => ({ useSearchParams: () => ({ toString: () => '' }) }));
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({ toString: () => '' }),
+  // PageTransition (components/motion/page-transition.tsx, now rendered
+  // by AppShell around `children`) reads the raw next/navigation
+  // usePathname directly, not @/i18n/routing's locale-aware wrapper
+  // already mocked above -- that mock covers SidebarNav/MobileDrawer's
+  // usePathname calls, this one is a separate import path.
+  usePathname: () => '/participants',
+}));
 vi.mock('next-intl', () => ({ useLocale: () => 'ar' }));
 vi.mock('@/app/[locale]/(auth)/actions', () => ({ logOutAction: vi.fn() }));
 vi.mock('next/image', () => ({

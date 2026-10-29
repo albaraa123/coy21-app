@@ -143,7 +143,7 @@ export function MobileDrawer({ navGroups, storageKey, ariaLabel, navTranslations
   return (
     <div className="fixed inset-0 z-50 md:hidden">
       <div
-        className="absolute inset-0 bg-charcoal/40"
+        className="absolute inset-0 bg-charcoal/40 animate-drawer-backdrop-enter"
         aria-hidden="true"
         onClick={onClose}
       />
@@ -153,7 +153,7 @@ export function MobileDrawer({ navGroups, storageKey, ariaLabel, navTranslations
         aria-modal="true"
         aria-label={ariaLabel}
         tabIndex={-1}
-        className="absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto bg-warm-white shadow-xl outline-none"
+        className="absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto bg-warm-white shadow-xl outline-none ltr:animate-drawer-panel-enter-ltr rtl:animate-drawer-panel-enter-rtl"
         style={{ insetInlineStart: 0 }}
       >
         <div className="flex items-center justify-end p-2">

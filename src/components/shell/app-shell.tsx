@@ -68,6 +68,12 @@
  *    fetching of its own here either — the caller resolves applicationId
  *    server-side and instantiates the Client Component itself.
  *
+ * `children` is wrapped in <PageTransition> (components/motion/
+ * page-transition.tsx, previously public-site-only) rather than rendered
+ * directly — same fade+rise-on-navigation treatment the public site
+ * already had, now applied to both admin and participant shells from this
+ * single composition point rather than per-page.
+ *
  * Composition (rewritten to fix a real RSC boundary violation — see the
  * bug-fix commit this replaced): AppShell renders Topbar (server)
  * DIRECTLY, passing it a `<MobileDrawerTrigger />` instance (a Client
@@ -96,6 +102,7 @@ import { MobileDrawer } from './mobile-drawer';
 import { MobileDrawerTrigger } from './mobile-drawer-trigger';
 import { MobileDrawerProvider } from './mobile-drawer-context';
 import { BottomTabBarClientWrapper } from './bottom-tab-bar-client-wrapper';
+import { PageTransition } from '@/components/motion/page-transition';
 
 export interface AppShellProps {
   navGroups: NavGroup[];
@@ -161,7 +168,9 @@ export function AppShell({
               <SidebarNav navGroups={navGroups} storageKey={storageKey} navTranslations={navTranslations} />
             </div>
           </aside>
-          <main className={`min-w-0 flex-1 ${bottomTabItems ? 'pb-16 md:pb-0' : ''}`}>{children}</main>
+          <main className={`min-w-0 flex-1 ${bottomTabItems ? 'pb-16 md:pb-0' : ''}`}>
+            <PageTransition>{children}</PageTransition>
+          </main>
         </div>
         {bottomTabItems ? (
           <BottomTabBarClientWrapper
