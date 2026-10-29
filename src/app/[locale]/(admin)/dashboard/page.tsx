@@ -41,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/states/error-state';
 import { UnauthorizedState } from '@/components/states/unauthorized-state';
+import { MountReveal } from '@/components/motion/mount-reveal';
 import {
   getRecentImportBatches,
   getImportsRequiringAttention,
@@ -100,7 +101,7 @@ export default async function AdminDashboardPage() {
     <div className="p-4 md:p-6">
       <h1 className="mb-4 text-lg font-semibold text-charcoal dark:text-gray-100 md:mb-6">{t('title')}</h1>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3">
-        <DashboardCard title={t('acceptedParticipants.title')} href="/participants" linkLabel={t('acceptedParticipants.linkLabel')}>
+        <DashboardCard title={t('acceptedParticipants.title')} href="/participants" linkLabel={t('acceptedParticipants.linkLabel')} delayMs={0}>
           <CardBody result={acceptedCount} states={tStates} unauthorizedDestination={unauthorizedDestination}>
             {(value) => (
               <p className="text-2xl font-semibold text-charcoal dark:text-gray-100">{value}</p>
@@ -108,7 +109,7 @@ export default async function AdminDashboardPage() {
           </CardBody>
         </DashboardCard>
 
-        <DashboardCard title={t('importsRequiringAttention.title')} href="/participants/imports" linkLabel={t('importsRequiringAttention.linkLabel')}>
+        <DashboardCard title={t('importsRequiringAttention.title')} href="/participants/imports" linkLabel={t('importsRequiringAttention.linkLabel')} delayMs={60}>
           <CardBody result={importsRequiringAttention} states={tStates} unauthorizedDestination={unauthorizedDestination}>
             {(value) => (
               <p className="text-2xl font-semibold text-charcoal dark:text-gray-100">{value}</p>
@@ -116,7 +117,7 @@ export default async function AdminDashboardPage() {
           </CardBody>
         </DashboardCard>
 
-        <DashboardCard title={t('pendingInvitations.title')} href="/participants/imports" linkLabel={t('pendingInvitations.linkLabel')}>
+        <DashboardCard title={t('pendingInvitations.title')} href="/participants/imports" linkLabel={t('pendingInvitations.linkLabel')} delayMs={120}>
           <CardBody result={pendingInvitations} states={tStates} unauthorizedDestination={unauthorizedDestination}>
             {(value) => (
               <dl className="grid grid-cols-3 gap-2 text-center">
@@ -137,7 +138,7 @@ export default async function AdminDashboardPage() {
           </CardBody>
         </DashboardCard>
 
-        <DashboardCard title="Session Bookings" href="/agenda/sessions" linkLabel="View sessions">
+        <DashboardCard title="Session Bookings" href="/agenda/sessions" linkLabel="View sessions" delayMs={180}>
           <CardBody result={sessionBookings} states={tStates} unauthorizedDestination={unauthorizedDestination}>
             {(value) => (
               <dl className="grid grid-cols-2 gap-2 text-center">
@@ -154,7 +155,7 @@ export default async function AdminDashboardPage() {
           </CardBody>
         </DashboardCard>
 
-        <DashboardCard title="Travel Legs Submitted" href="/participants/arrivals" linkLabel="View arrivals">
+        <DashboardCard title="Travel Legs Submitted" href="/participants/arrivals" linkLabel="View arrivals" delayMs={240}>
           <CardBody result={travelLegCount} states={tStates} unauthorizedDestination={unauthorizedDestination}>
             {(value) => (
               <p className="text-2xl font-semibold text-charcoal dark:text-gray-100">{value}</p>
@@ -162,7 +163,7 @@ export default async function AdminDashboardPage() {
           </CardBody>
         </DashboardCard>
 
-        <DashboardCard title={t('upcomingSessions.title')} href="/agenda/sessions" linkLabel={t('upcomingSessions.linkLabel')}>
+        <DashboardCard title={t('upcomingSessions.title')} href="/agenda/sessions" linkLabel={t('upcomingSessions.linkLabel')} delayMs={300}>
           <CardBody result={upcomingSessions} states={tStates} unauthorizedDestination={unauthorizedDestination} emptyLabel={t('upcomingSessions.empty')}>
             {(value) =>
               value.length === 0 ? (
@@ -188,7 +189,7 @@ export default async function AdminDashboardPage() {
           </CardBody>
         </DashboardCard>
 
-        <DashboardCard title={t('recentImports.title')} href="/participants/imports" linkLabel={t('recentImports.linkLabel')} className="sm:col-span-2 lg:col-span-3">
+        <DashboardCard title={t('recentImports.title')} href="/participants/imports" linkLabel={t('recentImports.linkLabel')} className="sm:col-span-2 lg:col-span-3" delayMs={360}>
           <CardBody result={recentImports} states={tStates} unauthorizedDestination={unauthorizedDestination} emptyLabel={t('recentImports.empty')}>
             {(value) =>
               value.length === 0 ? (
@@ -221,24 +222,29 @@ function DashboardCard({
   href,
   linkLabel,
   className = '',
+  delayMs = 0,
   children,
 }: {
   title: string;
   href: string;
   linkLabel: string;
   className?: string;
+  /** Stagger for the mount-reveal cascade — each call site below passes its own fixed value (this grid's card order never changes, unlike my-dashboard's status-driven cardOrder). */
+  delayMs?: number;
   children: React.ReactNode;
 }) {
   return (
-    <Card className={className}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-charcoal dark:text-gray-100">{title}</h2>
-      </div>
-      <div className="mb-3">{children}</div>
-      <Link href={href} className="text-xs font-medium text-turquoise hover:underline">
-        {linkLabel}
-      </Link>
-    </Card>
+    <MountReveal delayMs={delayMs} className={className}>
+      <Card>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-charcoal dark:text-gray-100">{title}</h2>
+        </div>
+        <div className="mb-3">{children}</div>
+        <Link href={href} className="text-xs font-medium text-turquoise hover:underline">
+          {linkLabel}
+        </Link>
+      </Card>
+    </MountReveal>
   );
 }
 

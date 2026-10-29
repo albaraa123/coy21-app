@@ -42,6 +42,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ErrorState } from '@/components/states/error-state';
 import { UnauthorizedState } from '@/components/states/unauthorized-state';
+import { MountReveal } from '@/components/motion/mount-reveal';
 import {
   getMyApplicationStatus,
   getMyClaimState,
@@ -111,10 +112,12 @@ export default async function MyDashboardPage() {
           getMyClaimState indicates claimed: true, no invitation-oriented
           copy is shown anywhere on this page. */}
       {claimState.kind === 'data' && !claimState.value.claimed && (
-        <Card className="border-gold/40 bg-gold/5">
-          <p className="text-sm font-medium text-charcoal dark:text-gray-100">{t('claim.pendingTitle')}</p>
-          <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">{t('claim.pendingDescription')}</p>
-        </Card>
+        <MountReveal>
+          <Card className="border-gold/40 bg-gold/5">
+            <p className="text-sm font-medium text-charcoal dark:text-gray-100">{t('claim.pendingTitle')}</p>
+            <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">{t('claim.pendingDescription')}</p>
+          </Card>
+        </MountReveal>
       )}
       {claimState.kind === 'unauthorized' && <UnauthorizedState destination={unauthorizedDestination} />}
       {claimState.kind === 'error' && <ErrorState title={tStates('error.title')} description={claimState.message} />}
@@ -123,80 +126,95 @@ export default async function MyDashboardPage() {
           computeDashboardCardOrder() (card-priority.ts). Iterating
           cardOrder (not a fixed conditional layout) is what makes this
           genuinely status-driven rather than a static arrangement. */}
-      {cardOrder.map((cardId) => {
+      {cardOrder.map((cardId, index) => {
+        // Staggered by map index (not a per-card fixed constant) so the
+        // cascade always matches cardOrder's actual, status-dependent
+        // sequence rather than a hardcoded assumption about which card
+        // appears first — cardOrder's whole point (see computeDashboardCardOrder)
+        // is that the SET and ORDER both vary by participant state.
+        const delayMs = index * 80;
+
         switch (cardId) {
           case 'applicationStatus':
             return (
-              <Card key={cardId}>
-                <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('application.title')}</h2>
-                {applicationStatus.kind === 'data' && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant={applicationStatus.value.status === 'accepted' ? 'changed' : 'neutral'}>
-                      {tStatus(applicationStatus.value.status)}
-                    </Badge>
+              <MountReveal key={cardId} delayMs={delayMs}>
+                <Card>
+                  <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('application.title')}</h2>
+                  {applicationStatus.kind === 'data' && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant={applicationStatus.value.status === 'accepted' ? 'changed' : 'neutral'}>
+                        {tStatus(applicationStatus.value.status)}
+                      </Badge>
+                    </div>
+                  )}
+                  {applicationStatus.kind === 'empty' && (
+                    <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('application.empty')}</p>
+                  )}
+                  {applicationStatus.kind === 'unauthorized' && <UnauthorizedState destination={unauthorizedDestination} />}
+                  {applicationStatus.kind === 'error' && (
+                    <ErrorState title={tStates('error.title')} description={applicationStatus.message} />
+                  )}
+                  <div className="mt-3">
+                    <Link href="/my-application" className="text-sm font-medium text-turquoise hover:underline">
+                      {t('application.linkLabel')}
+                    </Link>
                   </div>
-                )}
-                {applicationStatus.kind === 'empty' && (
-                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('application.empty')}</p>
-                )}
-                {applicationStatus.kind === 'unauthorized' && <UnauthorizedState destination={unauthorizedDestination} />}
-                {applicationStatus.kind === 'error' && (
-                  <ErrorState title={tStates('error.title')} description={applicationStatus.message} />
-                )}
-                <div className="mt-3">
-                  <Link href="/my-application" className="text-sm font-medium text-turquoise hover:underline">
-                    {t('application.linkLabel')}
-                  </Link>
-                </div>
-              </Card>
+                </Card>
+              </MountReveal>
             );
 
           case 'completeTravelInfo':
             return (
-              <Card key={cardId} className="border-turquoise/40 bg-turquoise/5">
-                <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('completeTravelInfo.title')}</h2>
-                <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('completeTravelInfo.description')}</p>
-                <div className="mt-3">
-                  <Link href="/my-travel" className="text-sm font-medium text-turquoise hover:underline">
-                    {t('completeTravelInfo.linkLabel')}
-                  </Link>
-                </div>
-              </Card>
+              <MountReveal key={cardId} delayMs={delayMs}>
+                <Card className="border-turquoise/40 bg-turquoise/5">
+                  <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('completeTravelInfo.title')}</h2>
+                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('completeTravelInfo.description')}</p>
+                  <div className="mt-3">
+                    <Link href="/my-travel" className="text-sm font-medium text-turquoise hover:underline">
+                      {t('completeTravelInfo.linkLabel')}
+                    </Link>
+                  </div>
+                </Card>
+              </MountReveal>
             );
 
           case 'myQr':
             return (
-              <Card key={cardId}>
-                <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('myQr.title')}</h2>
-                <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myQr.description')}</p>
-                <div className="mt-3">
-                  <Link href="/my-qr" className="text-sm font-medium text-turquoise hover:underline">
-                    {t('myQr.linkLabel')}
-                  </Link>
-                </div>
-              </Card>
+              <MountReveal key={cardId} delayMs={delayMs}>
+                <Card>
+                  <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('myQr.title')}</h2>
+                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myQr.description')}</p>
+                  <div className="mt-3">
+                    <Link href="/my-qr" className="text-sm font-medium text-turquoise hover:underline">
+                      {t('myQr.linkLabel')}
+                    </Link>
+                  </div>
+                </Card>
+              </MountReveal>
             );
 
           case 'myProgram':
             return (
-              <Card key={cardId}>
-                <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('myProgram.title')}</h2>
-                {schedulePublication.kind === 'data' && (
-                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myProgram.published')}</p>
-                )}
-                {schedulePublication.kind === 'empty' && (
-                  <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myProgram.notPublished')}</p>
-                )}
-                {schedulePublication.kind === 'unauthorized' && <UnauthorizedState destination={unauthorizedDestination} />}
-                {schedulePublication.kind === 'error' && (
-                  <ErrorState title={tStates('error.title')} description={schedulePublication.message} />
-                )}
-                <div className="mt-3">
-                  <Link href="/my-agenda" className="text-sm font-medium text-turquoise hover:underline">
-                    {t('myProgram.linkLabel')}
-                  </Link>
-                </div>
-              </Card>
+              <MountReveal key={cardId} delayMs={delayMs}>
+                <Card>
+                  <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('myProgram.title')}</h2>
+                  {schedulePublication.kind === 'data' && (
+                    <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myProgram.published')}</p>
+                  )}
+                  {schedulePublication.kind === 'empty' && (
+                    <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('myProgram.notPublished')}</p>
+                  )}
+                  {schedulePublication.kind === 'unauthorized' && <UnauthorizedState destination={unauthorizedDestination} />}
+                  {schedulePublication.kind === 'error' && (
+                    <ErrorState title={tStates('error.title')} description={schedulePublication.message} />
+                  )}
+                  <div className="mt-3">
+                    <Link href="/my-agenda" className="text-sm font-medium text-turquoise hover:underline">
+                      {t('myProgram.linkLabel')}
+                    </Link>
+                  </div>
+                </Card>
+              </MountReveal>
             );
 
           default:
