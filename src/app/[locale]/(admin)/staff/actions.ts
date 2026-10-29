@@ -15,7 +15,15 @@ import { requireSuperAdmin } from '@/lib/auth/require-super-admin';
 // shrunk dropdown — assigning one here would silently diverge from what
 // the UI offers and from every isStaffRole()-based authorization check
 // elsewhere in the codebase.
-const STAFF_ROLES = ['super_admin', 'staff'] as const;
+//
+// scanner_device (added by 20260804110000_add_scanner_device_role.sql,
+// predates the consolidation above) is a separate, still-active role: a
+// non-human per-device identity with its own RLS policies
+// (20260804150000_attendance_rls_policies.sql), not one of the 7 merged
+// into 'staff'. It was never wired into this admin UI — the only way to
+// assign it was a direct DB update — so it's included here deliberately,
+// not a regression of the consolidation above.
+const STAFF_ROLES = ['super_admin', 'staff', 'scanner_device'] as const;
 
 type StaffRole = (typeof STAFF_ROLES)[number];
 

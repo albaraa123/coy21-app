@@ -45,6 +45,9 @@ next-env.d.ts
 .worktrees/
 .claude/worktrees/
 
+# personal Claude Code permission overrides (grants prod-DB read access)
+.claude/settings.local.json
+
 # superpowers brainstorming visual companion
 .superpowers/
 

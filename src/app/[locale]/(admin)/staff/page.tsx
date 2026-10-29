@@ -25,7 +25,6 @@ export default async function StaffPage() {
     .from('profiles')
     .select('id, full_name, email, role, created_at')
     .neq('role', 'participant')
-    .neq('role', 'scanner_device')
     .order('role', { ascending: true });
 
   return (

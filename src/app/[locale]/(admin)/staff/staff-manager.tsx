@@ -17,6 +17,7 @@ type StaffProfile = {
 const STAFF_ROLES = [
   { value: 'super_admin', label: 'Super Admin' },
   { value: 'staff', label: 'Staff' },
+  { value: 'scanner_device', label: 'Scanner Device' },
 ] as const;
 
 const ROLE_LABELS: Record<string, string> = Object.fromEntries(STAFF_ROLES.map((r) => [r.value, r.label]));
