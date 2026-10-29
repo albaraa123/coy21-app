@@ -127,10 +127,13 @@ export function createScanRetryController(deps: ScanRetryDeps) {
         else if (outcome.retryable) deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
         else deps.dispatch({ type: 'SUBMIT_REJECTED', message: outcome.message });
       })
-      .catch(() => {
+      .catch((err) => {
         clearTimeout(timeout);
         if (submitController === controller) submitController = null;
         if (isStaleAttempt(guard.idempotencyKey, guard.attemptSeq, idempotencyKey, attemptSeq)) return;
+        // TEMP DEBUG - remove before merge
+        (window as unknown as { __lastScanFetchError?: string }).__lastScanFetchError =
+          `${err?.name ?? 'unknown'}: ${err?.message ?? String(err)}`;
         deps.dispatch({ type: 'SUBMIT_TRANSPORT_FAILURE' });
       });
   }
