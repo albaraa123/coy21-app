@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import { SessionCard, type ScheduleItemForCard } from './session-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatConferenceDate } from '@/lib/datetime/conference-time';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 // Used only as an internal Map grouping key (not displayed), so it keeps its
 // own compact en-CA (YYYY-MM-DD) format rather than formatConferenceDate's
@@ -38,8 +39,17 @@ export async function DayTimeline({ items, locale }: { items: ScheduleItemForCar
               {heading}
             </h2>
             <div className="flex flex-col gap-3 border-s-2 border-gray-200 ps-4 dark:border-gray-700">
-              {dayItems.map((item) => (
-                <SessionCard key={item.id} item={item} locale={locale} />
+              {/* Per-session stagger, capped at 400ms (min(...)) so a day
+                  with many sessions still finishes revealing quickly — a
+                  single conference day is bounded (realistically well
+                  under ~15 sessions), not an unbounded catalog, so a
+                  short per-item cascade reads as polish here rather than
+                  the "wrap as one block" treatment used for genuinely
+                  unbounded lists elsewhere (see my-agenda/browse/page.tsx). */}
+              {dayItems.map((item, index) => (
+                <MountReveal key={item.id} delayMs={Math.min(index * 50, 400)}>
+                  <SessionCard item={item} locale={locale} />
+                </MountReveal>
               ))}
             </div>
           </section>

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { BookButton, WaitlistButton } from '../booking-button';
 import { formatConferenceTime } from '@/lib/datetime/conference-time';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function BrowseSessionsPage() {
   const locale = await getLocale();
@@ -119,18 +120,27 @@ export default async function BrowseSessionsPage() {
       </div>
 
       {byDay.length === 0 && (
-        <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
-          No sessions available yet. Check back soon.
-        </Card>
+        <MountReveal delayMs={0}>
+          <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
+            No sessions available yet. Check back soon.
+          </Card>
+        </MountReveal>
       )}
 
-      {byDay.map((day) => (
-        <div key={day.date} className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">
-            {locale === 'ar' ? day.labelAr : day.labelEn}
-          </h2>
+      {byDay.map((day, dayIndex) => (
+        // Staggered by DAY index only, not per-session — this is the full
+        // catalog (every published/confirmed session, not just the
+        // participant's own bookings like my-agenda/page.tsx), so a day
+        // can hold many sessions; per-row stagger on an unbounded list
+        // would feel slow rather than polished. Each day group reveals as
+        // one block instead.
+        <MountReveal key={day.date} delayMs={Math.min(dayIndex * 80, 400)}>
+          <div className="flex flex-col gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">
+              {locale === 'ar' ? day.labelAr : day.labelEn}
+            </h2>
 
-          {day.sessions.map((s) => {
+            {day.sessions.map((s) => {
             const perSessionDeadline = s.booking_deadline
               ? new Date(s.booking_deadline)
               : new Date(new Date(s.start_time).getTime() - 3 * 60 * 60 * 1000);
@@ -197,8 +207,9 @@ export default async function BrowseSessionsPage() {
                 </div>
               </Card>
             );
-          })}
-        </div>
+            })}
+          </div>
+        </MountReveal>
       ))}
     </div>
   );

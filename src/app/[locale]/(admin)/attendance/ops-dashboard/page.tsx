@@ -15,6 +15,7 @@ import { redirect } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { MountReveal } from '@/components/motion/mount-reveal';
 import OpsDashboardClient from './ops-dashboard-client';
 
 export default async function OpsDashboardPage() {
@@ -49,7 +50,15 @@ export default async function OpsDashboardPage() {
       <h1 className="mb-2 text-lg font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
       <p className="mb-4 text-sm text-charcoal/70 dark:text-gray-400 md:mb-6">{t('description')}</p>
 
-      <OpsDashboardClient initialRows={rows ?? []} />
+      {/* MountReveal wraps the whole client component ONCE, at the page/
+          mount boundary only — it must never wrap OpsDashboardClient's
+          OWN internal .map() blocks (the realtime-updated `rows` state,
+          see that file's useEffect subscription), which would replay the
+          fade-in animation on every live data update instead of firing
+          once. */}
+      <MountReveal delayMs={0}>
+        <OpsDashboardClient initialRows={rows ?? []} />
+      </MountReveal>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function DemandCapacityDashboardPage() {
   const locale = await getLocale();
@@ -47,10 +48,13 @@ export default async function DemandCapacityDashboardPage() {
       {rows.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       ) : (
-        <>
+        <MountReveal delayMs={0}>
           {/* Mobile: card-per-session list. Desktop (md+): table. Both trees
               render the same `rows` data and must be kept in sync — any
-              column added to one must be added to the other. */}
+              column added to one must be added to the other. Wrapped as
+              ONE reveal block, not per-row staggered — rows is a real
+              table that could be long, same judgment as applications/page.tsx's
+              equivalent table. */}
           <div className="flex flex-col gap-2 md:hidden">
             {rows.map((row) => (
               <div key={row.sessionId} className="rounded-lg border border-charcoal/10 bg-warm-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -97,7 +101,7 @@ export default async function DemandCapacityDashboardPage() {
               </tbody>
             </table>
           </div>
-        </>
+        </MountReveal>
       )}
     </div>
   );

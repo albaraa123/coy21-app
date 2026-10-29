@@ -16,6 +16,7 @@ import { getMyQrState } from '@/lib/attendance/participant-qr';
 import { renderQrDataUri } from '@/lib/attendance/qr-image';
 import { isLunchEligible, isCoffeeEligible } from '@/lib/cafeteria/eligibility';
 import MyQrClient from './my-qr-client';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function MyQrPage() {
   const locale = await getLocale();
@@ -91,13 +92,15 @@ export default async function MyQrPage() {
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6 p-6 md:p-10">
       <h1 className="text-xl font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
-      <MyQrClient
-        initialState={state}
-        initialQrImageDataUri={qrImageDataUri}
-        isCafeteriaEligible={isCafeteriaEligible}
-        isLunchCapable={isLunchCapable}
-        initialCafeteriaCredential={initialCafeteriaCredential}
-      />
+      <MountReveal delayMs={0}>
+        <MyQrClient
+          initialState={state}
+          initialQrImageDataUri={qrImageDataUri}
+          isCafeteriaEligible={isCafeteriaEligible}
+          isLunchCapable={isLunchCapable}
+          initialCafeteriaCredential={initialCafeteriaCredential}
+        />
+      </MountReveal>
     </div>
   );
 }

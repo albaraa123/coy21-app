@@ -16,6 +16,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import ScannerAssignmentManager from './scanner-assignment-manager';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function ScannerAssignmentsPage() {
   const locale = await getLocale();
@@ -61,7 +62,9 @@ export default async function ScannerAssignmentsPage() {
   return (
     <div className="p-4 md:p-6">
       <h1 className="mb-4 text-lg font-semibold text-charcoal dark:text-gray-100 md:mb-6">{t('title')}</h1>
-      <ScannerAssignmentManager scanners={scanners ?? []} assignments={assignments ?? []} sessions={sessions ?? []} rooms={rooms ?? []} />
+      <MountReveal delayMs={0}>
+        <ScannerAssignmentManager scanners={scanners ?? []} assignments={assignments ?? []} sessions={sessions ?? []} rooms={rooms ?? []} />
+      </MountReveal>
     </div>
   );
 }

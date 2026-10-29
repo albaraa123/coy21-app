@@ -11,6 +11,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { CsvExportButton } from './csv-export-button';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 // ---------------------------------------------------------------------------
 // Query helpers — all run as service role so RLS doesn't filter results.
@@ -142,99 +143,107 @@ export default async function ReportsPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Section 1: Applications & Confirmation                              */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
-          Applications &amp; Confirmation
-        </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MetricCard label="Total Applications" value={totalApplications} />
-          <MetricCard label="Accepted" value={Number(acceptedCount?.count ?? 0)} />
-          <MetricCard label="Confirmed" value={Number(confirmedCount?.count ?? 0)} />
-          <MetricCard
-            label="Confirmation Rate"
-            value={`${totalAccepted > 0 ? Math.round((Number(confirmedCount?.count ?? 0) / totalAccepted) * 100) : 0}%`}
-          />
-        </div>
-      </section>
+      <MountReveal delayMs={0}>
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
+            Applications &amp; Confirmation
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <MetricCard label="Total Applications" value={totalApplications} />
+            <MetricCard label="Accepted" value={Number(acceptedCount?.count ?? 0)} />
+            <MetricCard label="Confirmed" value={Number(confirmedCount?.count ?? 0)} />
+            <MetricCard
+              label="Confirmation Rate"
+              value={`${totalAccepted > 0 ? Math.round((Number(confirmedCount?.count ?? 0) / totalAccepted) * 100) : 0}%`}
+            />
+          </div>
+        </section>
+      </MountReveal>
 
       {/* ------------------------------------------------------------------ */}
       {/* Section 2: Participants by Type                                     */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
-          Accepted Participants by Type
-        </h2>
-        <Card className="py-3">
-          {report.byType.length === 0 ? (
-            <p className="text-sm text-charcoal/50 dark:text-gray-500">No accepted participants yet.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-charcoal/10 dark:border-white/10">
-                  <th className="pb-2 text-left font-medium text-charcoal/60 dark:text-gray-400">Type</th>
-                  <th className="pb-2 text-right font-medium text-charcoal/60 dark:text-gray-400">Count</th>
-                  <th className="pb-2 text-right font-medium text-charcoal/60 dark:text-gray-400">Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.byType
-                  .sort((a, b) => Number(b.count) - Number(a.count))
-                  .map((row) => {
-                    const pct = totalAccepted > 0 ? Math.round((Number(row.count) / totalAccepted) * 100) : 0;
-                    return (
-                      <tr key={row.participant_type ?? 'unknown'} className="border-b border-charcoal/5 dark:border-white/5 last:border-0">
-                        <td className="py-2 font-mono text-xs uppercase text-charcoal dark:text-gray-200">
-                          {row.participant_type ?? 'unset'}
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-charcoal dark:text-gray-100">
-                          {Number(row.count).toLocaleString()}
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-charcoal/60 dark:text-gray-400">
-                          {pct}%
-                        </td>
-                      </tr>
-                    );
-                  })}
-                <tr className="bg-charcoal/5 dark:bg-white/5">
-                  <td className="py-2 font-semibold text-charcoal dark:text-gray-100">Total</td>
-                  <td className="py-2 text-right font-semibold tabular-nums text-charcoal dark:text-gray-100">
-                    {totalAccepted.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right text-charcoal/60 dark:text-gray-400">100%</td>
-                </tr>
-              </tbody>
-            </table>
-          )}
-        </Card>
-      </section>
+      <MountReveal delayMs={80}>
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
+            Accepted Participants by Type
+          </h2>
+          <Card className="py-3">
+            {report.byType.length === 0 ? (
+              <p className="text-sm text-charcoal/50 dark:text-gray-500">No accepted participants yet.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-charcoal/10 dark:border-white/10">
+                    <th className="pb-2 text-left font-medium text-charcoal/60 dark:text-gray-400">Type</th>
+                    <th className="pb-2 text-right font-medium text-charcoal/60 dark:text-gray-400">Count</th>
+                    <th className="pb-2 text-right font-medium text-charcoal/60 dark:text-gray-400">Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.byType
+                    .sort((a, b) => Number(b.count) - Number(a.count))
+                    .map((row) => {
+                      const pct = totalAccepted > 0 ? Math.round((Number(row.count) / totalAccepted) * 100) : 0;
+                      return (
+                        <tr key={row.participant_type ?? 'unknown'} className="border-b border-charcoal/5 dark:border-white/5 last:border-0">
+                          <td className="py-2 font-mono text-xs uppercase text-charcoal dark:text-gray-200">
+                            {row.participant_type ?? 'unset'}
+                          </td>
+                          <td className="py-2 text-right tabular-nums text-charcoal dark:text-gray-100">
+                            {Number(row.count).toLocaleString()}
+                          </td>
+                          <td className="py-2 text-right tabular-nums text-charcoal/60 dark:text-gray-400">
+                            {pct}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  <tr className="bg-charcoal/5 dark:bg-white/5">
+                    <td className="py-2 font-semibold text-charcoal dark:text-gray-100">Total</td>
+                    <td className="py-2 text-right font-semibold tabular-nums text-charcoal dark:text-gray-100">
+                      {totalAccepted.toLocaleString()}
+                    </td>
+                    <td className="py-2 text-right text-charcoal/60 dark:text-gray-400">100%</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+          </Card>
+        </section>
+      </MountReveal>
 
       {/* ------------------------------------------------------------------ */}
       {/* Section 3: Session Bookings                                         */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
-          Session Bookings
-        </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MetricCard label="Active Bookings" value={report.activeBookings} />
-          <MetricCard label="Total (incl. cancelled)" value={report.totalBookings} />
-          <MetricCard label="Booking Rate" value={`${bookingRate}%`} note="of accepted participants" />
-        </div>
-      </section>
+      <MountReveal delayMs={160}>
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
+            Session Bookings
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <MetricCard label="Active Bookings" value={report.activeBookings} />
+            <MetricCard label="Total (incl. cancelled)" value={report.totalBookings} />
+            <MetricCard label="Booking Rate" value={`${bookingRate}%`} note="of accepted participants" />
+          </div>
+        </section>
+      </MountReveal>
 
       {/* ------------------------------------------------------------------ */}
       {/* Section 4: Travel Submissions                                       */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
-          Travel Submissions
-        </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MetricCard label="Travel Legs Submitted" value={report.travelLegs} />
-          <MetricCard label="Participants w/ Travel" value={report.distinctTravellers} />
-          <MetricCard label="Travel Submission Rate" value={`${travelRate}%`} note="of accepted participants" />
-        </div>
-      </section>
+      <MountReveal delayMs={240}>
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
+            Travel Submissions
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <MetricCard label="Travel Legs Submitted" value={report.travelLegs} />
+            <MetricCard label="Participants w/ Travel" value={report.distinctTravellers} />
+            <MetricCard label="Travel Submission Rate" value={`${travelRate}%`} note="of accepted participants" />
+          </div>
+        </section>
+      </MountReveal>
 
       <p className="text-xs text-charcoal/30 dark:text-gray-600">
         Data is live from the COY21 Supabase database. Refresh the page to update.

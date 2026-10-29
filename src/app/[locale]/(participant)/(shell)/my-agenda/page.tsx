@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AgendaDay } from './agenda-day';
 import { WaitlistedSessions } from './waitlisted-sessions';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function MyAgendaPage() {
   const locale = await getLocale();
@@ -97,28 +98,33 @@ export default async function MyAgendaPage() {
         </Button>
       </div>
 
-      <WaitlistedSessions entries={waitlistRows ?? []} locale={locale} />
+      <MountReveal delayMs={0}>
+        <WaitlistedSessions entries={waitlistRows ?? []} locale={locale} />
+      </MountReveal>
 
       {sessionsByDay.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 py-10 text-center">
-          <p className="text-sm text-charcoal/70 dark:text-gray-400">
-            You have no sessions booked yet.
-          </p>
-          <Button href="/my-agenda/browse" size="sm">
-            Browse &amp; book sessions
-          </Button>
-        </Card>
+        <MountReveal delayMs={60}>
+          <Card className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-sm text-charcoal/70 dark:text-gray-400">
+              You have no sessions booked yet.
+            </p>
+            <Button href="/my-agenda/browse" size="sm">
+              Browse &amp; book sessions
+            </Button>
+          </Card>
+        </MountReveal>
       ) : (
-        sessionsByDay.map((day) => (
-          <AgendaDay
-            key={day.date}
-            date={day.date}
-            label={locale === 'ar' ? day.labelAr : day.labelEn}
-            bookings={day.bookings}
-            locale={locale}
-            applicationId={application.id}
-            globalBookingDeadline={globalBookingDeadline}
-          />
+        sessionsByDay.map((day, index) => (
+          <MountReveal key={day.date} delayMs={60 + index * 80}>
+            <AgendaDay
+              date={day.date}
+              label={locale === 'ar' ? day.labelAr : day.labelEn}
+              bookings={day.bookings}
+              locale={locale}
+              applicationId={application.id}
+              globalBookingDeadline={globalBookingDeadline}
+            />
+          </MountReveal>
         ))
       )}
     </div>

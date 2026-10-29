@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmationCard } from './confirmation-card';
 import { DocumentUpload } from './document-upload';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 // Same mapping as the admin (admin)/applications/page.tsx's
 // STATUS_BADGE_VARIANT — a given application status must read the same
@@ -91,32 +92,36 @@ export default async function MyApplicationPage() {
       </div>
 
       {/* Application summary card */}
-      <Card className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-charcoal/50 dark:text-gray-500 uppercase tracking-wide">Your Attendee Code</span>
-            <span className="font-mono text-lg font-bold tracking-widest text-turquoise">
-              {application.application_number ?? '—'}
-            </span>
-            {application.participant_type && (
-              <span className="text-xs text-charcoal/60 dark:text-gray-400 capitalize">
-                {application.participant_type.replace('_', ' ')}
+      <MountReveal delayMs={0}>
+        <Card className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-charcoal/50 dark:text-gray-500 uppercase tracking-wide">Your Attendee Code</span>
+              <span className="font-mono text-lg font-bold tracking-widest text-turquoise">
+                {application.application_number ?? '—'}
               </span>
-            )}
+              {application.participant_type && (
+                <span className="text-xs text-charcoal/60 dark:text-gray-400 capitalize">
+                  {application.participant_type.replace('_', ' ')}
+                </span>
+              )}
+            </div>
+            <span className="shrink-0 mt-1"><Badge variant={badgeVariant}>{t(application.status)}</Badge></span>
           </div>
-          <span className="shrink-0 mt-1"><Badge variant={badgeVariant}>{t(application.status)}</Badge></span>
-        </div>
-        <p className="text-sm text-charcoal/70 dark:text-gray-400">
-          {tMyApplication('submitted', { date: formattedDate })}
-        </p>
-        {!isAccepted && (
-          <p className="text-sm text-charcoal/70 dark:text-gray-400">{tMyApplication('reviewNotice')}</p>
-        )}
-      </Card>
+          <p className="text-sm text-charcoal/70 dark:text-gray-400">
+            {tMyApplication('submitted', { date: formattedDate })}
+          </p>
+          {!isAccepted && (
+            <p className="text-sm text-charcoal/70 dark:text-gray-400">{tMyApplication('reviewNotice')}</p>
+          )}
+        </Card>
+      </MountReveal>
 
       {/* Task 2: Attendance confirmation — only for accepted participants */}
       {isAccepted && (
-        <ConfirmationCard initialStatus={confirmationStatus} />
+        <MountReveal delayMs={80}>
+          <ConfirmationCard initialStatus={confirmationStatus} />
+        </MountReveal>
       )}
 
       {/* Task 3: Documents — only shown to accepted participants */}
@@ -124,22 +129,24 @@ export default async function MyApplicationPage() {
         <div className="flex flex-col gap-3">
           <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">Your Documents</h2>
           <div className="flex flex-col gap-2">
-            {PARTICIPANT_DOCUMENTS.map((doc) => (
-              <Card key={doc.key} className="flex flex-row items-center gap-3 py-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-charcoal dark:text-gray-100">{doc.label}</p>
-                  {doc.uploadable && (
-                    <p className="mt-0.5 text-xs text-charcoal/50 dark:text-gray-500">Upload your ticket once booked</p>
+            {PARTICIPANT_DOCUMENTS.map((doc, index) => (
+              <MountReveal key={doc.key} delayMs={160 + index * 60}>
+                <Card className="flex flex-row items-center gap-3 py-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-charcoal dark:text-gray-100">{doc.label}</p>
+                    {doc.uploadable && (
+                      <p className="mt-0.5 text-xs text-charcoal/50 dark:text-gray-500">Upload your ticket once booked</p>
+                    )}
+                  </div>
+                  {doc.uploadable ? (
+                    <DocumentUpload userId={user.id} docKey={doc.key} label={doc.label} />
+                  ) : (
+                    <span className="rounded-md bg-charcoal/5 px-3 py-1.5 text-xs text-charcoal/40 dark:bg-white/5 dark:text-gray-500">
+                      Issued by team
+                    </span>
                   )}
-                </div>
-                {doc.uploadable ? (
-                  <DocumentUpload userId={user.id} docKey={doc.key} label={doc.label} />
-                ) : (
-                  <span className="rounded-md bg-charcoal/5 px-3 py-1.5 text-xs text-charcoal/40 dark:bg-white/5 dark:text-gray-500">
-                    Issued by team
-                  </span>
-                )}
-              </Card>
+                </Card>
+              </MountReveal>
             ))}
           </div>
           <p className="text-xs text-charcoal/40 dark:text-gray-500">

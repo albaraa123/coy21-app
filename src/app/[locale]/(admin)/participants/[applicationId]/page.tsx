@@ -10,6 +10,7 @@ import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
+import { MountReveal } from '@/components/motion/mount-reveal';
 import InvitationControls from './invitation-controls';
 import ClassificationControls from './classification-controls';
 import GuardianControls from './guardian-controls';
@@ -114,124 +115,140 @@ export default async function ParticipantDetailPage({ params }: { params: Promis
         </Link>
       </div>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('applicationTitle')}</h2>
-        <Card className="p-0">
-          <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
-            {fields.map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
-                <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
-                <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('answersTitle')}</h2>
-        {hiddenSensitiveCount > 0 && (
-          <p className="mb-2 text-xs text-charcoal/60 dark:text-gray-400">
-            {t('hiddenSensitive', { count: hiddenSensitiveCount })}
-          </p>
-        )}
-        {answers.length === 0 ? (
-          <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('noAnswers')}</p>
-        ) : (
-          <>
-            {/* Mobile: card-per-answer list. Desktop (md+): table. */}
-            <div className="flex flex-col gap-2 md:hidden">
-              {answers.map((a) => (
-                <Card key={a.id}>
-                  <p className="text-xs font-medium text-charcoal/60 dark:text-gray-400">{a.question_label ?? a.question_key}</p>
-                  <p className="mt-1 text-sm text-charcoal dark:text-gray-100">{a.normalized_value ?? a.raw_value}</p>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-charcoal/60 dark:text-gray-400">
-                    <span>{t('source')}: {a.source}</span>
-                    <span>{t('sensitive')}: {a.is_sensitive ? t('sensitiveYes') : t('sensitiveNo')}</span>
-                  </div>
-                </Card>
+      <MountReveal delayMs={0}>
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('applicationTitle')}</h2>
+          <Card className="p-0">
+            <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
+              {fields.map(([label, value]) => (
+                <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
+                  <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
+                  <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
+                </div>
               ))}
-            </div>
-            <div className="hidden overflow-x-auto rounded-lg border border-charcoal/10 dark:border-gray-700 md:block">
-              <table className="w-full text-start text-sm">
-                <thead>
-                  <tr className="border-b border-charcoal/10 bg-warm-white text-xs text-charcoal/60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-                    <th scope="col" className="px-4 py-2 text-start font-medium">{t('question')}</th>
-                    <th scope="col" className="px-4 py-2 text-start font-medium">{t('value')}</th>
-                    <th scope="col" className="px-4 py-2 text-start font-medium">{t('source')}</th>
-                    <th scope="col" className="px-4 py-2 text-start font-medium">{t('sensitive')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-charcoal/10 dark:divide-gray-700">
-                  {answers.map((a) => (
-                    <tr key={a.id}>
-                      <td className="px-4 py-2 text-charcoal dark:text-gray-100">{a.question_label ?? a.question_key}</td>
-                      <td className="px-4 py-2 text-charcoal dark:text-gray-100">{a.normalized_value ?? a.raw_value}</td>
-                      <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{a.source}</td>
-                      <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{a.is_sensitive ? t('sensitiveYes') : t('sensitiveNo')}</td>
+            </dl>
+          </Card>
+        </section>
+      </MountReveal>
+
+      {/* Answers can be a long list (one row per imported question) —
+          wrapped as ONE reveal block rather than per-row staggered, same
+          judgment call as the dashboards' long-list guidance: a per-row
+          cascade on dozens of answers would feel slow, not polished. */}
+      <MountReveal delayMs={80}>
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('answersTitle')}</h2>
+          {hiddenSensitiveCount > 0 && (
+            <p className="mb-2 text-xs text-charcoal/60 dark:text-gray-400">
+              {t('hiddenSensitive', { count: hiddenSensitiveCount })}
+            </p>
+          )}
+          {answers.length === 0 ? (
+            <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('noAnswers')}</p>
+          ) : (
+            <>
+              {/* Mobile: card-per-answer list. Desktop (md+): table. */}
+              <div className="flex flex-col gap-2 md:hidden">
+                {answers.map((a) => (
+                  <Card key={a.id}>
+                    <p className="text-xs font-medium text-charcoal/60 dark:text-gray-400">{a.question_label ?? a.question_key}</p>
+                    <p className="mt-1 text-sm text-charcoal dark:text-gray-100">{a.normalized_value ?? a.raw_value}</p>
+                    <div className="mt-2 flex items-center gap-3 text-xs text-charcoal/60 dark:text-gray-400">
+                      <span>{t('source')}: {a.source}</span>
+                      <span>{t('sensitive')}: {a.is_sensitive ? t('sensitiveYes') : t('sensitiveNo')}</span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto rounded-lg border border-charcoal/10 dark:border-gray-700 md:block">
+                <table className="w-full text-start text-sm">
+                  <thead>
+                    <tr className="border-b border-charcoal/10 bg-warm-white text-xs text-charcoal/60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                      <th scope="col" className="px-4 py-2 text-start font-medium">{t('question')}</th>
+                      <th scope="col" className="px-4 py-2 text-start font-medium">{t('value')}</th>
+                      <th scope="col" className="px-4 py-2 text-start font-medium">{t('source')}</th>
+                      <th scope="col" className="px-4 py-2 text-start font-medium">{t('sensitive')}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </section>
+                  </thead>
+                  <tbody className="divide-y divide-charcoal/10 dark:divide-gray-700">
+                    {answers.map((a) => (
+                      <tr key={a.id}>
+                        <td className="px-4 py-2 text-charcoal dark:text-gray-100">{a.question_label ?? a.question_key}</td>
+                        <td className="px-4 py-2 text-charcoal dark:text-gray-100">{a.normalized_value ?? a.raw_value}</td>
+                        <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{a.source}</td>
+                        <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{a.is_sensitive ? t('sensitiveYes') : t('sensitiveNo')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+      </MountReveal>
 
-      <InvitationControls applicationId={applicationId} invitation={invitation ?? null} applicantId={application.applicant_id} />
+      <MountReveal delayMs={160}>
+        <InvitationControls applicationId={applicationId} invitation={invitation ?? null} applicantId={application.applicant_id} />
+      </MountReveal>
 
-      <ClassificationControls
-        applicationId={applicationId}
-        currentParticipantType={application.participant_type}
-        applicationStatus={application.status}
-        hasActiveQrCredential={!!activeCredential}
-      />
+      <MountReveal delayMs={220}>
+        <ClassificationControls
+          applicationId={applicationId}
+          currentParticipantType={application.participant_type}
+          applicationStatus={application.status}
+          hasActiveQrCredential={!!activeCredential}
+        />
+      </MountReveal>
 
       {isApplicationMinor(application) && (
-        <GuardianControls
-          applicationId={application.id}
-          guardianName={application.guardian_name}
-          guardianPhone={application.guardian_phone}
-        />
+        <MountReveal delayMs={280}>
+          <GuardianControls
+            applicationId={application.id}
+            guardianName={application.guardian_name}
+            guardianPhone={application.guardian_phone}
+          />
+        </MountReveal>
       )}
 
       {canSeeSensitive && (
-        <GeneralInfoControls
-          applicationId={applicationId}
-          initialValues={{
-            full_name: application.full_name,
-            phone: application.phone,
-            whatsapp_number: application.whatsapp_number,
-            country: application.country,
-            nationality: application.nationality,
-            city: application.city,
-            gender: application.gender,
-            birth_date: application.birth_date,
-            age_group: application.age_group,
-            education_level: application.education_level,
-            institution_or_workplace: application.institution_or_workplace,
-            field_of_work: application.field_of_work,
-            organization: application.organization,
-            preferred_language: application.preferred_language,
-            linkedin_url: application.linkedin_url,
-            primary_track: application.primary_track,
-            secondary_track: application.secondary_track,
-            topics_to_learn: application.topics_to_learn,
-            content_type_pref: application.content_type_pref,
-            experience_level: application.experience_level,
-            climate_experience: application.climate_experience,
-            past_initiatives: application.past_initiatives,
-            participation_goals: application.participation_goals,
-            priority_sessions: application.priority_sessions,
-            special_needs: application.special_needs,
-            interests: application.interests,
-            track_interests: application.track_interests,
-            session_languages: application.session_languages,
-            track_1_focus_areas: application.track_1_focus_areas,
-            track_2_focus_areas: application.track_2_focus_areas,
-            track_3_focus_areas: application.track_3_focus_areas,
-          }}
-        />
+        <MountReveal delayMs={340}>
+          <GeneralInfoControls
+            applicationId={applicationId}
+            initialValues={{
+              full_name: application.full_name,
+              phone: application.phone,
+              whatsapp_number: application.whatsapp_number,
+              country: application.country,
+              nationality: application.nationality,
+              city: application.city,
+              gender: application.gender,
+              birth_date: application.birth_date,
+              age_group: application.age_group,
+              education_level: application.education_level,
+              institution_or_workplace: application.institution_or_workplace,
+              field_of_work: application.field_of_work,
+              organization: application.organization,
+              preferred_language: application.preferred_language,
+              linkedin_url: application.linkedin_url,
+              primary_track: application.primary_track,
+              secondary_track: application.secondary_track,
+              topics_to_learn: application.topics_to_learn,
+              content_type_pref: application.content_type_pref,
+              experience_level: application.experience_level,
+              climate_experience: application.climate_experience,
+              past_initiatives: application.past_initiatives,
+              participation_goals: application.participation_goals,
+              priority_sessions: application.priority_sessions,
+              special_needs: application.special_needs,
+              interests: application.interests,
+              track_interests: application.track_interests,
+              session_languages: application.session_languages,
+              track_1_focus_areas: application.track_1_focus_areas,
+              track_2_focus_areas: application.track_2_focus_areas,
+              track_3_focus_areas: application.track_3_focus_areas,
+            }}
+          />
+        </MountReveal>
       )}
     </div>
   );

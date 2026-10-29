@@ -2,6 +2,7 @@ import { getLocale } from 'next-intl/server';
 import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { TravelForm } from './travel-form';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function MyTravelPage() {
   const locale = await getLocale();
@@ -39,7 +40,9 @@ export default async function MyTravelPage() {
         </p>
       </div>
 
-      <TravelForm initialLegs={legs ?? []} />
+      <MountReveal delayMs={0}>
+        <TravelForm initialLegs={legs ?? []} />
+      </MountReveal>
     </div>
   );
 }

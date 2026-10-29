@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { calculateAge } from '@/lib/participants/age';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 const PAGE_SIZE = 50;
 
@@ -154,8 +155,13 @@ export default async function ApplicationsListPage({
       {!applications || applications.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       ) : (
-        <>
-          {/* Mobile: card-per-application list. Desktop (md+): table.
+        <MountReveal delayMs={0}>
+          {/* Wrapped as ONE reveal block, not per-row staggered — up to
+              PAGE_SIZE (50) rows, so a per-row cascade would take far too
+              long to finish; see applications/[id]/page.tsx and the
+              dashboards for where per-item stagger IS used (short, fixed-
+              size lists only).
+              Mobile: card-per-application list. Desktop (md+): table.
               Both trees render the same `applications` data and must be kept
               in sync — any column/field added to one must be added to the
               other. */}
@@ -232,7 +238,7 @@ export default async function ApplicationsListPage({
             </table>
           </div>
           <p className="mt-4 text-sm text-charcoal/70 dark:text-gray-400">{t('pageOf', { page, totalPages })}</p>
-        </>
+        </MountReveal>
       )}
     </div>
   );

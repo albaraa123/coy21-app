@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 const PAGE_SIZE = 50;
 
@@ -205,8 +206,10 @@ export default async function SessionsListPage({
       {!sessions || sessions.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       ) : (
-        <>
-          {/* Mobile: card-per-session list. Desktop (md+): table. Both trees
+        <MountReveal delayMs={0}>
+          {/* Wrapped as ONE reveal block, not per-row staggered — up to
+              PAGE_SIZE (50) rows, same reasoning as applications/page.tsx.
+              Mobile: card-per-session list. Desktop (md+): table. Both trees
               render the same `sessions` data and must be kept in sync — any
               column added to one must be added to the other. */}
           <div className="flex flex-col gap-2 md:hidden">
@@ -290,7 +293,7 @@ export default async function SessionsListPage({
               </Link>
             )}
           </div>
-        </>
+        </MountReveal>
       )}
     </div>
   );

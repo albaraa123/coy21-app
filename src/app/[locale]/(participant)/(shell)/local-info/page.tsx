@@ -6,6 +6,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { linkifyContactValue } from '@/lib/content/linkify-contact-value';
 import { MapEmbed } from './map-embed';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function LocalInfoPage() {
   const locale = await getLocale();
@@ -58,75 +59,83 @@ export default async function LocalInfoPage() {
         </p>
       </div>
 
-      <MapEmbed />
+      <MountReveal delayMs={0}>
+        <MapEmbed />
+      </MountReveal>
 
       {/* General images (not tied to a section) */}
       {generalImages.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {generalImages.map((img) => img && (
-              <div key={img.id} className="flex flex-col gap-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.storage_url} alt={img.caption ?? ''} className="w-full rounded-lg object-cover aspect-video" />
-                {img.caption && <p className="text-xs text-charcoal/50 dark:text-gray-500">{img.caption}</p>}
-              </div>
-            ))}
+        <MountReveal delayMs={60}>
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {generalImages.map((img) => img && (
+                <div key={img.id} className="flex flex-col gap-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.storage_url} alt={img.caption ?? ''} className="w-full rounded-lg object-cover aspect-video" />
+                  {img.caption && <p className="text-xs text-charcoal/50 dark:text-gray-500">{img.caption}</p>}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        </MountReveal>
       )}
 
       {/* Sections */}
       {sections && sections.length > 0 ? (
-        <div className="flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">Quick Reference</h2>
-          {sections.map((section) => {
-            const sectionImages = imagesBySection[section.id] ?? [];
-            const items = [...(section.local_info_items ?? [])].sort((a, b) => a.sort_order - b.sort_order);
-            return (
-              <Card key={section.id} className="flex flex-col gap-3 py-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
-                  {section.title}
-                </h3>
-                {items.length > 0 && (
-                  <dl className="flex flex-col gap-2">
-                    {items.map((item) => (
-                      <div key={item.id} className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
-                        <dt className="w-44 shrink-0 text-sm font-medium text-charcoal dark:text-gray-200">{item.label}</dt>
-                        <dd className="text-sm text-charcoal/70 dark:text-gray-400">
-                          {linkifyContactValue(item.value).map((seg, i) =>
-                            seg.type === 'link' ? (
-                              <a key={i} href={seg.href} className="text-turquoise hover:underline">{seg.value}</a>
-                            ) : (
-                              <span key={i}>{seg.value}</span>
-                            )
-                          )}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                )}
-                {sectionImages.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {sectionImages.map((img) => img && (
-                      <div key={img.id} className="flex flex-col gap-1">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img.storage_url} alt={img.caption ?? ''} className="w-full rounded-lg object-cover aspect-video" />
-                        {img.caption && <p className="text-xs text-charcoal/50 dark:text-gray-500">{img.caption}</p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-          <p className="text-xs text-charcoal/30 dark:text-gray-600">
-            Information is provisional and will be updated before the event.
-          </p>
-        </div>
+        <MountReveal delayMs={120}>
+          <div className="flex flex-col gap-4">
+            <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">Quick Reference</h2>
+            {sections.map((section) => {
+              const sectionImages = imagesBySection[section.id] ?? [];
+              const items = [...(section.local_info_items ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+              return (
+                <Card key={section.id} className="flex flex-col gap-3 py-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-charcoal/50 dark:text-gray-500">
+                    {section.title}
+                  </h3>
+                  {items.length > 0 && (
+                    <dl className="flex flex-col gap-2">
+                      {items.map((item) => (
+                        <div key={item.id} className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
+                          <dt className="w-44 shrink-0 text-sm font-medium text-charcoal dark:text-gray-200">{item.label}</dt>
+                          <dd className="text-sm text-charcoal/70 dark:text-gray-400">
+                            {linkifyContactValue(item.value).map((seg, i) =>
+                              seg.type === 'link' ? (
+                                <a key={i} href={seg.href} className="text-turquoise hover:underline">{seg.value}</a>
+                              ) : (
+                                <span key={i}>{seg.value}</span>
+                              )
+                            )}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {sectionImages.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {sectionImages.map((img) => img && (
+                        <div key={img.id} className="flex flex-col gap-1">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.storage_url} alt={img.caption ?? ''} className="w-full rounded-lg object-cover aspect-video" />
+                          {img.caption && <p className="text-xs text-charcoal/50 dark:text-gray-500">{img.caption}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+            <p className="text-xs text-charcoal/30 dark:text-gray-600">
+              Information is provisional and will be updated before the event.
+            </p>
+          </div>
+        </MountReveal>
       ) : (
-        <Card>
-          <p className="text-sm text-charcoal/60 dark:text-gray-400">Local info will be published before the event.</p>
-        </Card>
+        <MountReveal delayMs={60}>
+          <Card>
+            <p className="text-sm text-charcoal/60 dark:text-gray-400">Local info will be published before the event.</p>
+          </Card>
+        </MountReveal>
       )}
     </div>
   );

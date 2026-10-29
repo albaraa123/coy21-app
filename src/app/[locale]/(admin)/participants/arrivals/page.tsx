@@ -10,6 +10,7 @@ import { notFound } from 'next/navigation';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function ArrivalsPage() {
   const locale = await getLocale();
@@ -73,46 +74,48 @@ export default async function ArrivalsPage() {
           No flight data submitted yet.
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-charcoal/10 dark:border-white/10">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-charcoal/10 bg-charcoal/5 dark:border-white/10 dark:bg-white/5">
-                <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Participant</th>
-                <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Code</th>
-                <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Type</th>
-                <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Flight</th>
-                <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Route</th>
-                <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Arrival</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-charcoal/5 dark:divide-white/5">
-              {legs.map((leg) => {
-                const app = Array.isArray(leg.applications) ? leg.applications[0] : leg.applications;
-                const name = app?.full_name || app?.imported_email || '—';
-                return (
-                  <tr key={leg.id} className="hover:bg-charcoal/5 dark:hover:bg-white/5">
-                    <td className="px-4 py-3 text-charcoal dark:text-gray-100">{name}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-charcoal/60 dark:text-gray-400">
-                      {app?.application_number ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-charcoal/70 dark:text-gray-400">
-                      {LEG_LABELS[leg.leg_type] ?? leg.leg_type}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-charcoal dark:text-gray-100">
-                      {leg.flight_number ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-charcoal/70 dark:text-gray-400">
-                      {leg.departure_airport ?? '?'} → {leg.arrival_airport ?? '?'}
-                    </td>
-                    <td className="px-4 py-3 text-charcoal dark:text-gray-100">
-                      {fmt(leg.arrival_datetime)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <MountReveal delayMs={0}>
+          <div className="overflow-x-auto rounded-lg border border-charcoal/10 dark:border-white/10">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-charcoal/10 bg-charcoal/5 dark:border-white/10 dark:bg-white/5">
+                  <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Participant</th>
+                  <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Code</th>
+                  <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Type</th>
+                  <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Flight</th>
+                  <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Route</th>
+                  <th className="px-4 py-3 text-left font-medium text-charcoal/70 dark:text-gray-400">Arrival</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-charcoal/5 dark:divide-white/5">
+                {legs.map((leg) => {
+                  const app = Array.isArray(leg.applications) ? leg.applications[0] : leg.applications;
+                  const name = app?.full_name || app?.imported_email || '—';
+                  return (
+                    <tr key={leg.id} className="hover:bg-charcoal/5 dark:hover:bg-white/5">
+                      <td className="px-4 py-3 text-charcoal dark:text-gray-100">{name}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-charcoal/60 dark:text-gray-400">
+                        {app?.application_number ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-charcoal/70 dark:text-gray-400">
+                        {LEG_LABELS[leg.leg_type] ?? leg.leg_type}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-charcoal dark:text-gray-100">
+                        {leg.flight_number ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-charcoal/70 dark:text-gray-400">
+                        {leg.departure_airport ?? '?'} → {leg.arrival_airport ?? '?'}
+                      </td>
+                      <td className="px-4 py-3 text-charcoal dark:text-gray-100">
+                        {fmt(leg.arrival_datetime)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </MountReveal>
       )}
     </div>
   );

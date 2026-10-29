@@ -7,6 +7,7 @@ import { STAFF_ROLES, isStaffRole } from '@/lib/auth/is-staff-role';
 import { isSelfRegistrationEnabled } from '@/lib/feature-flags';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { MountReveal } from '@/components/motion/mount-reveal';
 import ReviewControls from './review-controls';
 
 const STATUS_BADGE_VARIANT: Record<string, 'mandatory' | 'elective' | 'cancelled' | 'changed' | 'pending' | 'neutral'> = {
@@ -121,36 +122,40 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         </p>
       </div>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('applicantTitle')}</h2>
-        <Card className="p-0">
-          <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
-            {[
-              [t('name'), application.profiles?.full_name ?? ''],
-              [t('email'), application.profiles?.email ?? ''],
-            ].map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
-                <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
-                <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-      </section>
+      <MountReveal delayMs={0}>
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('applicantTitle')}</h2>
+          <Card className="p-0">
+            <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
+              {[
+                [t('name'), application.profiles?.full_name ?? ''],
+                [t('email'), application.profiles?.email ?? ''],
+              ].map(([label, value]) => (
+                <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
+                  <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
+                  <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        </section>
+      </MountReveal>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('personalTitle')}</h2>
-        <Card className="p-0">
-          <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
-            {personalFields.map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
-                <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
-                <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-      </section>
+      <MountReveal delayMs={80}>
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('personalTitle')}</h2>
+          <Card className="p-0">
+            <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
+              {personalFields.map(([label, value]) => (
+                <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
+                  <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
+                  <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        </section>
+      </MountReveal>
 
       {/* Conference information section (interests, climate experience,
           etc.) is temporarily hidden per explicit decision — only the
@@ -158,29 +163,33 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
           form will determine what, if anything, replaces this. The
           underlying data/columns are untouched. */}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('submissionTitle')}</h2>
-        <Card className="p-0">
-          <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
-            {submissionFields.map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
-                <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
-                <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-      </section>
+      <MountReveal delayMs={160}>
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('submissionTitle')}</h2>
+          <Card className="p-0">
+            <dl className="divide-y divide-charcoal/10 dark:divide-gray-700">
+              {submissionFields.map(([label, value]) => (
+                <div key={label} className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-4">
+                  <dt className="shrink-0 text-xs font-medium text-charcoal/60 dark:text-gray-400 sm:w-48">{label}</dt>
+                  <dd className="text-sm text-charcoal dark:text-gray-100">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        </section>
+      </MountReveal>
 
-      <ReviewControls
-        applicationId={application.id}
-        currentStatus={application.status}
-        validNextStatuses={validNextStatuses}
-        assignedReviewerId={application.assigned_reviewer_id}
-        reviewers={reviewers ?? []}
-        notes={notes ?? []}
-        locale={locale}
-      />
+      <MountReveal delayMs={240}>
+        <ReviewControls
+          applicationId={application.id}
+          currentStatus={application.status}
+          validNextStatuses={validNextStatuses}
+          assignedReviewerId={application.assigned_reviewer_id}
+          reviewers={reviewers ?? []}
+          notes={notes ?? []}
+          locale={locale}
+        />
+      </MountReveal>
     </div>
   );
 }

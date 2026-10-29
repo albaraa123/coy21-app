@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { EmergencyContactsForm, AccommodationForm, IdentityForm } from './profile-forms';
 import { isApplicationMinor } from '@/lib/participants/minor';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function MyProfilePage() {
   const locale = await getLocale();
@@ -75,77 +76,85 @@ export default async function MyProfilePage() {
       </div>
 
       {/* Identity */}
-      <Card className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">
-            Identity
-          </h2>
-          <p className="mt-0.5 text-sm text-charcoal/60 dark:text-gray-400">
-            Your name, contact details, and profile picture.
-          </p>
-        </div>
-        <IdentityForm
-          initial={identity ?? { full_name: '', email: user.email ?? '', phone: null, avatar_path: null }}
-          initialAvatarUrl={avatarUrl}
-        />
-      </Card>
+      <MountReveal delayMs={0}>
+        <Card className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">
+              Identity
+            </h2>
+            <p className="mt-0.5 text-sm text-charcoal/60 dark:text-gray-400">
+              Your name, contact details, and profile picture.
+            </p>
+          </div>
+          <IdentityForm
+            initial={identity ?? { full_name: '', email: user.email ?? '', phone: null, avatar_path: null }}
+            initialAvatarUrl={avatarUrl}
+          />
+        </Card>
+      </MountReveal>
 
       {/* Guardian / Companion (read-only, minors only) */}
       {isApplicationMinor(application) && (application.guardian_name || application.guardian_phone) && (
-        <Card className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">{t('title')}</h2>
-          {application.guardian_name && (
-            <p className="text-sm">
-              <span className="text-charcoal/60 dark:text-gray-400">{t('name')}: </span>
-              {application.guardian_name}
-            </p>
-          )}
-          {application.guardian_phone && (
-            <p className="text-sm">
-              <span className="text-charcoal/60 dark:text-gray-400">{t('phone')}: </span>
-              {application.guardian_phone}
-            </p>
-          )}
-        </Card>
+        <MountReveal delayMs={80}>
+          <Card className="flex flex-col gap-2">
+            <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">{t('title')}</h2>
+            {application.guardian_name && (
+              <p className="text-sm">
+                <span className="text-charcoal/60 dark:text-gray-400">{t('name')}: </span>
+                {application.guardian_name}
+              </p>
+            )}
+            {application.guardian_phone && (
+              <p className="text-sm">
+                <span className="text-charcoal/60 dark:text-gray-400">{t('phone')}: </span>
+                {application.guardian_phone}
+              </p>
+            )}
+          </Card>
+        </MountReveal>
       )}
 
       {/* Emergency Contacts */}
-      <Card className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">
-            Emergency Contacts
-          </h2>
-          <p className="mt-0.5 text-sm text-charcoal/60 dark:text-gray-400">
-            At least one contact is recommended. This information is only shared with the COY21 organising team.
-          </p>
-        </div>
-        <EmergencyContactsForm
-          applicationId={application.id}
-          initial={(contacts ?? []).map((c) => ({
-            id: c.id,
-            name: c.name,
-            relationship: c.relationship,
-            phone: c.phone,
-            email: c.email,
-          }))}
-        />
-      </Card>
+      <MountReveal delayMs={160}>
+        <Card className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">
+              Emergency Contacts
+            </h2>
+            <p className="mt-0.5 text-sm text-charcoal/60 dark:text-gray-400">
+              At least one contact is recommended. This information is only shared with the COY21 organising team.
+            </p>
+          </div>
+          <EmergencyContactsForm
+            applicationId={application.id}
+            initial={(contacts ?? []).map((c) => ({
+              id: c.id,
+              name: c.name,
+              relationship: c.relationship,
+              phone: c.phone,
+              email: c.email,
+            }))}
+          />
+        </Card>
+      </MountReveal>
 
       {/* Accommodation */}
-      <Card className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">
-            Accommodation
-          </h2>
-          <p className="mt-0.5 text-sm text-charcoal/60 dark:text-gray-400">
-            Enter your hotel details so the logistics team can coordinate if needed.
-          </p>
-        </div>
-        <AccommodationForm
-          applicationId={application.id}
-          initial={accommodation ?? null}
-        />
-      </Card>
+      <MountReveal delayMs={240}>
+        <Card className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-charcoal dark:text-gray-100">
+              Accommodation
+            </h2>
+            <p className="mt-0.5 text-sm text-charcoal/60 dark:text-gray-400">
+              Enter your hotel details so the logistics team can coordinate if needed.
+            </p>
+          </div>
+          <AccommodationForm
+            applicationId={application.id}
+            initial={accommodation ?? null}
+          />
+        </Card>
+      </MountReveal>
 
       <p className="text-xs text-charcoal/30 dark:text-gray-600">
         This information is stored securely and accessible only to authorised COY21 staff.

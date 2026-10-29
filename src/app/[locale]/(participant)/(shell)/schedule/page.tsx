@@ -5,6 +5,7 @@ import { getMyAttendanceForApplication } from '@/lib/dashboard/participant-dashb
 import { getAlternativesForTimeslotForCaller } from '@/lib/program-attendance/session-alternatives';
 import { DayTimeline } from '@/components/schedule/day-timeline';
 import type { ScheduleItemForCard } from '@/components/schedule/session-card';
+import { MountReveal } from '@/components/motion/mount-reveal';
 
 export default async function SchedulePage() {
   const locale = await getLocale();
@@ -116,7 +117,9 @@ export default async function SchedulePage() {
         <h1 className="text-xl font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
         <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">{t('personalizationNotice')}</p>
       </div>
-      <DayTimeline items={items} locale={locale} />
+      <MountReveal delayMs={0}>
+        <DayTimeline items={items} locale={locale} />
+      </MountReveal>
     </div>
   );
 }
