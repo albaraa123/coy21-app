@@ -3,11 +3,8 @@ import Link from 'next/link';
 import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
-import { BookButton, WaitlistButton } from '../booking-button';
 import { MountReveal } from '@/components/motion/mount-reveal';
-import { AgendaTimeGrid } from '@/components/schedule/agenda-time-grid';
-import { AgendaTimeGridZoom } from '@/components/schedule/agenda-time-grid-zoom';
-import { DayTabs } from './day-tabs';
+import { BrowseGridClient, type BrowseDayData } from './browse-grid-client';
 
 export default async function BrowseSessionsPage() {
   const locale = await getLocale();
@@ -130,90 +127,73 @@ export default async function BrowseSessionsPage() {
           </Card>
         </MountReveal>
       ) : (
-        <DayTabs days={byDay} locale={locale}>
-          {(day) => (
-            <AgendaTimeGridZoom
-              defaultMinuteHeightPx={1.6}
+        (() => {
+          // All per-session booking-state booleans (isPastDeadline, isFull,
+          // alreadyBooked, showWaitlistButton, isWaitlisted) are precomputed
+          // HERE, server-side, into plain data -- see browse-grid-client.tsx's
+          // own header comment for why: a function/JSX value built here can
+          // never be passed as a prop into BrowseGridClient ('use client'),
+          // only plain, JSON-serializable data can. This fixes a real
+          // production bug (the equivalent one already found and fixed on
+          // the admin Sessions page) that was present but never yet
+          // exercised here, since all real sessions are currently
+          // status='draft' and this page only shows published/confirmed
+          // ones -- byDay was always empty in production so far.
+          const dayData: BrowseDayData[] = byDay.map((day) => ({
+            date: day.date,
+            labelEn: day.labelEn,
+            labelAr: day.labelAr,
+            rooms: distinctRoomsForGrid(day.sessions, locale),
+            sessions: day.sessions.map((s) => {
+              const perSessionDeadline = s.booking_deadline
+                ? new Date(s.booking_deadline)
+                : new Date(new Date(s.start_time).getTime() - 3 * 60 * 60 * 1000);
+              const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
+              const isPastDeadline = now > deadline;
+              const bookedCount = countMap.get(s.id) ?? 0;
+              const isFull = bookedCount >= s.capacity;
+              const alreadyBooked = myBookedIds.has(s.id);
+              const isWaitlisted = myWaitlistedIds.has(s.id);
+              const waitlistEnabled = s.session_types?.enable_waitlist ?? false;
+              // Deadline only gates *joining*: join_waitlist rejects a
+              // past-deadline join server-side, so without this guard a
+              // full+waitlist-enabled session past its deadline would show
+              // an active "Join waitlist" button guaranteed to fail on
+              // click -- falling through to BookButton instead correctly
+              // shows its existing "Closed" state. But leave_waitlist has
+              // NO deadline check (withdrawing is always allowed), so an
+              // already-waitlisted participant must still see their "Leave
+              // waitlist" control even past the deadline -- hence the
+              // isWaitlisted escape hatch here.
+              const showWaitlistButton = isFull && waitlistEnabled && (isWaitlisted || !isPastDeadline);
+
+              return {
+                id: s.id,
+                roomId: s.room_id,
+                blockColor: s.tracks?.color ?? '#6b7280',
+                startTime: s.start_time,
+                endTime: s.end_time,
+                title: locale === 'ar' ? s.title_ar : s.title_en,
+                alreadyBooked,
+                showWaitlistButton,
+                isWaitlisted,
+                isFull,
+                isPastDeadline,
+              };
+            }),
+          }));
+
+          return (
+            <BrowseGridClient
+              days={dayData}
+              locale={locale}
+              emptyDayLabel="No sessions this day yet."
+              otherColumnLabel={locale === 'ar' ? 'أخرى' : 'Other'}
               zoomOutLabel={locale === 'ar' ? 'تصغير' : 'Zoom out'}
               zoomInLabel={locale === 'ar' ? 'تكبير' : 'Zoom in'}
-            >
-              {(minuteHeightPx) => (
-                <AgendaTimeGrid
-                  minuteHeightPx={minuteHeightPx}
-                  columns={distinctRoomsForGrid(day.sessions, locale)}
-                  otherColumnLabel={locale === 'ar' ? 'أخرى' : 'Other'}
-                  sessions={day.sessions.map((s) => ({
-                    id: s.id,
-                    trackId: s.room_id,
-                    blockColor: s.tracks?.color ?? '#6b7280',
-                    startTime: s.start_time,
-                    endTime: s.end_time,
-                    booking_deadline: s.booking_deadline,
-                    capacity: s.capacity,
-                    title_en: s.title_en,
-                    title_ar: s.title_ar,
-                    session_types: s.session_types,
-                  }))}
-                  emptyState={
-                    <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
-                      No sessions this day yet.
-                    </Card>
-                  }
-                  renderBlock={(s) => {
-                    const perSessionDeadline = s.booking_deadline
-                      ? new Date(s.booking_deadline)
-                      : new Date(new Date(s.startTime).getTime() - 3 * 60 * 60 * 1000);
-                    const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
-                    const isPastDeadline = now > deadline;
-                    const bookedCount = countMap.get(s.id) ?? 0;
-                    const isFull = bookedCount >= s.capacity;
-                    const alreadyBooked = myBookedIds.has(s.id);
-                    const waitlistEnabled = s.session_types?.enable_waitlist ?? false;
-                    const title = locale === 'ar' ? s.title_ar : s.title_en;
-
-                    return (
-                      <div className="flex h-full flex-col gap-0.5 overflow-hidden p-1.5 text-white">
-                        <span className="truncate text-xs font-semibold">{title}</span>
-                        <div className="mt-auto">
-                          {alreadyBooked ? (
-                            <span className="text-[10px] font-medium">✓ Booked</span>
-                          ) : isFull && waitlistEnabled && (myWaitlistedIds.has(s.id) || !isPastDeadline) ? (
-                            // Deadline only gates *joining*: join_waitlist rejects a
-                            // past-deadline join server-side, so without this guard a
-                            // full+waitlist-enabled session past its deadline would
-                            // show an active "Join waitlist" button guaranteed to
-                            // fail on click -- falling through to BookButton below
-                            // correctly renders its existing "Closed" state instead.
-                            // But leave_waitlist has NO deadline check (withdrawing
-                            // is always allowed), so an already-waitlisted
-                            // participant must still see their "Leave waitlist"
-                            // control even past the deadline -- hence the
-                            // myWaitlistedIds.has(s.id) escape hatch here.
-                            //
-                            // `compact` here renders a small underlined-text
-                            // control instead of the full <Button size="sm">
-                            // (px-3/py-1.5, 32px+ tall) -- see booking-button.tsx's
-                            // `compact` doc. The grid block this lives inside can
-                            // be as short as ~20px (a 15-minute slot), too short
-                            // for the roomy card-era button.
-                            <WaitlistButton
-                              sessionId={s.id}
-                              isWaitlisted={myWaitlistedIds.has(s.id)}
-                              isPastDeadline={isPastDeadline}
-                              compact
-                            />
-                          ) : (
-                            <BookButton sessionId={s.id} isFull={isFull} isPastDeadline={isPastDeadline} compact />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-              )}
-            </AgendaTimeGridZoom>
-          )}
-        </DayTabs>
+            />
+          );
+        })()
       )}
     </div>
   );

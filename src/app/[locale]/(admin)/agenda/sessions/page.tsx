@@ -4,12 +4,11 @@ import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { SESSION_STATUSES } from '@/lib/validation/agenda';
-import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { MountReveal } from '@/components/motion/mount-reveal';
-import { AgendaTimeGrid } from '@/components/schedule/agenda-time-grid';
-import { AgendaTimeGridZoom } from '@/components/schedule/agenda-time-grid-zoom';
+import { SessionsGridClient, type DayGroupData } from './sessions-grid-client';
+import type { BadgeVariant } from '@/components/ui/badge';
 
 const PAGE_SIZE = 50;
 
@@ -34,7 +33,7 @@ function groupSessionsByDay<T extends { conference_day_id: string; conference_da
   return [...map.values()];
 }
 
-const STATUS_BADGE_VARIANT: Record<string, 'mandatory' | 'elective' | 'cancelled' | 'changed' | 'pending' | 'neutral'> = {
+const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
   draft: 'neutral',
   published: 'pending',
   confirmed: 'changed',
@@ -216,71 +215,46 @@ export default async function SessionsListPage({
         <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       ) : (
         <MountReveal delayMs={0}>
-          {/* One AgendaTimeGrid per calendar day present in the (filtered)
-              result set, grouped by the real conference_day_id rather than
-              a single date-blind grid -- see groupSessionsByDay above. In
-              the common case (no `day` filter, or all current real data on
-              a single day) this collapses to exactly one grid, same as
-              before. The day heading is only shown when more than one day
-              is present, so the single-day case stays visually unchanged.
-              Columns are ROOMS (not tracks) per 2026-11-01 user feedback --
-              each block is still colored by its own session's track via
-              blockColor, so the color-by-track signal from the original
-              design is preserved, just moved off the column header and
-              onto each individual block (a room can host several
-              different-colored tracks across the day). Shared across all
-              day-groups: a single AgendaTimeGridZoom wraps the whole set
-              so the zoom level applies uniformly, not per-day. */}
+          {/* All data for the grid (status labels/variants, room/column
+              lists, day grouping) is fully resolved here, server-side,
+              into plain JSON-serializable objects (DayGroupData[]) BEFORE
+              handing off to SessionsGridClient ('use client', owns the
+              zoom state). This is a deliberate fix for a real production
+              bug: an earlier version passed a function (a render-prop)
+              from this Server Component into a 'use client' zoom wrapper,
+              which is not legal RSC composition and broke in production
+              despite passing local typecheck -- see sessions-grid-
+              client.tsx's own header comment for the full story. Never
+              pass a function value into a 'use client' component's props
+              from here; only plain data. */}
           {(() => {
             const dayGroups = groupSessionsByDay(sessions, t('unscheduled'));
+            const dayGroupData: DayGroupData[] = dayGroups.map((dayGroup) => ({
+              dayId: dayGroup.dayId,
+              label: dayGroup.label,
+              rooms: (rooms ?? [])
+                .filter((r) => dayGroup.sessions.some((s) => s.room_id === r.id))
+                .map((r) => ({ id: r.id, name: r.name_en })),
+              sessions: dayGroup.sessions.map((s) => ({
+                id: s.id,
+                roomId: s.room_id,
+                blockColor: s.track?.color ?? '#6b7280',
+                startTime: s.start_time,
+                endTime: s.end_time,
+                sessionCode: s.session_code,
+                titleEn: s.title_en,
+                statusLabel: t(`statusValues.${s.status}`),
+                statusVariant: STATUS_BADGE_VARIANT[s.status] ?? 'neutral',
+              })),
+            }));
             return (
-              <AgendaTimeGridZoom defaultMinuteHeightPx={1.6} zoomOutLabel={t('zoomOut')} zoomInLabel={t('zoomIn')}>
-                {(minuteHeightPx) => (
-                  <div className="flex flex-col gap-8">
-                    {dayGroups.map((dayGroup) => (
-                      <div key={dayGroup.dayId} className="flex flex-col gap-2">
-                        {dayGroups.length > 1 && (
-                          <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">
-                            {dayGroup.label}
-                          </h2>
-                        )}
-                        <AgendaTimeGrid
-                          minuteHeightPx={minuteHeightPx}
-                          columns={(rooms ?? [])
-                            .filter((r) => dayGroup.sessions.some((s) => s.room_id === r.id))
-                            .map((r) => ({ id: r.id, name: r.name_en }))}
-                          sessions={dayGroup.sessions.map((s) => ({
-                            id: s.id,
-                            trackId: s.room_id,
-                            blockColor: s.track?.color ?? '#6b7280',
-                            startTime: s.start_time,
-                            endTime: s.end_time,
-                            session_code: s.session_code,
-                            title_en: s.title_en,
-                            status: s.status,
-                            room: s.room,
-                          }))}
-                          otherColumnLabel={t('otherTrack')}
-                          renderBlock={(session) => (
-                            <Link
-                              href={`/agenda/sessions/${session.id}`}
-                              className="flex h-full flex-col gap-0.5 p-1.5 text-start text-white hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                            >
-                              <span className="flex items-center justify-between gap-1">
-                                <span className="truncate text-xs font-semibold">{session.session_code}</span>
-                                <Badge variant={STATUS_BADGE_VARIANT[session.status] ?? 'neutral'}>
-                                  {t(`statusValues.${session.status}`)}
-                                </Badge>
-                              </span>
-                              <span className="truncate text-xs">{session.title_en}</span>
-                            </Link>
-                          )}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </AgendaTimeGridZoom>
+              <SessionsGridClient
+                dayGroups={dayGroupData}
+                showDayHeading={dayGroups.length > 1}
+                otherColumnLabel={t('otherTrack')}
+                zoomOutLabel={t('zoomOut')}
+                zoomInLabel={t('zoomIn')}
+              />
             );
           })()}
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-charcoal/70 dark:text-gray-400">

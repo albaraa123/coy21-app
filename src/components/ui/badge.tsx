@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'sessionCancelled' | 'waitlisted' | 'changed' | 'pending' | 'neutral' | 'noShow';
+export type BadgeVariant = 'mandatory' | 'elective' | 'cancelled' | 'sessionCancelled' | 'waitlisted' | 'changed' | 'pending' | 'neutral' | 'noShow';
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   // Solid gold fill: required/urgent.
