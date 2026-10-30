@@ -1165,6 +1165,7 @@
       "emptyTitle": "No sessions found",
       "emptyDescription": "No sessions match the current filters.",
       "otherTrack": "Other",
+      "unscheduled": "Unscheduled",
       "filters": {
         "day": "Day",
         "track": "Track",

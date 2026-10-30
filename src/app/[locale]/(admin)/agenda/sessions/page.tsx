@@ -20,12 +20,13 @@ const PAGE_SIZE = 50;
 // entirely: no timezone math needed to know which day a session belongs to,
 // the database already knows.
 function groupSessionsByDay<T extends { conference_day_id: string; conference_day: { label_en: string } | null }>(
-  sessions: T[]
+  sessions: T[],
+  unscheduledLabel: string
 ): { dayId: string; label: string; sessions: T[] }[] {
   const map = new Map<string, { dayId: string; label: string; sessions: T[] }>();
   for (const s of sessions) {
     if (!map.has(s.conference_day_id)) {
-      map.set(s.conference_day_id, { dayId: s.conference_day_id, label: s.conference_day?.label_en ?? 'Unscheduled', sessions: [] });
+      map.set(s.conference_day_id, { dayId: s.conference_day_id, label: s.conference_day?.label_en ?? unscheduledLabel, sessions: [] });
     }
     map.get(s.conference_day_id)!.sessions.push(s);
   }
@@ -222,7 +223,7 @@ export default async function SessionsListPage({
               before. The day heading is only shown when more than one day
               is present, so the single-day case stays visually unchanged. */}
           {(() => {
-            const dayGroups = groupSessionsByDay(sessions);
+            const dayGroups = groupSessionsByDay(sessions, t('unscheduled'));
             return (
               <div className="flex flex-col gap-8">
                 {dayGroups.map((dayGroup) => (

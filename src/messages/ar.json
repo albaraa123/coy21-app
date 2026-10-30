@@ -1165,6 +1165,7 @@
       "emptyTitle": "لا توجد جلسات",
       "emptyDescription": "لا توجد جلسات مطابقة لعوامل التصفية الحالية.",
       "otherTrack": "أخرى",
+      "unscheduled": "غير مُجدولة",
       "filters": {
         "day": "اليوم",
         "track": "المسار",
