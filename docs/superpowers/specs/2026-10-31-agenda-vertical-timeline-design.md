@@ -1,7 +1,10 @@
 # Agenda Vertical Timeline View — Design Spec
 
 **Date:** 2026-10-31
-**Status:** Approved by user, ready for implementation planning.
+**Status:** Approved by user. Revised after spec-review round 1 (fixed:
+RTL hour-label bug, admin day-tabs data-flow ambiguity, localStorage
+hydration-safety + key-naming convention, timeline-layout.ts single-day
+precondition, readable-text-color.ts reuse scope). Ready for re-review.
 
 ## Problem
 
@@ -27,18 +30,48 @@ needed for the speaker/guest search field.
 
 A small segmented control (Grid / Timeline) placed where each page's zoom
 controls currently sit. `'use client'`, owns a `useState` for the active
-view, persisted to `localStorage` (key scoped per page, e.g.
-`coy21:agenda-view:admin-sessions` / `coy21:agenda-view:browse-sessions`) so
-a user's choice sticks across visits. Purely a client-side preference — not
-synced server-side, not shared between users.
+view, persisted to `localStorage` under keys `coy21-admin-sessions-view-v1`
+/ `coy21-browse-sessions-view-v1` (hyphenated, versioned — matching the
+existing convention in `sidebar-nav-storage.ts`'s `STORAGE_KEY_ADMIN`
+/`STORAGE_KEY_PARTICIPANT`, not the colon-delimited style used nowhere else
+in this codebase). Purely a client-side preference — not synced
+server-side, not shared between users.
+
+**SSR-hydration safety**, matching `sidebar-nav.tsx`'s established pattern
+exactly (see that file's own header comment for the full rationale): the
+`useState` initial value is a fixed default (`'grid'`), never read from
+`localStorage` during render. The actual stored preference is read inside a
+`useEffect` that runs once after mount, then applied via `setState` — this
+avoids a server/client markup mismatch, since the server has no
+`localStorage` to read from. Read/write helpers follow
+`sidebar-nav-storage.ts`'s split-into-a-pure-module convention (e.g.
+`agenda-view-storage.ts`): framework-free functions taking a
+`Pick<Storage, 'getItem'>`/`Pick<Storage, 'setItem'>`, wrapped in
+try/catch, returning/ignoring silently on any failure (missing key,
+malformed value, storage unavailable in private browsing) — view
+preference is a pure UX nicety, never worth crashing the page over.
 
 ## Top bar (both pages, Timeline view only)
 
 - **Day tabs.** The participant Browse page already has day tabs
-  (`browse-grid-client.tsx`). The admin Sessions page currently renders all
-  days stacked in Grid view; in Timeline view specifically, admin also
-  switches to one-day-at-a-time via day tabs, to match the reference design
-  and keep the timeline list a manageable length.
+  (`browse-grid-client.tsx`, `activeIndex` state). The admin Sessions page
+  currently has no day-tab concept at all — `page.tsx` already produces
+  `dayGroups: DayGroupData[]` (one entry per conference day, grouped by the
+  real `conference_day_id` FK), but `sessions-grid-client.tsx` maps over
+  *all* of them unconditionally, stacked, with a heading per group when
+  there's more than one (`showDayHeading`).
+
+  Timeline view introduces a new `activeDayIndex` state in
+  `SessionsGridClient`, mirroring `BrowseGridClient`'s existing
+  `activeIndex` pattern exactly (same `useState(0)`, same
+  `Math.min(activeIndex, dayGroups.length - 1)` clamp). This state is
+  **local to Timeline view and irrelevant to Grid view** — Grid view keeps
+  rendering every `dayGroups` entry stacked, unconditionally, exactly as it
+  does today, with no change to its own rendering logic. Switching the view
+  toggle does not need to preserve or reset anything cross-view, since Grid
+  has no day-selection concept to preserve in the first place. The
+  `dayGroups` prop itself is unchanged — Timeline view just additionally
+  picks one entry from the same array Grid already receives in full.
 - **Track filter pills.** One pill per track: color dot + track name,
   multi-select (click toggles membership), plus an "All" pill that clears
   the selection. Pure client-side filtering of already-fetched data for the
@@ -54,21 +87,38 @@ synced server-side, not shared between users.
 
 ## Timeline body
 
-- **Vertical axis:** hour labels on the left, reusing the existing
-  Istanbul-aware minute math already fixed in `grid-layout.ts` (no new
-  timezone logic — this view needs only sorting/grouping by the same
-  already-correct minute values, not pixel-accurate positioning).
+- **Vertical axis:** hour labels at the **inline-start** edge (NOT a
+  hardcoded "left") — this app supports Arabic as a locale and the
+  existing `AgendaTimeGrid` deliberately uses CSS logical properties
+  throughout (`start-0`, `border-s`/`border-e`, `pe-2`, `text-end`) so the
+  hour column sits on the correct physical side automatically in both LTR
+  and RTL. `AgendaTimeline` follows the exact same convention: logical
+  properties only, never `left`/`right`/`ms-`/`me-`-style physical
+  utilities, on both desktop and the mobile layout.
+
+  Reuses the existing Istanbul-aware minute math already fixed in
+  `grid-layout.ts` (no new timezone logic — this view needs only
+  sorting/grouping by the same already-correct minute values, not
+  pixel-accurate positioning).
 - **Row grouping:** sessions sorted by start time; sessions sharing the same
   start time are grouped into the same row and laid out side-by-side
   (simple flex-wrap, not lane-packed pixel math like the grid — this view
   has no need for `assignLanes`' overlap-handling since cards aren't
   positioned by duration).
 - **Session card (collapsed):** track color dot + track name, time range
-  (e.g. "08:00 – 09:00"), room name, title. Admin cards also show the
-  status chip (reusing the existing contrast-safe chip styling pattern from
-  `sessions-grid-client.tsx`'s `renderBlock`). Participant cards always show
-  the Book/Waitlist control (reusing `BookButton`/`WaitlistButton` in their
-  existing `compact` mode).
+  (e.g. "08:00 – 09:00"), room name, title. Unlike Grid view's blocks, a
+  Timeline card's background is a neutral surface color (not filled with
+  the track color), so `pickReadableTextColor` is NOT needed for the
+  card's own body text (normal `text-charcoal`/dark-mode text tokens
+  apply, same as any other card in this codebase). Admin cards also show
+  the status chip — this chip IS still colored (small, track-colored or
+  status-colored background), so it still needs
+  `pickReadableTextColor(chipColor)` for its own text, same contrast-safe
+  reasoning as `sessions-grid-client.tsx`'s existing chip, just scoped to
+  the chip itself rather than the whole card. Participant cards always
+  show the Book/Waitlist control (reusing `BookButton`/`WaitlistButton` in
+  their existing `compact` mode, with `compactTextColor` left at its
+  default since the card background is neutral, not track-colored).
 - **Expand on click:** reveals additional detail (description, assigned
   speakers/guests where available) in place, no navigation. This differs
   from the Grid view's admin behavior (which navigates to the session detail
@@ -76,8 +126,9 @@ synced server-side, not shared between users.
   both pages.
 - **Breaks:** rendered visually lighter — no track color fill, a thin
   left border only, muted text — distinguishing them from real sessions.
-- **Mobile:** single column, hour labels remain on the left at reduced
-  width; cards stack full-width.
+- **Mobile:** single column, hour labels remain at the inline-start edge
+  (same logical-property convention as above) at reduced width; cards
+  stack full-width.
 
 ## New files
 
@@ -87,6 +138,20 @@ synced server-side, not shared between users.
   page, groups them by identical start time into ordered rows, and
   separates breaks from regular sessions. Returns plain data. Independently
   unit-testable, mirroring `grid-layout.ts`'s existing convention.
+
+  **Precondition, must be documented in the function's own header
+  comment:** callers MUST pre-filter input to a single conference day
+  before calling this function. `minutesSinceMidnightConferenceLocal` (the
+  already-fixed Istanbul-aware conversion in `grid-layout.ts`, reused here)
+  returns minutes-since-midnight with no date component — two sessions on
+  *different* days at the same wall-clock time (e.g. both at 08:00
+  Istanbul) produce identical start-minute values and would incorrectly
+  group into the same row if passed together. This is safe in practice
+  only because both call sites already scope Timeline input to one active
+  day (via the `activeDayIndex`/`activeIndex` state described above) before
+  calling `computeTimelineLayout` — the function itself has no day/date
+  field in its input shape and cannot detect a caller's mistake, so the
+  precondition must be explicit, not assumed.
 - `src/components/schedule/agenda-timeline.tsx` — shared presentational
   component, no `'use client'` (plain data in, plain markup out, same
   reasoning as `AgendaTimeGrid`). Takes a `renderCard` render-prop, exactly
@@ -96,9 +161,14 @@ synced server-side, not shared between users.
   will only ever be constructed and consumed entirely within a `'use
   client'` wrapper component, never passed in from a Server Component.
 - `src/components/schedule/agenda-view-toggle.tsx` — the Grid/Timeline
-  segmented control. `'use client'`, owns the `localStorage` read/write
-  (wrapped in try/catch per this session's established browser-storage
-  convention — private browsing / blocked storage must not crash the page).
+  segmented control. `'use client'`, reads/writes view preference via the
+  helpers below, following `sidebar-nav.tsx`'s useEffect-only-read pattern
+  (see "View toggle" section above).
+- `src/components/schedule/agenda-view-storage.ts` — pure, framework-free
+  `localStorage` read/write helpers for the view-toggle preference, split
+  out for unit-testability exactly like `sidebar-nav-storage.ts` (DOM-free
+  functions taking a `Pick<Storage, 'getItem'|'setItem'>`-shaped object,
+  wrapped in try/catch, silent on failure).
 - `src/components/schedule/agenda-track-filter-pills.tsx` — the track
   multi-select pills. `'use client'`.
 - `src/components/schedule/agenda-search-bar.tsx` — the search input +
