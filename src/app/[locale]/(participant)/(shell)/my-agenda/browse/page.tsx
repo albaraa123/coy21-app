@@ -4,8 +4,9 @@ import { redirect } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
 import { BookButton, WaitlistButton } from '../booking-button';
-import { formatConferenceTime } from '@/lib/datetime/conference-time';
 import { MountReveal } from '@/components/motion/mount-reveal';
+import { AgendaTimeGrid } from '@/components/schedule/agenda-time-grid';
+import { DayTabs } from './day-tabs';
 
 export default async function BrowseSessionsPage() {
   const locale = await getLocale();
@@ -33,6 +34,7 @@ export default async function BrowseSessionsPage() {
     .from('sessions')
     .select(`
       id,
+      track_id,
       title_en,
       title_ar,
       start_time,
@@ -119,100 +121,100 @@ export default async function BrowseSessionsPage() {
         <h1 className="text-xl font-semibold text-charcoal dark:text-gray-100">Browse Sessions</h1>
       </div>
 
-      {byDay.length === 0 && (
+      {byDay.length === 0 ? (
         <MountReveal delayMs={0}>
           <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
             No sessions available yet. Check back soon.
           </Card>
         </MountReveal>
+      ) : (
+        <DayTabs days={byDay} locale={locale}>
+          {(day) => (
+            <AgendaTimeGrid
+              tracks={distinctTracksForGrid(day.sessions, locale)}
+              otherTrackLabel="Other"
+              sessions={day.sessions.map((s) => ({
+                id: s.id,
+                trackId: s.track_id,
+                startTime: s.start_time,
+                endTime: s.end_time,
+                booking_deadline: s.booking_deadline,
+                capacity: s.capacity,
+                rooms: s.rooms,
+                title_en: s.title_en,
+                title_ar: s.title_ar,
+                session_types: s.session_types,
+              }))}
+              emptyState={
+                <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
+                  No sessions this day yet.
+                </Card>
+              }
+              renderBlock={(s) => {
+                const perSessionDeadline = s.booking_deadline
+                  ? new Date(s.booking_deadline)
+                  : new Date(new Date(s.startTime).getTime() - 3 * 60 * 60 * 1000);
+                const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
+                const isPastDeadline = now > deadline;
+                const bookedCount = countMap.get(s.id) ?? 0;
+                const isFull = bookedCount >= s.capacity;
+                const alreadyBooked = myBookedIds.has(s.id);
+                const waitlistEnabled = s.session_types?.enable_waitlist ?? false;
+                const title = locale === 'ar' ? s.title_ar : s.title_en;
+                const room = s.rooms ? (locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en) : '';
+
+                return (
+                  <div className="flex h-full flex-col gap-0.5 overflow-hidden p-1.5 text-white">
+                    <span className="truncate text-xs font-semibold">{title}</span>
+                    {room && <span className="truncate text-[10px] opacity-80">{room}</span>}
+                    <div className="mt-auto">
+                      {alreadyBooked ? (
+                        <span className="text-[10px] font-medium">✓ Booked</span>
+                      ) : isFull && waitlistEnabled && (myWaitlistedIds.has(s.id) || !isPastDeadline) ? (
+                        // Deadline only gates *joining*: join_waitlist rejects a
+                        // past-deadline join server-side, so without this guard a
+                        // full+waitlist-enabled session past its deadline would
+                        // show an active "Join waitlist" button guaranteed to
+                        // fail on click -- falling through to BookButton below
+                        // correctly renders its existing "Closed" state instead.
+                        // But leave_waitlist has NO deadline check (withdrawing
+                        // is always allowed), so an already-waitlisted
+                        // participant must still see their "Leave waitlist"
+                        // control even past the deadline -- hence the
+                        // myWaitlistedIds.has(s.id) escape hatch here.
+                        //
+                        // `compact` here renders a small underlined-text
+                        // control instead of the full <Button size="sm">
+                        // (px-3/py-1.5, 32px+ tall) -- see booking-button.tsx's
+                        // `compact` doc. The grid block this lives inside can
+                        // be as short as ~20px (a 15-minute slot), too short
+                        // for the roomy card-era button.
+                        <WaitlistButton sessionId={s.id} isWaitlisted={myWaitlistedIds.has(s.id)} compact />
+                      ) : (
+                        <BookButton sessionId={s.id} isFull={isFull} isPastDeadline={isPastDeadline} compact />
+                      )}
+                    </div>
+                  </div>
+                );
+              }}
+            />
+          )}
+        </DayTabs>
       )}
-
-      {byDay.map((day, dayIndex) => (
-        // Staggered by DAY index only, not per-session — this is the full
-        // catalog (every published/confirmed session, not just the
-        // participant's own bookings like my-agenda/page.tsx), so a day
-        // can hold many sessions; per-row stagger on an unbounded list
-        // would feel slow rather than polished. Each day group reveals as
-        // one block instead.
-        <MountReveal key={day.date} delayMs={Math.min(dayIndex * 80, 400)}>
-          <div className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">
-              {locale === 'ar' ? day.labelAr : day.labelEn}
-            </h2>
-
-            {day.sessions.map((s) => {
-            const perSessionDeadline = s.booking_deadline
-              ? new Date(s.booking_deadline)
-              : new Date(new Date(s.start_time).getTime() - 3 * 60 * 60 * 1000);
-            const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
-            const isPastDeadline = now > deadline;
-            const bookedCount = countMap.get(s.id) ?? 0;
-            const isFull = bookedCount >= s.capacity;
-            const alreadyBooked = myBookedIds.has(s.id);
-            const waitlistEnabled = s.session_types?.enable_waitlist ?? false;
-
-            const title = locale === 'ar' ? s.title_ar : s.title_en;
-            const room = s.rooms ? (locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en) : '';
-            const track = s.tracks ? (locale === 'ar' ? s.tracks.name_ar : s.tracks.name_en) : '';
-            const trackColor = s.tracks?.color ?? '#6b7280';
-
-            const start = formatConferenceTime(s.start_time, locale === 'ar' ? 'ar' : 'en');
-            const end = formatConferenceTime(s.end_time, locale === 'ar' ? 'ar' : 'en');
-
-            return (
-              <Card key={s.id} className="flex flex-row items-start gap-3 py-3">
-                <div
-                  className="mt-0.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: trackColor, width: 4, minHeight: 40 }}
-                />
-                <div className="flex flex-1 flex-col gap-0.5">
-                  <p className="text-sm font-medium text-charcoal dark:text-gray-100">{title}</p>
-                  <p className="text-xs text-charcoal/60 dark:text-gray-400">
-                    {start} – {end}
-                    {room ? ` · ${room}` : ''}
-                  </p>
-                  <p className="text-xs text-charcoal/40 dark:text-gray-500">
-                    {track}
-                    {!isFull && !isPastDeadline
-                      ? ` · ${s.capacity - bookedCount} spots left`
-                      : ''}
-                  </p>
-                </div>
-                <div className="shrink-0 pt-0.5">
-                  {alreadyBooked ? (
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">Booked ✓</span>
-                  ) : isFull && waitlistEnabled && (myWaitlistedIds.has(s.id) || !isPastDeadline) ? (
-                    // Deadline only gates *joining*: join_waitlist rejects a
-                    // past-deadline join server-side, so without this guard a
-                    // full+waitlist-enabled session past its deadline would
-                    // show an active "Join waitlist" button guaranteed to
-                    // fail on click -- falling through to BookButton below
-                    // correctly renders its existing "Closed" state instead.
-                    // But leave_waitlist has NO deadline check (withdrawing
-                    // is always allowed), so an already-waitlisted
-                    // participant must still see their "Leave waitlist"
-                    // control even past the deadline -- hence the
-                    // myWaitlistedIds.has(s.id) escape hatch here.
-                    <WaitlistButton
-                      sessionId={s.id}
-                      isWaitlisted={myWaitlistedIds.has(s.id)}
-                    />
-                  ) : (
-                    <BookButton
-                      sessionId={s.id}
-                      isFull={isFull}
-                      isPastDeadline={isPastDeadline}
-                    />
-                  )}
-                </div>
-              </Card>
-            );
-            })}
-          </div>
-        </MountReveal>
-      ))}
     </div>
   );
+}
+
+function distinctTracksForGrid(
+  sessions: { track_id: string; tracks: { color: string | null; name_en: string; name_ar: string } | null }[],
+  locale: string
+) {
+  const seen = new Map<string, { id: string; name: string; color: string }>();
+  for (const s of sessions) {
+    if (!s.tracks || seen.has(s.track_id)) continue;
+    seen.set(s.track_id, { id: s.track_id, name: locale === 'ar' ? s.tracks.name_ar : s.tracks.name_en, color: s.tracks.color ?? '#6b7280' });
+  }
+  return [...seen.values()];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
