@@ -143,7 +143,7 @@ export default function ReviewControls({
             value={assignedReviewerId ?? ''}
             disabled={reviewerBusy}
             onChange={(e) => void handleReviewerChange(e.target.value)}
-            className="w-full max-w-sm rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            className="w-full max-w-sm rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           >
             <option value="">{t('unassigned')}</option>
             {reviewers.map((r) => (
@@ -162,7 +162,7 @@ export default function ReviewControls({
               onChange={(e) => setNoteBody(e.target.value)}
               placeholder={t('notePlaceholder')}
               rows={3}
-              className="w-full rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal placeholder:text-charcoal/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+              className="w-full rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal placeholder:text-charcoal/40 transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
             />
             <div>
               <Button type="submit" size="sm" disabled={noteBusy}>

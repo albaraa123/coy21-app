@@ -197,7 +197,7 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
                 <select
                   value={row.targetKind}
                   onChange={(e) => updateRow(index, { targetKind: e.target.value as TargetKind })}
-                  className="mt-1 block w-full rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                  className="mt-1 block w-full rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                 >
                   <option value="core_field">{t('kindCoreField')}</option>
                   <option value="known_answer">{t('kindKnownAnswer')}</option>
@@ -215,7 +215,7 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
                     value={row.targetKey}
                     onChange={(e) => updateRow(index, { targetKey: e.target.value })}
                     placeholder={t('targetKeyPlaceholder')}
-                    className="mt-1 block w-full rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal placeholder:text-charcoal/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+                    className="mt-1 block w-full rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal placeholder:text-charcoal/40 transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
                   />
                 </label>
               )}
@@ -336,7 +336,7 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
             value={saveAsTemplateName}
             onChange={(e) => setSaveAsTemplateName(e.target.value)}
             placeholder={t('templateNamePlaceholder')}
-            className="mt-1 block w-full max-w-sm rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal placeholder:text-charcoal/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+            className="mt-1 block w-full max-w-sm rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal placeholder:text-charcoal/40 transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
           />
         </label>
       </div>

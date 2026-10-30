@@ -271,7 +271,7 @@ export default function AccountsTable({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('searchPlaceholder')}
-          className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         />
         <select
           value={batchFilter}

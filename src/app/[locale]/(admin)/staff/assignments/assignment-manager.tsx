@@ -99,7 +99,7 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
     }
   }
 
-  const inputClass = 'rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal focus:border-turquoise focus:outline-none w-full';
+  const inputClass = 'rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal transition-colors duration-150 focus:border-turquoise focus:outline-none w-full';
   const labelClass = 'flex flex-col gap-1 text-sm font-medium text-charcoal';
 
   return (

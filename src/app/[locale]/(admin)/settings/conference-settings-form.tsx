@@ -81,7 +81,7 @@ export default function ConferenceSettingsForm({ globalBookingDeadline, isSuperA
     }
   }
 
-  const inputClass = 'rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal focus:border-turquoise focus:outline-none w-full dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
+  const inputClass = 'rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal transition-colors duration-150 focus:border-turquoise focus:outline-none w-full dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
   const labelClass = 'flex flex-col gap-1 text-sm font-medium text-charcoal dark:text-gray-100';
 
   return (

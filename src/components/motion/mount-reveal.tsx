@@ -16,21 +16,24 @@
 // data-reveal="visible" every render, so it works directly from a Server
 // Component (both dashboard pages this was built for are Server
 // Components) with zero client JS shipped for it.
-import type { CSSProperties, ReactNode } from 'react';
+import type { AriaRole, CSSProperties, ReactNode } from 'react';
 
 export function MountReveal({
   children,
   delayMs = 0,
   className,
   style,
+  role,
 }: {
   children: ReactNode;
   delayMs?: number;
   className?: string;
   style?: CSSProperties;
+  /** Forwarded straight to the rendered div — lets a caller (e.g. EmptyState) keep its own ARIA role on the same element MountReveal animates, instead of needing an extra wrapper. */
+  role?: AriaRole;
 }) {
   return (
-    <div data-reveal="visible" style={{ ...style, animationDelay: `${delayMs}ms` }} className={className}>
+    <div data-reveal="visible" role={role} style={{ ...style, animationDelay: `${delayMs}ms` }} className={className}>
       {children}
     </div>
   );

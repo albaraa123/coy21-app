@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button } from './button';
+import { MountReveal } from '../motion/mount-reveal';
 
 interface EmptyStateAction {
   label: string;
@@ -18,8 +19,16 @@ export function EmptyState({
   icon?: ReactNode;
   action?: EmptyStateAction;
 }) {
+  // EmptyState is always conditionally rendered by its caller (e.g.
+  // {items.length === 0 ? <EmptyState/> : ...}), so it's a genuinely
+  // fresh mount every time it appears — a one-time fade+rise via the same
+  // MountReveal used across the dashboards/list pages is a safe,
+  // consistent entrance with no new client JS (MountReveal itself has no
+  // 'use client'/hooks, see its own doc comment). role="status" moves onto
+  // MountReveal's own div via its role prop, rather than adding a second
+  // wrapper element just to keep the ARIA role.
   return (
-    <div
+    <MountReveal
       role="status"
       className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-charcoal/30 bg-warm-white p-8 text-center dark:border-gray-700"
     >
@@ -39,6 +48,6 @@ export function EmptyState({
           )}
         </div>
       )}
-    </div>
+    </MountReveal>
   );
 }
