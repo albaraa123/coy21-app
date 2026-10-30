@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { BookButton, WaitlistButton } from '../booking-button';
 import { MountReveal } from '@/components/motion/mount-reveal';
 import { AgendaTimeGrid } from '@/components/schedule/agenda-time-grid';
+import { AgendaTimeGridZoom } from '@/components/schedule/agenda-time-grid-zoom';
 import { DayTabs } from './day-tabs';
 
 export default async function BrowseSessionsPage() {
@@ -35,6 +36,7 @@ export default async function BrowseSessionsPage() {
     .select(`
       id,
       track_id,
+      room_id,
       title_en,
       title_ar,
       start_time,
@@ -130,79 +132,86 @@ export default async function BrowseSessionsPage() {
       ) : (
         <DayTabs days={byDay} locale={locale}>
           {(day) => (
-            <AgendaTimeGrid
-              tracks={distinctTracksForGrid(day.sessions, locale)}
-              otherTrackLabel={locale === 'ar' ? 'أخرى' : 'Other'}
-              sessions={day.sessions.map((s) => ({
-                id: s.id,
-                trackId: s.track_id,
-                startTime: s.start_time,
-                endTime: s.end_time,
-                booking_deadline: s.booking_deadline,
-                capacity: s.capacity,
-                rooms: s.rooms,
-                title_en: s.title_en,
-                title_ar: s.title_ar,
-                session_types: s.session_types,
-              }))}
-              emptyState={
-                <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
-                  No sessions this day yet.
-                </Card>
-              }
-              renderBlock={(s) => {
-                const perSessionDeadline = s.booking_deadline
-                  ? new Date(s.booking_deadline)
-                  : new Date(new Date(s.startTime).getTime() - 3 * 60 * 60 * 1000);
-                const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
-                const isPastDeadline = now > deadline;
-                const bookedCount = countMap.get(s.id) ?? 0;
-                const isFull = bookedCount >= s.capacity;
-                const alreadyBooked = myBookedIds.has(s.id);
-                const waitlistEnabled = s.session_types?.enable_waitlist ?? false;
-                const title = locale === 'ar' ? s.title_ar : s.title_en;
-                const room = s.rooms ? (locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en) : '';
+            <AgendaTimeGridZoom
+              defaultMinuteHeightPx={1.6}
+              zoomOutLabel={locale === 'ar' ? 'تصغير' : 'Zoom out'}
+              zoomInLabel={locale === 'ar' ? 'تكبير' : 'Zoom in'}
+            >
+              {(minuteHeightPx) => (
+                <AgendaTimeGrid
+                  minuteHeightPx={minuteHeightPx}
+                  columns={distinctRoomsForGrid(day.sessions, locale)}
+                  otherColumnLabel={locale === 'ar' ? 'أخرى' : 'Other'}
+                  sessions={day.sessions.map((s) => ({
+                    id: s.id,
+                    trackId: s.room_id,
+                    blockColor: s.tracks?.color ?? '#6b7280',
+                    startTime: s.start_time,
+                    endTime: s.end_time,
+                    booking_deadline: s.booking_deadline,
+                    capacity: s.capacity,
+                    title_en: s.title_en,
+                    title_ar: s.title_ar,
+                    session_types: s.session_types,
+                  }))}
+                  emptyState={
+                    <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
+                      No sessions this day yet.
+                    </Card>
+                  }
+                  renderBlock={(s) => {
+                    const perSessionDeadline = s.booking_deadline
+                      ? new Date(s.booking_deadline)
+                      : new Date(new Date(s.startTime).getTime() - 3 * 60 * 60 * 1000);
+                    const deadline = globalDeadline && globalDeadline < perSessionDeadline ? globalDeadline : perSessionDeadline;
+                    const isPastDeadline = now > deadline;
+                    const bookedCount = countMap.get(s.id) ?? 0;
+                    const isFull = bookedCount >= s.capacity;
+                    const alreadyBooked = myBookedIds.has(s.id);
+                    const waitlistEnabled = s.session_types?.enable_waitlist ?? false;
+                    const title = locale === 'ar' ? s.title_ar : s.title_en;
 
-                return (
-                  <div className="flex h-full flex-col gap-0.5 overflow-hidden p-1.5 text-white">
-                    <span className="truncate text-xs font-semibold">{title}</span>
-                    {room && <span className="truncate text-[10px] opacity-80">{room}</span>}
-                    <div className="mt-auto">
-                      {alreadyBooked ? (
-                        <span className="text-[10px] font-medium">✓ Booked</span>
-                      ) : isFull && waitlistEnabled && (myWaitlistedIds.has(s.id) || !isPastDeadline) ? (
-                        // Deadline only gates *joining*: join_waitlist rejects a
-                        // past-deadline join server-side, so without this guard a
-                        // full+waitlist-enabled session past its deadline would
-                        // show an active "Join waitlist" button guaranteed to
-                        // fail on click -- falling through to BookButton below
-                        // correctly renders its existing "Closed" state instead.
-                        // But leave_waitlist has NO deadline check (withdrawing
-                        // is always allowed), so an already-waitlisted
-                        // participant must still see their "Leave waitlist"
-                        // control even past the deadline -- hence the
-                        // myWaitlistedIds.has(s.id) escape hatch here.
-                        //
-                        // `compact` here renders a small underlined-text
-                        // control instead of the full <Button size="sm">
-                        // (px-3/py-1.5, 32px+ tall) -- see booking-button.tsx's
-                        // `compact` doc. The grid block this lives inside can
-                        // be as short as ~20px (a 15-minute slot), too short
-                        // for the roomy card-era button.
-                        <WaitlistButton
-                          sessionId={s.id}
-                          isWaitlisted={myWaitlistedIds.has(s.id)}
-                          isPastDeadline={isPastDeadline}
-                          compact
-                        />
-                      ) : (
-                        <BookButton sessionId={s.id} isFull={isFull} isPastDeadline={isPastDeadline} compact />
-                      )}
-                    </div>
-                  </div>
-                );
-              }}
-            />
+                    return (
+                      <div className="flex h-full flex-col gap-0.5 overflow-hidden p-1.5 text-white">
+                        <span className="truncate text-xs font-semibold">{title}</span>
+                        <div className="mt-auto">
+                          {alreadyBooked ? (
+                            <span className="text-[10px] font-medium">✓ Booked</span>
+                          ) : isFull && waitlistEnabled && (myWaitlistedIds.has(s.id) || !isPastDeadline) ? (
+                            // Deadline only gates *joining*: join_waitlist rejects a
+                            // past-deadline join server-side, so without this guard a
+                            // full+waitlist-enabled session past its deadline would
+                            // show an active "Join waitlist" button guaranteed to
+                            // fail on click -- falling through to BookButton below
+                            // correctly renders its existing "Closed" state instead.
+                            // But leave_waitlist has NO deadline check (withdrawing
+                            // is always allowed), so an already-waitlisted
+                            // participant must still see their "Leave waitlist"
+                            // control even past the deadline -- hence the
+                            // myWaitlistedIds.has(s.id) escape hatch here.
+                            //
+                            // `compact` here renders a small underlined-text
+                            // control instead of the full <Button size="sm">
+                            // (px-3/py-1.5, 32px+ tall) -- see booking-button.tsx's
+                            // `compact` doc. The grid block this lives inside can
+                            // be as short as ~20px (a 15-minute slot), too short
+                            // for the roomy card-era button.
+                            <WaitlistButton
+                              sessionId={s.id}
+                              isWaitlisted={myWaitlistedIds.has(s.id)}
+                              isPastDeadline={isPastDeadline}
+                              compact
+                            />
+                          ) : (
+                            <BookButton sessionId={s.id} isFull={isFull} isPastDeadline={isPastDeadline} compact />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+              )}
+            </AgendaTimeGridZoom>
           )}
         </DayTabs>
       )}
@@ -210,14 +219,18 @@ export default async function BrowseSessionsPage() {
   );
 }
 
-function distinctTracksForGrid(
-  sessions: { track_id: string; tracks: { color: string | null; name_en: string; name_ar: string } | null }[],
+// Columns are ROOMS now (2026-11-01 change, see agenda-time-grid.tsx's
+// own header comment for the full "columns vs. color" reasoning) --
+// each session's track color moves to its block instead, via blockColor
+// in the sessions map passed to AgendaTimeGrid below.
+function distinctRoomsForGrid(
+  sessions: { room_id: string; rooms: { name_en: string; name_ar: string } | null }[],
   locale: string
 ) {
-  const seen = new Map<string, { id: string; name: string; color: string }>();
+  const seen = new Map<string, { id: string; name: string }>();
   for (const s of sessions) {
-    if (!s.tracks || seen.has(s.track_id)) continue;
-    seen.set(s.track_id, { id: s.track_id, name: locale === 'ar' ? s.tracks.name_ar : s.tracks.name_en, color: s.tracks.color ?? '#6b7280' });
+    if (!s.rooms || seen.has(s.room_id)) continue;
+    seen.set(s.room_id, { id: s.room_id, name: locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en });
   }
   return [...seen.values()];
 }

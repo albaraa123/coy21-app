@@ -1166,6 +1166,8 @@
       "emptyDescription": "لا توجد جلسات مطابقة لعوامل التصفية الحالية.",
       "otherTrack": "أخرى",
       "unscheduled": "غير مُجدولة",
+      "zoomOut": "تصغير",
+      "zoomIn": "تكبير",
       "filters": {
         "day": "اليوم",
         "track": "المسار",

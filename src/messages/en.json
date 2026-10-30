@@ -1166,6 +1166,8 @@
       "emptyDescription": "No sessions match the current filters.",
       "otherTrack": "Other",
       "unscheduled": "Unscheduled",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
       "filters": {
         "day": "Day",
         "track": "Track",
