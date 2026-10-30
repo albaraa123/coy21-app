@@ -31,7 +31,13 @@ const MINUTE_HEIGHT_PX = 1.6;
 const HEADER_HEIGHT_PX = 44;
 const HOUR_LABEL_WIDTH_PX = 56;
 
-function formatHourLabel(minutesSinceMidnight: number): string {
+// Default hour-label formatter: hardcoded English AM/PM. This component has
+// no 'use client' and no next-intl dependency (next-intl's getTranslations
+// is async, and this component is intentionally synchronous), so it cannot
+// localize this itself -- callers that need locale-aware hour formatting
+// should pass their own `formatHourLabel` prop (e.g. backed by next-intl's
+// t() from their own Server Component scope).
+function defaultFormatHourLabel(minutesSinceMidnight: number): string {
   const h = Math.floor(minutesSinceMidnight / 60) % 24;
   const suffix = h < 12 ? 'AM' : 'PM';
   const displayHour = h % 12 === 0 ? 12 : h % 12;
@@ -43,6 +49,8 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
   sessions,
   renderBlock,
   emptyState,
+  otherTrackLabel = 'Other',
+  formatHourLabel = defaultFormatHourLabel,
 }: {
   /** Every track that should get a column, in display order -- even one with zero sessions (renders an empty column, not omitted), so the grid's column set stays stable across filtering. */
   tracks: AgendaTimeGridTrack[];
@@ -50,6 +58,10 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
   renderBlock: (session: TSession) => React.ReactNode;
   /** Shown instead of the grid when `sessions` is empty. */
   emptyState?: React.ReactNode;
+  /** Display name for the synthetic trailing column that catches sessions whose trackId isn't in `tracks`. Defaults to English "Other"; pass a locale-aware string (e.g. via next-intl's t() in the caller's own Server Component scope) to localize it -- this component has no i18n library dependency of its own. */
+  otherTrackLabel?: string;
+  /** Formats a minutes-since-midnight value into an hour-ruler label. Defaults to a hardcoded English AM/PM implementation; pass a locale-aware formatter (e.g. backed by next-intl's t()) to override it. */
+  formatHourLabel?: (minutesSinceMidnight: number) => string;
 }) {
   if (sessions.length === 0) {
     return emptyState ?? null;
@@ -68,7 +80,7 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
 
   const UNKNOWN_TRACK_ID = '__unknown__';
   const effectiveTracks: AgendaTimeGridTrack[] =
-    unknownSessions.length > 0 ? [...tracks, { id: UNKNOWN_TRACK_ID, name: 'Other', color: '#6b7280' }] : tracks;
+    unknownSessions.length > 0 ? [...tracks, { id: UNKNOWN_TRACK_ID, name: otherTrackLabel, color: '#6b7280' }] : tracks;
   // IMPORTANT: this remapped-trackId array is used ONLY to drive
   // computeGridLayout's column/lane assignment -- sessionById below maps
   // back to the ORIGINAL (unmutated) session objects, so renderBlock(s)
@@ -111,6 +123,7 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
         }}
       >
         {/* Header row: blank corner + one colored header per track (plus a trailing "Other" column if any session had an unrecognized trackId -- see the knownTrackIds/unknownSessions split above). */}
+        {/* `sticky top-0` here assumes vertical scroll happens on a page-level ancestor, not this div (which only scrolls horizontally via overflow-x-auto) -- if headers don't visually stick once rendered, check for an unexpected overflow-y constraint between this component and the page body. */}
         <div className="sticky top-0 z-10 border-b border-charcoal/10 bg-warm-white dark:border-gray-700 dark:bg-gray-900" style={{ height: HEADER_HEIGHT_PX }} />
         {tracksToRender.map((track) => (
           <div
