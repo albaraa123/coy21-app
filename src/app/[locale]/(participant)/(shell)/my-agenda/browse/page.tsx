@@ -144,6 +144,7 @@ export default async function BrowseSessionsPage() {
             labelEn: day.labelEn,
             labelAr: day.labelAr,
             rooms: distinctRoomsForGrid(day.sessions, locale),
+            legendItems: distinctTracksForLegend(day.sessions, locale),
             sessions: day.sessions.map((s) => {
               const perSessionDeadline = s.booking_deadline
                 ? new Date(s.booking_deadline)
@@ -203,6 +204,22 @@ export default async function BrowseSessionsPage() {
 // own header comment for the full "columns vs. color" reasoning) --
 // each session's track color moves to its block instead, via blockColor
 // in the sessions map passed to AgendaTimeGrid below.
+// Color-key legend data: distinct tracks actually present among this
+// day's sessions (track_id, locale-aware name, real color), for
+// AgendaColorLegend. Scoped per-day (not globally across all days) since
+// the grid/legend only ever shows one active day at a time here.
+function distinctTracksForLegend(
+  sessions: { track_id: string; tracks: { color: string | null; name_en: string; name_ar: string } | null }[],
+  locale: string
+) {
+  const seen = new Map<string, { id: string; name: string; color: string }>();
+  for (const s of sessions) {
+    if (!s.tracks || seen.has(s.track_id)) continue;
+    seen.set(s.track_id, { id: s.track_id, name: locale === 'ar' ? s.tracks.name_ar : s.tracks.name_en, color: s.tracks.color ?? '#6b7280' });
+  }
+  return [...seen.values()];
+}
+
 function distinctRoomsForGrid(
   sessions: { room_id: string; rooms: { name_en: string; name_ar: string } | null }[],
   locale: string

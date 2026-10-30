@@ -21,36 +21,49 @@ type BookButtonProps = {
   // but this keeps the change additive/non-breaking) renders exactly as
   // before.
   compact?: boolean;
+  // Text color for `compact` rendering, since a compact block sits
+  // directly on an arbitrary track color (the agenda grid) rather than a
+  // fixed page background -- white text fails contrast on several real
+  // track colors (see readable-text-color.ts). AgendaTimeGrid computes
+  // this per-block via pickReadableTextColor and forwards it through
+  // renderBlock; defaults to white (the original hardcoded value) so this
+  // stays non-breaking for any future non-grid caller that never passes
+  // it. Ignored entirely when compact is false.
+  compactTextColor?: string;
 };
 
-export function BookButton({ sessionId, isFull, isPastDeadline, compact = false }: BookButtonProps) {
+export function BookButton({ sessionId, isFull, isPastDeadline, compact = false, compactTextColor = '#ffffff' }: BookButtonProps) {
   const [booked, setBooked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   if (booked) {
-    return (
-      <span className={compact ? 'text-[10px] font-medium text-white' : 'text-sm font-medium text-green-600 dark:text-green-400'}>
+    return compact ? (
+      <span className="text-[10px] font-medium" style={{ color: compactTextColor }}>
         Booked ✓
       </span>
+    ) : (
+      <span className="text-sm font-medium text-green-600 dark:text-green-400">Booked ✓</span>
     );
   }
 
   if (isPastDeadline) {
-    return <span className={compact ? 'text-[10px] text-white/70' : 'text-xs text-charcoal/40 dark:text-gray-500'}>Closed</span>;
+    return compact ? (
+      <span className="text-[10px]" style={{ color: compactTextColor, opacity: 0.7 }}>
+        Closed
+      </span>
+    ) : (
+      <span className="text-xs text-charcoal/40 dark:text-gray-500">Closed</span>
+    );
   }
 
   if (isFull) {
-    return (
-      <span
-        className={
-          compact
-            ? 'text-[10px] text-white/70'
-            : 'rounded-full bg-charcoal/10 px-2 py-0.5 text-xs text-charcoal/50 dark:bg-white/10 dark:text-gray-400'
-        }
-      >
+    return compact ? (
+      <span className="text-[10px]" style={{ color: compactTextColor, opacity: 0.7 }}>
         Full
       </span>
+    ) : (
+      <span className="rounded-full bg-charcoal/10 px-2 py-0.5 text-xs text-charcoal/50 dark:bg-white/10 dark:text-gray-400">Full</span>
     );
   }
 
@@ -69,7 +82,8 @@ export function BookButton({ sessionId, isFull, isPastDeadline, compact = false 
             else setBooked(true);
           });
         }}
-        className="text-[10px] font-semibold text-white underline decoration-white/60 underline-offset-1 disabled:opacity-60"
+        className="text-[10px] font-semibold underline underline-offset-1 disabled:opacity-60"
+        style={{ color: compactTextColor, textDecorationColor: `color-mix(in srgb, ${compactTextColor} 60%, transparent)` }}
       >
         {isPending ? 'Booking…' : error ? 'Retry' : 'Book'}
       </button>
@@ -167,6 +181,9 @@ type WaitlistButtonProps = {
   // same default (false, non-breaking for the existing waitlisted-sessions.tsx
   // caller).
   compact?: boolean;
+  // See BookButton's `compactTextColor` doc above -- same rationale, same
+  // default (white), ignored when compact is false.
+  compactTextColor?: string;
 };
 
 export function WaitlistButton({
@@ -175,6 +192,7 @@ export function WaitlistButton({
   isPastDeadline,
   onLeft,
   compact = false,
+  compactTextColor = '#ffffff',
 }: WaitlistButtonProps) {
   const [waitlisted, setWaitlisted] = useState(initialWaitlisted);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +215,8 @@ export function WaitlistButton({
               else setWaitlisted(false);
             });
           }}
-          className="text-[10px] font-semibold text-white underline decoration-white/60 underline-offset-1 disabled:opacity-60"
+          className="text-[10px] font-semibold underline underline-offset-1 disabled:opacity-60"
+          style={{ color: compactTextColor, textDecorationColor: `color-mix(in srgb, ${compactTextColor} 60%, transparent)` }}
         >
           {isPending ? 'Leaving…' : error ? 'Retry' : 'On waitlist ✕'}
         </button>
@@ -227,7 +246,13 @@ export function WaitlistButton({
   }
 
   if (isPastDeadline) {
-    return <span className={compact ? 'text-[10px] text-white/70' : 'text-xs text-charcoal/40 dark:text-gray-500'}>Closed</span>;
+    return compact ? (
+      <span className="text-[10px]" style={{ color: compactTextColor, opacity: 0.7 }}>
+        Closed
+      </span>
+    ) : (
+      <span className="text-xs text-charcoal/40 dark:text-gray-500">Closed</span>
+    );
   }
 
   if (compact) {
@@ -245,7 +270,8 @@ export function WaitlistButton({
             else setWaitlisted(true);
           });
         }}
-        className="text-[10px] font-semibold text-white underline decoration-white/60 underline-offset-1 disabled:opacity-60"
+        className="text-[10px] font-semibold underline underline-offset-1 disabled:opacity-60"
+        style={{ color: compactTextColor, textDecorationColor: `color-mix(in srgb, ${compactTextColor} 60%, transparent)` }}
       >
         {isPending ? 'Joining…' : error ? 'Retry' : 'Join waitlist'}
       </button>

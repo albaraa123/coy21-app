@@ -31,6 +31,7 @@
 // same reasoning as MountReveal -- nothing here is interactive or needs a
 // browser API.
 import { computeGridLayout, type GridInputSession } from '@/lib/schedule/grid-layout';
+import { pickReadableTextColor } from '@/lib/schedule/readable-text-color';
 
 export interface AgendaTimeGridColumn {
   id: string;
@@ -77,7 +78,8 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
   /** Every column (e.g. room) that should render, in display order -- even one with zero sessions (renders an empty column, not omitted), so the column set stays stable across filtering. */
   columns: AgendaTimeGridColumn[];
   sessions: TSession[];
-  renderBlock: (session: TSession) => React.ReactNode;
+  /** `textColor` is computed automatically from `session.blockColor` via real contrast math (readable-text-color.ts) -- white or dark, whichever is more readable against that exact background. Forward it into the block's text classes/inline style instead of hardcoding text-white, since only 1 of this project's 5 real track colors actually passes contrast with white text (see readable-text-color.ts's header comment). */
+  renderBlock: (session: TSession, textColor: string) => React.ReactNode;
   /** Shown instead of the grid when `sessions` is empty. */
   emptyState?: React.ReactNode;
   /** Display name for the synthetic trailing column that catches sessions whose trackId isn't in `columns`. Defaults to English "Other"; pass a locale-aware string (e.g. via next-intl's t() in the caller's own Server Component scope) to localize it -- this component has no i18n library dependency of its own. */
@@ -191,22 +193,32 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
                 const block = blockById.get(s.id);
                 if (!block) return null;
                 const topPx = (block.startMinutes - layout.rangeStartMinutes) * minuteHeightPx;
-                const heightPx = Math.max((block.endMinutes - block.startMinutes) * minuteHeightPx, 20);
+                // minHeightPx (not a fixed height) + no overflow-hidden,
+                // per explicit user feedback: a short time slot's block
+                // must still show its FULL title even if that means
+                // growing visually taller than its actual time-slot
+                // duration (wrapping to 2+ lines), rather than truncating
+                // with an ellipsis. z-index rises on hover so an
+                // overgrown block's text is never clipped behind its
+                // neighbor below it while being read.
+                const minHeightPx = Math.max((block.endMinutes - block.startMinutes) * minuteHeightPx, 20);
                 const widthPct = 100 / block.laneCount;
                 const original = originalSessionById.get(s.id)!;
+                const blockColor = original.blockColor ?? '#6b7280';
+                const textColor = pickReadableTextColor(blockColor);
                 return (
                   <div
                     key={s.id}
-                    className="absolute overflow-hidden rounded-md"
+                    className="group absolute z-0 rounded-md shadow-sm hover:z-20 hover:shadow-md"
                     style={{
                       top: topPx,
-                      height: heightPx,
+                      minHeight: minHeightPx,
                       insetInlineStart: `${block.lane * widthPct}%`,
                       width: `calc(${widthPct}% - 2px)`,
-                      backgroundColor: original.blockColor ?? '#6b7280',
+                      backgroundColor: blockColor,
                     }}
                   >
-                    {renderBlock(original)}
+                    {renderBlock(original, textColor)}
                   </div>
                 );
               })}

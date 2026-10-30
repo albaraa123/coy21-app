@@ -33,6 +33,7 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { BookButton, WaitlistButton } from '../booking-button';
 import { AgendaTimeGrid, type AgendaTimeGridColumn } from '@/components/schedule/agenda-time-grid';
+import { AgendaColorLegend, type AgendaLegendItem } from '@/components/schedule/agenda-color-legend';
 
 const MIN_MINUTE_HEIGHT_PX = 0.8;
 const MAX_MINUTE_HEIGHT_PX = 3.2;
@@ -61,6 +62,8 @@ export interface BrowseDayData {
   labelAr: string;
   rooms: AgendaTimeGridColumn[];
   sessions: BrowseSessionBlockData[];
+  /** Real track id/name/color triples present among this day's sessions, for the color-key legend. */
+  legendItems: AgendaLegendItem[];
 }
 
 export function BrowseGridClient({
@@ -108,6 +111,8 @@ export function BrowseGridClient({
         </div>
       )}
 
+      <AgendaColorLegend items={activeDay.legendItems} />
+
       <div className="flex items-center justify-end gap-1">
         <button
           type="button"
@@ -149,9 +154,14 @@ export function BrowseGridClient({
         emptyState={
           <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">{emptyDayLabel}</Card>
         }
-        renderBlock={(s) => (
-          <div className="flex h-full flex-col gap-0.5 overflow-hidden p-1.5 text-white">
-            <span className="truncate text-xs font-semibold">{s.title}</span>
+        renderBlock={(s, textColor) => (
+          <div className="flex h-full flex-col gap-1 p-1.5" style={{ color: textColor }}>
+            {/* No `truncate` -- the full title always shows, wrapping to
+                multiple lines if needed, per explicit user feedback that
+                a cut-off title is worse than a taller block (see
+                agenda-time-grid.tsx's minHeightPx comment for the
+                matching layout-side change). */}
+            <span className="text-xs font-semibold leading-snug">{s.title}</span>
             <div className="mt-auto">
               {s.alreadyBooked ? (
                 <span className="text-[10px] font-medium">✓ Booked</span>
@@ -161,10 +171,18 @@ export function BrowseGridClient({
                 // 32px+ tall) -- see booking-button.tsx's `compact` doc.
                 // The grid block this lives inside can be as short as
                 // ~20px (a 15-minute slot), too short for the roomy
-                // card-era button.
-                <WaitlistButton sessionId={s.id} isWaitlisted={s.isWaitlisted} isPastDeadline={s.isPastDeadline} compact />
+                // card-era button. compactTextColor matches this block's
+                // own computed textColor instead of the old hardcoded
+                // white -- see booking-button.tsx's compactTextColor doc.
+                <WaitlistButton
+                  sessionId={s.id}
+                  isWaitlisted={s.isWaitlisted}
+                  isPastDeadline={s.isPastDeadline}
+                  compact
+                  compactTextColor={textColor}
+                />
               ) : (
-                <BookButton sessionId={s.id} isFull={s.isFull} isPastDeadline={s.isPastDeadline} compact />
+                <BookButton sessionId={s.id} isFull={s.isFull} isPastDeadline={s.isPastDeadline} compact compactTextColor={textColor} />
               )}
             </div>
           </div>

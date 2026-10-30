@@ -254,6 +254,7 @@ export default async function SessionsListPage({
                 otherColumnLabel={t('otherTrack')}
                 zoomOutLabel={t('zoomOut')}
                 zoomInLabel={t('zoomIn')}
+                legendItems={(tracks ?? []).map((tr) => ({ id: tr.id, name: tr.name_en, color: tr.color ?? '#6b7280' }))}
               />
             );
           })()}

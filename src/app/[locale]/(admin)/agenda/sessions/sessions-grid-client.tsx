@@ -25,8 +25,9 @@
 // bug) is the illegal case.
 import { useState } from 'react';
 import { Link } from '@/i18n/routing';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import type { BadgeVariant } from '@/components/ui/badge';
 import { AgendaTimeGrid, type AgendaTimeGridColumn } from '@/components/schedule/agenda-time-grid';
+import { AgendaColorLegend, type AgendaLegendItem } from '@/components/schedule/agenda-color-legend';
 
 const MIN_MINUTE_HEIGHT_PX = 0.8;
 const MAX_MINUTE_HEIGHT_PX = 3.2;
@@ -58,6 +59,7 @@ export function SessionsGridClient({
   otherColumnLabel,
   zoomOutLabel,
   zoomInLabel,
+  legendItems,
 }: {
   dayGroups: DayGroupData[];
   /** True when more than one day group is present -- matches the original "only show the heading when there's more than one day" behavior. */
@@ -65,11 +67,14 @@ export function SessionsGridClient({
   otherColumnLabel: string;
   zoomOutLabel: string;
   zoomInLabel: string;
+  /** Real track id/name/color triples, for the color-key legend explaining what each block color means. */
+  legendItems: AgendaLegendItem[];
 }) {
   const [minuteHeightPx, setMinuteHeightPx] = useState(DEFAULT_MINUTE_HEIGHT_PX);
 
   return (
     <div className="flex flex-col gap-3">
+      <AgendaColorLegend items={legendItems} />
       <div className="flex items-center justify-end gap-1">
         <button
           type="button"
@@ -112,16 +117,28 @@ export function SessionsGridClient({
                 statusLabel: s.statusLabel,
                 statusVariant: s.statusVariant,
               }))}
-              renderBlock={(session) => (
+              renderBlock={(session, textColor) => (
                 <Link
                   href={`/agenda/sessions/${session.id}`}
-                  className="flex h-full flex-col gap-0.5 p-1.5 text-start text-white hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  className="flex h-full flex-col gap-1 p-1.5 text-start hover:brightness-95 focus-visible:outline-none focus-visible:ring-2"
+                  style={{ color: textColor, outlineColor: textColor }}
                 >
-                  <span className="flex items-center justify-between gap-1">
-                    <span className="truncate text-xs font-semibold">{session.sessionCode}</span>
-                    <Badge variant={session.statusVariant}>{session.statusLabel}</Badge>
+                  <span className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="text-xs font-semibold">{session.sessionCode}</span>
+                    {/* A small self-contained status chip instead of the shared Badge component: Badge's per-variant colors (e.g. neutral's charcoal-toned border/text) assume a light page background, not an arbitrary track color -- it would clash or go near-invisible on a dark block. This chip always derives its colors from the SAME computed textColor as the rest of the block, so it stays readable against any track color automatically. */}
+                    <span
+                      className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                      style={{ backgroundColor: `color-mix(in srgb, ${textColor} 18%, transparent)`, color: textColor }}
+                    >
+                      {session.statusLabel}
+                    </span>
                   </span>
-                  <span className="truncate text-xs">{session.titleEn}</span>
+                  {/* No `truncate` -- the full title always shows, wrapping
+                      to multiple lines if needed, per explicit user
+                      feedback that a cut-off title is worse than a taller
+                      block (see agenda-time-grid.tsx's minHeightPx comment
+                      for the matching layout-side change). */}
+                  <span className="text-xs leading-snug">{session.titleEn}</span>
                 </Link>
               )}
             />
