@@ -132,7 +132,7 @@ export default async function BrowseSessionsPage() {
           {(day) => (
             <AgendaTimeGrid
               tracks={distinctTracksForGrid(day.sessions, locale)}
-              otherTrackLabel="Other"
+              otherTrackLabel={locale === 'ar' ? 'أخرى' : 'Other'}
               sessions={day.sessions.map((s) => ({
                 id: s.id,
                 trackId: s.track_id,
