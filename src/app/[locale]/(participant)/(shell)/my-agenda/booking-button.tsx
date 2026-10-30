@@ -143,6 +143,15 @@ export function CancelButton({ bookingId, isPastDeadline, onCancelled }: CancelB
 type WaitlistButtonProps = {
   sessionId: string;
   isWaitlisted: boolean;
+  // Gates only the "not yet waitlisted" (Join waitlist) branch below --
+  // mirrors BookButton's isPastDeadline check/rendering above. join_waitlist
+  // rejects a past-deadline join server-side, so without this guard a caller
+  // that ever passes isWaitlisted={false} on a past-deadline session would
+  // render a live-looking "Join waitlist" button guaranteed to fail on
+  // click. Deliberately NOT applied to the "already waitlisted" (Leave
+  // waitlist) branch -- leave_waitlist has no deadline check (withdrawing
+  // must always be allowed); see the matching comment in browse/page.tsx.
+  isPastDeadline: boolean;
   // Called after a successful leave, in addition to this component's own
   // internal state flip. Needed on my-agenda, where this component is
   // reused purely for its already-waitlisted branch (see page.tsx) --
@@ -160,7 +169,13 @@ type WaitlistButtonProps = {
   compact?: boolean;
 };
 
-export function WaitlistButton({ sessionId, isWaitlisted: initialWaitlisted, onLeft, compact = false }: WaitlistButtonProps) {
+export function WaitlistButton({
+  sessionId,
+  isWaitlisted: initialWaitlisted,
+  isPastDeadline,
+  onLeft,
+  compact = false,
+}: WaitlistButtonProps) {
   const [waitlisted, setWaitlisted] = useState(initialWaitlisted);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -209,6 +224,10 @@ export function WaitlistButton({ sessionId, isWaitlisted: initialWaitlisted, onL
         {error && <p className="max-w-[160px] text-right text-xs text-red-600 dark:text-red-400">{error}</p>}
       </div>
     );
+  }
+
+  if (isPastDeadline) {
+    return <span className={compact ? 'text-[10px] text-white/70' : 'text-xs text-charcoal/40 dark:text-gray-500'}>Closed</span>;
   }
 
   if (compact) {

@@ -65,6 +65,16 @@ export function WaitlistedSessions({ entries, locale }: Props) {
               <WaitlistButton
                 sessionId={s.id}
                 isWaitlisted={true}
+                // This view only ever renders the already-waitlisted (Leave
+                // waitlist) branch, which is never gated on isPastDeadline
+                // (withdrawing must always be allowed -- see the prop's doc
+                // in booking-button.tsx and the matching comment in
+                // browse/page.tsx). This file has no deadline data in scope
+                // and the "not yet waitlisted" branch is unreachable here
+                // (isWaitlisted is always true), so the value is inert;
+                // false is passed as the honest "no evidence of a past
+                // deadline" default rather than fetching/computing one.
+                isPastDeadline={false}
                 onLeft={() => setLeft((prev) => new Set([...prev, entry.id]))}
               />
             </div>

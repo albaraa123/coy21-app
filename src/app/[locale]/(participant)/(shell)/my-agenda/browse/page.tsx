@@ -189,7 +189,12 @@ export default async function BrowseSessionsPage() {
                         // `compact` doc. The grid block this lives inside can
                         // be as short as ~20px (a 15-minute slot), too short
                         // for the roomy card-era button.
-                        <WaitlistButton sessionId={s.id} isWaitlisted={myWaitlistedIds.has(s.id)} compact />
+                        <WaitlistButton
+                          sessionId={s.id}
+                          isWaitlisted={myWaitlistedIds.has(s.id)}
+                          isPastDeadline={isPastDeadline}
+                          compact
+                        />
                       ) : (
                         <BookButton sessionId={s.id} isFull={isFull} isPastDeadline={isPastDeadline} compact />
                       )}
