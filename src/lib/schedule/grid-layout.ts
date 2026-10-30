@@ -10,6 +10,16 @@
 // Same-track overlapping sessions (confirmed live: up to 7 SDE sessions at
 // once, different rooms) are laid out side-by-side within their track's
 // column via greedy interval partitioning into "lanes", not stacked.
+//
+// All minute values are Europe/Istanbul wall-clock time, NOT UTC -- the
+// venue (Antalya, Türkiye) is a fixed UTC+3 year-round (Turkey abolished
+// DST in 2016). Found as a live production bug on 2026-10-31: a session
+// stored as 05:00 UTC (= 08:00 Istanbul) was rendering on the grid at
+// "5AM" because this module read raw UTC hours with no offset. Reuses the
+// same fixed-offset constant as src/lib/datetime/conference-time.ts
+// rather than inventing a second timezone-conversion strategy.
+
+import { CONFERENCE_TIMEZONE_OFFSET_MS } from '@/lib/datetime/conference-time';
 
 export interface GridInputSession {
   id: string;
@@ -41,8 +51,13 @@ export interface GridLayout {
   rangeEndMinutes: number;
 }
 
-function minutesSinceMidnightUTC(iso: string): number {
-  const d = new Date(iso);
+function minutesSinceMidnightConferenceLocal(iso: string): number {
+  const istanbulMs = new Date(iso).getTime() + CONFERENCE_TIMEZONE_OFFSET_MS;
+  const d = new Date(istanbulMs);
+  // Read UTC getters on the shifted timestamp -- same technique as
+  // isoToConferenceLocalInputValue in conference-time.ts -- so no
+  // additional (browser-local) timezone conversion layers on top of the
+  // Istanbul shift already applied.
   return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
@@ -82,7 +97,7 @@ function assignLanes(sessions: { id: string; startMinutes: number; endMinutes: n
 
 export function computeGridLayout(sessions: GridInputSession[]): GridLayout {
   const valid = sessions
-    .map((s) => ({ ...s, startMinutes: minutesSinceMidnightUTC(s.startTime), endMinutes: minutesSinceMidnightUTC(s.endTime) }))
+    .map((s) => ({ ...s, startMinutes: minutesSinceMidnightConferenceLocal(s.startTime), endMinutes: minutesSinceMidnightConferenceLocal(s.endTime) }))
     .filter((s) => s.endMinutes > s.startMinutes);
 
   if (valid.length === 0) {

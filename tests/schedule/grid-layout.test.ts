@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { computeGridLayout, type GridInputSession } from '@/lib/schedule/grid-layout';
+import { CONFERENCE_TIMEZONE_OFFSET_MS } from '@/lib/datetime/conference-time';
 
-const s = (id: string, trackId: string, start: string, end: string): GridInputSession => ({
-  id, trackId, startTime: `2026-11-05T${start}:00Z`, endTime: `2026-11-05T${end}:00Z`,
-});
+// start/end are written as Europe/Istanbul wall-clock time (what every
+// assertion below reads as), then converted to the UTC instant actually
+// stored in the DB -- computeGridLayout converts back to Istanbul
+// internally, so this round-trips exactly.
+const s = (id: string, trackId: string, start: string, end: string): GridInputSession => {
+  const toUtcIso = (hhmm: string) => new Date(new Date(`2026-11-05T${hhmm}:00Z`).getTime() - CONFERENCE_TIMEZONE_OFFSET_MS).toISOString();
+  return { id, trackId, startTime: toUtcIso(start), endTime: toUtcIso(end) };
+};
 
 describe('computeGridLayout', () => {
   it('returns an empty layout for an empty session list', () => {
@@ -72,5 +78,15 @@ describe('computeGridLayout', () => {
   it('a zero-duration or inverted session (end <= start) is dropped, not NaN-crashed', () => {
     const layout = computeGridLayout([s('a', 't1', '10:00', '10:00'), s('b', 't1', '11:00', '10:30')]);
     expect(layout.blocks).toEqual([]);
+  });
+
+  it('converts a raw UTC timestamp to Europe/Istanbul wall-clock minutes, not raw UTC minutes (regression for the 2026-10-31 "5AM registration" production bug)', () => {
+    // Real D1-01 "Registration & Arrival" row: stored as 05:00 UTC, which
+    // is 08:00 in Istanbul (UTC+3). The grid must show/position it at 08:00.
+    const layout = computeGridLayout([
+      { id: 'reg', trackId: 't1', startTime: '2026-11-05T05:00:00+00:00', endTime: '2026-11-05T06:00:00+00:00' },
+    ]);
+    expect(layout.blocks[0].startMinutes).toBe(8 * 60);
+    expect(layout.blocks[0].endMinutes).toBe(9 * 60);
   });
 });
