@@ -189,6 +189,25 @@ body {
   animation: drawer-backdrop-enter 0.2s ease-out both;
 }
 
+/* Small dropdown/popover panel enter (UserMenu, NotificationBell) — a
+   plain scale+fade anchored at transform-origin: top, which works
+   correctly in both LTR/RTL without a separate origin-top-end/
+   origin-top-start utility class (Tailwind doesn't ship a logical-
+   direction transform-origin utility; these panels are already
+   positioned via logical `end-0`, so only the vertical anchor needs
+   setting here). Distinct from the mobile drawer's slide-in — a small
+   anchored popover reads better as scale+fade than as a slide, since it
+   has no fixed edge to slide in from the way a full-height drawer does. */
+@keyframes dropdown-enter {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-dropdown-enter {
+  transform-origin: top;
+  animation: dropdown-enter 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-gradient-drift,
   .animate-blob,
@@ -197,7 +216,8 @@ body {
   .animate-page-enter,
   .animate-drawer-panel-enter-ltr,
   .animate-drawer-panel-enter-rtl,
-  .animate-drawer-backdrop-enter {
+  .animate-drawer-backdrop-enter,
+  .animate-dropdown-enter {
     animation: none !important;
   }
   .btn-magnetic,

@@ -250,7 +250,8 @@ export function NotificationBell({ applicationId }: NotificationBellProps) {
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
-            className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white"
+            key={unreadCount}
+            className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white animate-count-settle"
           >
             {/* Capped at "9+" purely so the badge never outgrows its fixed
                 h-4/min-w-4 circle at this participant-scale notification
@@ -264,7 +265,7 @@ export function NotificationBell({ applicationId }: NotificationBellProps) {
         <div
           role="menu"
           aria-label={t('notifications.panelLabel')}
-          className="absolute end-0 z-10 mt-2 w-80 max-h-96 overflow-y-auto rounded-md border border-charcoal/10 bg-warm-white p-1 shadow-lg"
+          className="absolute end-0 z-10 mt-2 w-80 max-h-96 overflow-y-auto rounded-md border border-charcoal/10 bg-warm-white p-1 shadow-lg animate-dropdown-enter"
         >
           {rows.length === 0 ? (
             <p className="px-3 py-4 text-center text-sm text-charcoal/60">{t('notifications.empty')}</p>

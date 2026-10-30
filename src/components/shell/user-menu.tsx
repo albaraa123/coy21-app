@@ -117,7 +117,7 @@ export function UserMenu({ name, roleLabel, avatarUrl, logoutLabel }: UserMenuPr
         <div
           role="menu"
           aria-label={name}
-          className="absolute end-0 z-10 mt-2 w-48 rounded-md border border-charcoal/10 bg-warm-white p-1 shadow-lg"
+          className="absolute end-0 z-10 mt-2 w-48 rounded-md border border-charcoal/10 bg-warm-white p-1 shadow-lg animate-dropdown-enter"
         >
           <form action={formAction}>
             <LogoutSubmitButton label={logoutLabel} />
