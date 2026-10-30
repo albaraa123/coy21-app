@@ -4,25 +4,32 @@ import { notFound } from 'next/navigation';
 import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { SESSION_STATUSES } from '@/lib/validation/agenda';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { MountReveal } from '@/components/motion/mount-reveal';
+import { AgendaTimeGrid } from '@/components/schedule/agenda-time-grid';
 
 const PAGE_SIZE = 50;
 
-// Not routed through the shared formatConferenceTime() helper: this list
-// needs zero-padded 12-hour times (e.g. "09:05 AM"), but that helper
-// hardcodes `hour: 'numeric'` (no leading zero). Only the timezone changes
-// here (Asia/Muscat -> Europe/Istanbul); the original hour:'2-digit' format
-// is preserved exactly.
-function formatSessionListTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', {
-    timeZone: 'Europe/Istanbul',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+// Groups by the session's real conference_day_id (added to the select above
+// specifically for this) rather than deriving a calendar date from
+// start_time -- the latter would be UTC-based and could misgroup a session
+// near local midnight relative to the venue's actual timezone
+// (Europe/Istanbul). Grouping by the real foreign key sidesteps that
+// entirely: no timezone math needed to know which day a session belongs to,
+// the database already knows.
+function groupSessionsByDay<T extends { conference_day_id: string; conference_day: { label_en: string } | null }>(
+  sessions: T[]
+): { dayId: string; label: string; sessions: T[] }[] {
+  const map = new Map<string, { dayId: string; label: string; sessions: T[] }>();
+  for (const s of sessions) {
+    if (!map.has(s.conference_day_id)) {
+      map.set(s.conference_day_id, { dayId: s.conference_day_id, label: s.conference_day?.label_en ?? 'Unscheduled', sessions: [] });
+    }
+    map.get(s.conference_day_id)!.sessions.push(s);
+  }
+  return [...map.values()];
 }
 
 const STATUS_BADGE_VARIANT: Record<string, 'mandatory' | 'elective' | 'cancelled' | 'changed' | 'pending' | 'neutral'> = {
@@ -68,7 +75,7 @@ export default async function SessionsListPage({
   // role-gate's `profiles` lookup.
   const [{ data: days }, { data: tracks }, { data: rooms }] = await Promise.all([
     supabase.from('conference_days').select('id, label_en, display_order').order('display_order', { ascending: true }),
-    supabase.from('tracks').select('id, name_en').order('name_en', { ascending: true }),
+    supabase.from('tracks').select('id, name_en, color').order('name_en', { ascending: true }),
     supabase.from('rooms').select('id, name_en').order('name_en', { ascending: true }),
   ]);
 
@@ -76,7 +83,7 @@ export default async function SessionsListPage({
   let dataQuery = supabase
     .from('sessions')
     .select(
-      'id, session_code, title_en, start_time, end_time, status, capacity, conference_day:conference_days(label_en), track:tracks(name_en), room:rooms(name_en)'
+      'id, session_code, title_en, start_time, end_time, status, capacity, track_id, conference_day_id, conference_day:conference_days(label_en), track:tracks(name_en), room:rooms(name_en)'
     )
     .order('start_time', { ascending: true })
     .order('session_code', { ascending: true });
@@ -207,79 +214,60 @@ export default async function SessionsListPage({
         <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       ) : (
         <MountReveal delayMs={0}>
-          {/* Wrapped as ONE reveal block, not per-row staggered — up to
-              PAGE_SIZE (50) rows, same reasoning as applications/page.tsx.
-              Mobile: card-per-session list. Desktop (md+): table. Both trees
-              render the same `sessions` data and must be kept in sync — any
-              column added to one must be added to the other. */}
-          <div className="flex flex-col gap-2 md:hidden">
-            {sessions.map((session) => (
-              <Card key={session.id}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Link href={`/agenda/sessions/${session.id}`} className="text-sm font-medium text-turquoise hover:underline">
-                    {session.session_code}
-                  </Link>
-                  <Badge variant={STATUS_BADGE_VARIANT[session.status] ?? 'neutral'}>
-                    {t(`statusValues.${session.status}`)}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-sm text-charcoal dark:text-gray-100">{session.title_en}</p>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-charcoal/60 dark:text-gray-400">
-                  <span>{session.conference_day?.label_en}</span>
-                  <span>
-                    {formatSessionListTime(session.start_time)}
-                    –
-                    {formatSessionListTime(session.end_time)}
-                  </span>
-                  <span>{session.track?.name_en}</span>
-                  <span>{session.room?.name_en}</span>
-                  <span>{t('capacity')}: {session.capacity}</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-          <div className="hidden overflow-x-auto rounded-lg border border-charcoal/10 dark:border-gray-700 md:block">
-            <table className="w-full text-start text-sm">
-              <thead>
-                <tr className="border-b border-charcoal/10 bg-warm-white text-xs text-charcoal/60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('code')}</th>
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('titleColumn')}</th>
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('day')}</th>
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('time')}</th>
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('track')}</th>
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('room')}</th>
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('status')}</th>
-                  <th scope="col" className="px-4 py-2 text-start font-medium">{t('capacity')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-charcoal/10 dark:divide-gray-700">
-                {sessions.map((session) => (
-                  <tr key={session.id}>
-                    <td className="px-4 py-2">
-                      <Link href={`/agenda/sessions/${session.id}`} className="text-sm font-medium text-turquoise hover:underline">
-                        {session.session_code}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2 text-charcoal dark:text-gray-100">{session.title_en}</td>
-                    <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.conference_day?.label_en}</td>
-                    <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">
-                      {formatSessionListTime(session.start_time)}
-                      –
-                      {formatSessionListTime(session.end_time)}
-                    </td>
-                    <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.track?.name_en}</td>
-                    <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.room?.name_en}</td>
-                    <td className="px-4 py-2">
-                      <Badge variant={STATUS_BADGE_VARIANT[session.status] ?? 'neutral'}>
-                        {t(`statusValues.${session.status}`)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2 text-charcoal/70 dark:text-gray-400">{session.capacity}</td>
-                  </tr>
+          {/* One AgendaTimeGrid per calendar day present in the (filtered)
+              result set, grouped by the real conference_day_id rather than
+              a single date-blind grid -- see groupSessionsByDay above. In
+              the common case (no `day` filter, or all current real data on
+              a single day) this collapses to exactly one grid, same as
+              before. The day heading is only shown when more than one day
+              is present, so the single-day case stays visually unchanged. */}
+          {(() => {
+            const dayGroups = groupSessionsByDay(sessions);
+            return (
+              <div className="flex flex-col gap-8">
+                {dayGroups.map((dayGroup) => (
+                  <div key={dayGroup.dayId} className="flex flex-col gap-2">
+                    {dayGroups.length > 1 && (
+                      <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">
+                        {dayGroup.label}
+                      </h2>
+                    )}
+                    <AgendaTimeGrid
+                      tracks={(tracks ?? [])
+                        .filter((tr) => dayGroup.sessions.some((s) => s.track_id === tr.id))
+                        .map((tr) => ({ id: tr.id, name: tr.name_en, color: tr.color ?? '#6b7280' }))}
+                      sessions={dayGroup.sessions.map((s) => ({
+                        id: s.id,
+                        trackId: s.track_id,
+                        startTime: s.start_time,
+                        endTime: s.end_time,
+                        session_code: s.session_code,
+                        title_en: s.title_en,
+                        status: s.status,
+                        room: s.room,
+                      }))}
+                      otherTrackLabel={t('otherTrack')}
+                      renderBlock={(session) => (
+                        <Link
+                          href={`/agenda/sessions/${session.id}`}
+                          className="flex h-full flex-col gap-0.5 p-1.5 text-start text-white hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        >
+                          <span className="flex items-center justify-between gap-1">
+                            <span className="truncate text-xs font-semibold">{session.session_code}</span>
+                            <Badge variant={STATUS_BADGE_VARIANT[session.status] ?? 'neutral'}>
+                              {t(`statusValues.${session.status}`)}
+                            </Badge>
+                          </span>
+                          <span className="truncate text-xs">{session.title_en}</span>
+                          <span className="truncate text-[10px] opacity-80">{session.room?.name_en}</span>
+                        </Link>
+                      )}
+                    />
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            );
+          })()}
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-charcoal/70 dark:text-gray-400">
             <p>{t('pageOf', { page, totalPages })}</p>
             {page > 1 && (

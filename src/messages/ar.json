@@ -1164,6 +1164,7 @@
       "newSession": "جلسة جديدة",
       "emptyTitle": "لا توجد جلسات",
       "emptyDescription": "لا توجد جلسات مطابقة لعوامل التصفية الحالية.",
+      "otherTrack": "أخرى",
       "filters": {
         "day": "اليوم",
         "track": "المسار",

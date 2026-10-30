@@ -1164,6 +1164,7 @@
       "newSession": "New session",
       "emptyTitle": "No sessions found",
       "emptyDescription": "No sessions match the current filters.",
+      "otherTrack": "Other",
       "filters": {
         "day": "Day",
         "track": "Track",
