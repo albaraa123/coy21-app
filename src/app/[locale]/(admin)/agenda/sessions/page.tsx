@@ -269,6 +269,8 @@ export default async function SessionsListPage({
                 searchPlaceholder={t('searchPlaceholder')}
                 resultCountSingularLabel={t('resultCountSingular')}
                 resultCountPluralLabel={t('resultCountPlural')}
+                timelineEmptyTitle={t('emptyTitle')}
+                timelineEmptyDescription={t('emptyDescription')}
               />
             );
           })()}

@@ -25,6 +25,7 @@
 // bug) is the illegal case.
 import { useState } from 'react';
 import { Link } from '@/i18n/routing';
+import { Card } from '@/components/ui/card';
 import type { BadgeVariant } from '@/components/ui/badge';
 import { AgendaTimeGrid, type AgendaTimeGridColumn } from '@/components/schedule/agenda-time-grid';
 import { AgendaColorLegend, type AgendaLegendItem } from '@/components/schedule/agenda-color-legend';
@@ -87,6 +88,8 @@ export function SessionsGridClient({
   searchPlaceholder,
   resultCountSingularLabel,
   resultCountPluralLabel,
+  timelineEmptyTitle,
+  timelineEmptyDescription,
 }: {
   dayGroups: DayGroupData[];
   /** True when more than one day group is present -- matches the original "only show the heading when there's more than one day" behavior. Grid view only; Timeline view always shows day tabs instead when more than one day group is present (see activeDayIndex below). */
@@ -108,6 +111,17 @@ export function SessionsGridClient({
       component. */
   resultCountSingularLabel: string;
   resultCountPluralLabel: string;
+  /** Shown when Timeline view's track-filter/search narrows the active
+      day's sessions to zero -- reuses the page's existing
+      emptyTitle/emptyDescription i18n keys (already generically worded
+      for "no sessions match the current filters", not "none exist at
+      all") rather than adding new ones. Without this, filtering to
+      zero on Timeline rendered nothing at all below the search bar --
+      indistinguishable from a rendering bug (code review finding,
+      2026-11-01). Mirrors AgendaTimeGrid's own emptyState prop /
+      browse-grid-client.tsx's emptyDayLabel pattern. */
+  timelineEmptyTitle: string;
+  timelineEmptyDescription: string;
 }) {
   const [minuteHeightPx, setMinuteHeightPx] = useState(DEFAULT_MINUTE_HEIGHT_PX);
   const [view, setView] = useState<AgendaView>('grid');
@@ -224,6 +238,12 @@ export function SessionsGridClient({
             endTime: s.endTime,
             isBreak: s.isBreak,
           }))}
+          emptyState={
+            <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">
+              <p className="font-medium text-charcoal/70 dark:text-gray-300">{timelineEmptyTitle}</p>
+              <p className="mt-1">{timelineEmptyDescription}</p>
+            </Card>
+          }
           renderCard={(sessionsInRow, isBreak) => {
             const bySessionId = new Map(filteredSessions.map((s) => [s.id, s]));
             return sessionsInRow.map((row) => {
