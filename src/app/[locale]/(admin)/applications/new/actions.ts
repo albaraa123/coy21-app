@@ -8,7 +8,7 @@ const PARTICIPANT_TYPES = ['delegate', 'volunteer', 'knowledge_partner', 'youngo
 
 const createApplicationSchema = z.object({
   fullName: z.string().trim().min(2),
-  email: z.string().trim().email(),
+  email: z.string().trim().toLowerCase().email(),
   participantType: z.enum(PARTICIPANT_TYPES),
   phone: z.string().trim().optional(),
   country: z.string().trim().optional(),
@@ -19,6 +19,30 @@ const createApplicationSchema = z.object({
 export async function createParticipantApplication(input: z.infer<typeof createApplicationSchema>) {
   const { service } = await requireSuperAdmin();
   const parsed = createApplicationSchema.parse(input);
+
+  // Reject a duplicate email before creating a second application for the
+  // same person -- checks both an unclaimed row's imported_email and a
+  // claimed row's linked profiles.email (the two places an application's
+  // email can live; see this file's existing applicant_id/imported_email
+  // comment below).
+  const { data: existingImported } = await service
+    .from('applications')
+    .select('id')
+    .eq('imported_email', parsed.email)
+    .limit(1)
+    .maybeSingle();
+  if (existingImported) {
+    throw new Error('An application with this email already exists');
+  }
+  const { data: existingClaimed } = await service
+    .from('applications')
+    .select('id, profiles!applications_applicant_id_fkey!inner(email)')
+    .eq('profiles.email', parsed.email)
+    .limit(1)
+    .maybeSingle();
+  if (existingClaimed) {
+    throw new Error('An application with this email already exists');
+  }
 
   // Same numbering scheme the import pipeline uses
   // (apply_import_row_transactional) -- a type-coded sequence, not a
