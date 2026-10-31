@@ -6,6 +6,7 @@ import { updateParticipantTypeAction } from './actions';
 import { issueQrForApplicationAction } from './qr-actions';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import type { Database } from '@/types/database';
 
 type ParticipantType = Database['public']['Enums']['participant_type'];
@@ -77,7 +78,7 @@ export default function ClassificationControls({
           <label htmlFor="participant-type-select" className="text-sm text-charcoal/60 dark:text-gray-400">
             {t('participantType')}:
           </label>
-          <select
+          <Select
             id="participant-type-select"
             className="rounded-md border border-charcoal/20 bg-transparent px-2 py-1.5 text-sm text-charcoal dark:border-gray-700 dark:text-gray-100"
             value={selectedType}
@@ -89,7 +90,7 @@ export default function ClassificationControls({
                 {t(`types.${type}`)}
               </option>
             ))}
-          </select>
+          </Select>
           <Button
             size="sm"
             disabled={busy || selectedType === currentParticipantType}

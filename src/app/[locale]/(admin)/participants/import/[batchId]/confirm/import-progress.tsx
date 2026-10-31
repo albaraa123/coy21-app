@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { LoadingState } from '@/components/states/loading-state';
 import { startImport, resumeImportBatch, processImportChunk } from './actions';
 import { runDownstreamProcessing } from '../downstream-actions';
@@ -220,7 +221,7 @@ export default function ImportProgress({ batchId, initialBatch }: { batchId: str
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2 text-sm text-charcoal/70 dark:text-gray-400">
                 {t('clusterCountLabel')}
-                <input
+                <Input
                   type="number"
                   min={1}
                   value={manualK}

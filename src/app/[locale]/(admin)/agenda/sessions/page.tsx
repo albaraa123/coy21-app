@@ -9,6 +9,7 @@ import { isStaffRole } from '@/lib/auth/is-staff-role';
 import { MountReveal } from '@/components/motion/mount-reveal';
 import { SessionsGridClient, type DayGroupData } from './sessions-grid-client';
 import type { BadgeVariant } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
 
 const PAGE_SIZE = 50;
 
@@ -150,7 +151,7 @@ export default async function SessionsListPage({
       <form method="get" className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-charcoal/10 bg-warm-white p-4 dark:border-gray-700 dark:bg-gray-900 md:mb-6">
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('filters.day')}
-          <select
+          <Select
             name="day"
             defaultValue={params.day ?? ''}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -159,11 +160,11 @@ export default async function SessionsListPage({
             {days?.map((day) => (
               <option key={day.id} value={day.id}>{day.label_en}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('filters.track')}
-          <select
+          <Select
             name="track"
             defaultValue={params.track ?? ''}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -172,11 +173,11 @@ export default async function SessionsListPage({
             {tracks?.map((track) => (
               <option key={track.id} value={track.id}>{track.name_en}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('filters.room')}
-          <select
+          <Select
             name="room"
             defaultValue={params.room ?? ''}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -185,11 +186,11 @@ export default async function SessionsListPage({
             {rooms?.map((room) => (
               <option key={room.id} value={room.id}>{room.name_en}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('filters.status')}
-          <select
+          <Select
             name="status"
             defaultValue={params.status ?? ''}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -198,7 +199,7 @@ export default async function SessionsListPage({
             {SESSION_STATUSES.map((status) => (
               <option key={status} value={status}>{t(`statusValues.${status}`)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <button
           type="submit"

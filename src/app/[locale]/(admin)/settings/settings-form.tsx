@@ -6,6 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { updateSandboxRecipient, enableSandboxMode, disableSandboxMode } from './actions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 
 const DISABLE_CONFIRMATION_PHRASE = 'DISABLE';
 
@@ -147,7 +148,7 @@ export default function SettingsForm({ sandboxEnabled, sandboxRecipientEmail, is
               <div className="flex w-full flex-col gap-2 rounded-md border border-red-700/40 bg-red-50 p-3 dark:border-red-400/40 dark:bg-red-950/20">
                 <label className="flex flex-col gap-1 text-sm text-red-700 dark:text-red-300">
                   {t('disableConfirmPrompt')}
-                  <input
+                  <Input
                     value={confirmText}
                     onChange={(e) => setConfirmText(e.target.value)}
                     placeholder={DISABLE_CONFIRMATION_PHRASE}
@@ -177,7 +178,7 @@ export default function SettingsForm({ sandboxEnabled, sandboxRecipientEmail, is
           <form onSubmit={handleSaveRecipient} className="flex flex-col gap-4 md:max-w-md">
             <label className={labelClass}>
               {t('recipientLabel')}
-              <input
+              <Input
                 type="email"
                 value={recipientInput}
                 onChange={(e) => setRecipientInput(e.target.value)}

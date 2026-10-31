@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 export default function SignUpPage() {
   const t = useTranslations('auth');
@@ -63,7 +64,7 @@ export default function SignUpPage() {
           <label htmlFor="fullName" className="text-sm font-medium text-charcoal dark:text-gray-200">
             {t('fullNameLabel')}
           </label>
-          <input
+          <Input
             id="fullName"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
@@ -76,7 +77,7 @@ export default function SignUpPage() {
           <label htmlFor="email" className="text-sm font-medium text-charcoal dark:text-gray-200">
             {t('emailLabel')}
           </label>
-          <input
+          <Input
             id="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -90,7 +91,7 @@ export default function SignUpPage() {
           <label htmlFor="password" className="text-sm font-medium text-charcoal dark:text-gray-200">
             {t('passwordLabel')}
           </label>
-          <input
+          <Input
             id="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

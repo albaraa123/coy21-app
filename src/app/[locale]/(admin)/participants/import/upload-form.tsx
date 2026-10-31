@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { LoadingState } from '@/components/states/loading-state';
+import { Input } from '@/components/ui/input';
 import { uploadImportFile } from './actions';
 
 export default function UploadForm() {
@@ -64,7 +65,7 @@ export default function UploadForm() {
         }}
       >
         <p className="mb-3 text-sm text-charcoal/70 dark:text-gray-400">{t('dropInstruction')}</p>
-        <input
+        <Input
           type="file"
           accept=".xlsx"
           disabled={uploading}

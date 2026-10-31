@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 type ClusteringRun = {
   id: string;
@@ -121,7 +123,7 @@ export default function ClusterList({
         <h2 className="text-sm font-semibold text-charcoal dark:text-gray-100">{t('newRunTitle')}</h2>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('extractionRun')}
-          <select
+          <Select
             value={form.featureExtractionRunId}
             onChange={(e) => setForm({ ...form, featureExtractionRunId: e.target.value })}
             required
@@ -133,11 +135,11 @@ export default function ClusterList({
                 {t('extractionRunOption', { id: run.id, version: run.rules_version, count: run.application_count })}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('k')}
-          <input
+          <Input
             type="number"
             min={1}
             step={1}
@@ -149,7 +151,7 @@ export default function ClusterList({
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('randomSeed')}
-          <input
+          <Input
             type="number"
             step={1}
             value={form.randomSeed}

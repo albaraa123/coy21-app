@@ -6,6 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { registrationSchema } from '@/lib/validation/registration';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from '@/i18n/routing';
@@ -214,7 +217,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           Phone <span className="text-red-600">*</span>
-          <input
+          <Input
             {...register('phone')}
             placeholder="Phone"
             onBlur={() => autosaveStep(STEP_1_FIELDS)}
@@ -226,7 +229,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             Country <span className="text-red-600">*</span>
-            <input
+            <Input
               {...register('country')}
               placeholder="Country"
               onBlur={() => autosaveStep(STEP_1_FIELDS)}
@@ -236,7 +239,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             Nationality <span className="text-red-600">*</span>
-            <input
+            <Input
               {...register('nationality')}
               placeholder="Nationality"
               onBlur={() => autosaveStep(STEP_1_FIELDS)}
@@ -249,7 +252,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
         <div className="flex flex-col gap-1">
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             Birth date
-            <input
+            <Input
               {...register('birth_date')}
               type="date"
               onBlur={() => autosaveStep(STEP_1_FIELDS)}
@@ -258,12 +261,12 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             Age group
-            <select {...register('age_group')} onBlur={() => autosaveStep(STEP_1_FIELDS)} className={inputClass}>
+            <Select {...register('age_group')} onBlur={() => autosaveStep(STEP_1_FIELDS)} className={inputClass}>
               <option value="">Age group</option>
               {AGE_GROUP_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <p className="text-xs text-charcoal/60 dark:text-gray-400">Provide either your birth date or an age range.</p>
           {errors.birth_date && <p className="text-sm text-red-600">{errors.birth_date.message}</p>}
@@ -272,7 +275,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             City <span className="text-red-600">*</span>
-            <input
+            <Input
               {...register('city')}
               placeholder="City"
               onBlur={() => autosaveStep(STEP_1_FIELDS)}
@@ -282,7 +285,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             Field of work <span className="text-red-600">*</span>
-            <input
+            <Input
               {...register('field_of_work')}
               placeholder="Field of work"
               onBlur={() => autosaveStep(STEP_1_FIELDS)}
@@ -294,10 +297,10 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           Preferred language <span className="text-red-600">*</span>
-          <select {...register('preferred_language')} onBlur={() => autosaveStep(STEP_1_FIELDS)} className={inputClass}>
+          <Select {...register('preferred_language')} onBlur={() => autosaveStep(STEP_1_FIELDS)} className={inputClass}>
             <option value="ar">العربية</option>
             <option value="en">English</option>
-          </select>
+          </Select>
         </label>
 
         <div className="flex justify-end">
@@ -342,18 +345,18 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           Experience level <span className="text-red-600">*</span>
-          <select {...register('experience_level')} onBlur={() => autosaveStep(STEP_2_FIELDS)} className={inputClass}>
+          <Select {...register('experience_level')} onBlur={() => autosaveStep(STEP_2_FIELDS)} className={inputClass}>
             <option value="none">None</option>
             <option value="beginner">Beginner</option>
             <option value="intermediate">Intermediate</option>
             <option value="expert">Expert</option>
-          </select>
+          </Select>
           {errors.experience_level && <p className="text-sm text-red-600">{errors.experience_level.message}</p>}
         </label>
 
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           Participation goals <span className="text-red-600">*</span>
-          <textarea
+          <Textarea
             {...register('participation_goals')}
             placeholder="Participation goals"
             onBlur={() => autosaveStep(STEP_2_FIELDS)}
@@ -386,7 +389,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
       <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
         Organization
-        <input
+        <Input
           {...register('organization')}
           placeholder="Organization"
           onBlur={() => autosaveStep(STEP_3_FIELDS)}
@@ -396,7 +399,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
       <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
         Climate experience
-        <textarea
+        <Textarea
           {...register('climate_experience')}
           placeholder="Climate experience"
           onBlur={() => autosaveStep(STEP_3_FIELDS)}
@@ -406,7 +409,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
       <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
         Past initiatives
-        <textarea
+        <Textarea
           {...register('past_initiatives')}
           placeholder="Past initiatives"
           onBlur={() => autosaveStep(STEP_3_FIELDS)}
@@ -416,7 +419,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
       <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
         Topics to learn
-        <textarea
+        <Textarea
           {...register('topics_to_learn')}
           placeholder="Topics to learn"
           onBlur={() => autosaveStep(STEP_3_FIELDS)}
@@ -426,7 +429,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
       <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
         Content type preference
-        <input
+        <Input
           {...register('content_type_pref')}
           placeholder="Content type preference"
           onBlur={() => autosaveStep(STEP_3_FIELDS)}
@@ -451,7 +454,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
       <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
         Priority sessions
-        <textarea
+        <Textarea
           {...register('priority_sessions')}
           placeholder="Priority sessions"
           onBlur={() => autosaveStep(STEP_3_FIELDS)}
@@ -461,7 +464,7 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
 
       <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
         Special needs
-        <textarea
+        <Textarea
           {...register('special_needs')}
           placeholder="Special needs"
           onBlur={() => autosaveStep(STEP_3_FIELDS)}

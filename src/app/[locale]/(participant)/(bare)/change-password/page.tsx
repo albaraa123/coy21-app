@@ -13,6 +13,7 @@ import { useRouter } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/client';
 import { completePasswordChange } from './actions';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function ChangePasswordPage() {
   const t = useTranslations('changePassword');
@@ -64,7 +65,7 @@ export default function ChangePasswordPage() {
         <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">{t('description')}</p>
       </div>
       <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-3">
-        <input
+        <Input
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           type="password"
@@ -73,7 +74,7 @@ export default function ChangePasswordPage() {
           minLength={8}
           className="w-full rounded-md border border-charcoal/20 bg-white px-3 py-2 text-sm text-charcoal focus:border-turquoise focus:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         />
-        <input
+        <Input
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           type="password"

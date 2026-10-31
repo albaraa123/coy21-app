@@ -17,6 +17,8 @@ import { updateSessionStatus } from './actions';
 import type { SessionStatus } from '@/lib/validation/agenda';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 export default function StatusControl({
   sessionId,
@@ -82,7 +84,7 @@ export default function StatusControl({
           {t('current')}: <span className="font-medium text-charcoal dark:text-gray-100">{currentStatus}</span>
         </span>
         {validNextStatuses.length > 0 && (
-          <select
+          <Select
             value=""
             onChange={(e) => e.target.value && handleStatusChange(e.target.value)}
             disabled={submitting}
@@ -92,7 +94,7 @@ export default function StatusControl({
             {validNextStatuses.map((status) => (
               <option key={status} value={status}>{status}</option>
             ))}
-          </select>
+          </Select>
         )}
       </Card>
 
@@ -103,7 +105,7 @@ export default function StatusControl({
         >
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('cancellationReason')}
-            <input
+            <Input
               type="text"
               value={cancellationReason}
               onChange={(e) => setCancellationReason(e.target.value)}

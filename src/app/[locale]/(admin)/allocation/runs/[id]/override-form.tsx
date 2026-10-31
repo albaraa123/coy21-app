@@ -6,6 +6,8 @@ import { useRouter } from '@/i18n/routing';
 import { overrideAssignment } from './actions';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function OverrideForm({ assignmentId }: { assignmentId: string }) {
   const t = useTranslations('allocation.runs.detail.override');
@@ -48,7 +50,7 @@ export default function OverrideForm({ assignmentId }: { assignmentId: string })
         )}
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('newSessionId')}
-          <input
+          <Input
             value={sessionId}
             onChange={(e) => setSessionId(e.target.value)}
             required
@@ -57,7 +59,7 @@ export default function OverrideForm({ assignmentId }: { assignmentId: string })
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('reasonLabel')}
-          <textarea
+          <Textarea
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
             required

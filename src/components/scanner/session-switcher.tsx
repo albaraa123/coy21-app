@@ -31,6 +31,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ScannerClient } from './scanner-client';
 import { formatSessionTime } from './format-session-time';
+import { Select } from '@/components/ui/select';
 import type { ScannerSessionContext } from '@/lib/attendance/scanner-assignment-context';
 
 export function SessionSwitcher({ sessions, locale }: { sessions: ScannerSessionContext[]; locale: string }) {
@@ -63,7 +64,7 @@ export function SessionSwitcher({ sessions, locale }: { sessions: ScannerSession
       {sessions.length > 1 && (
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('sessionSwitcher.label')}
-          <select
+          <Select
             value={selectedSessionId}
             onChange={(e) => setSelectedSessionId(e.target.value)}
             className="rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -73,7 +74,7 @@ export function SessionSwitcher({ sessions, locale }: { sessions: ScannerSession
                 {(locale === 'ar' ? s.titleAr : s.titleEn)} — {locale === 'ar' ? s.roomNameAr : s.roomNameEn} ({formatSessionTime(s, locale)})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
