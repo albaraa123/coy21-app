@@ -33,7 +33,6 @@ import type { AgendaView } from '@/components/schedule/agenda-view-storage';
 import { AgendaTrackFilterPills } from '@/components/schedule/agenda-track-filter-pills';
 import { AgendaSearchBar } from '@/components/schedule/agenda-search-bar';
 import { AgendaTimeline } from '@/components/schedule/agenda-timeline';
-import { pickReadableTextColor } from '@/lib/schedule/readable-text-color';
 
 const ADMIN_SESSIONS_VIEW_STORAGE_KEY = 'coy21-admin-sessions-view-v1';
 
@@ -231,7 +230,6 @@ export function SessionsGridClient({
               const s = bySessionId.get(row.id);
               if (!s) return null;
               const expanded = expandedId === s.id;
-              const chipTextColor = pickReadableTextColor(s.blockColor);
               return (
                 <div
                   key={s.id}
@@ -250,11 +248,15 @@ export function SessionsGridClient({
                         <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.blockColor }} />
                         {s.sessionCode}
                       </span>
-                      {/* Same color-mix-based chip markup as Grid view's renderBlock below, computed from this card's own blockColor via pickReadableTextColor. */}
-                      <span
-                        className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                        style={{ backgroundColor: `color-mix(in srgb, ${chipTextColor} 18%, transparent)`, color: chipTextColor }}
-                      >
+                      {/* Fixed neutral chip, NOT pickReadableTextColor(blockColor) -- that function is correct for Grid
+                          view's solid-track-colored blocks (a dark track color needs white text ON that color), but
+                          this Timeline card has a light bg-warm-white background, not the track color. Reusing it
+                          here produced near-invisible chips for dark tracks (e.g. Plenary's navy): the computed
+                          white text paired with an 18%-white chip background both read as near-white-on-near-white
+                          against the light card. A small status chip doesn't need per-track coloring -- fixed
+                          neutral tokens (same family as Badge's 'neutral' variant) stay readable against every
+                          track's card regardless of that track's color. */}
+                      <span className="rounded bg-charcoal/10 px-1.5 py-0.5 text-[10px] font-medium text-charcoal/70 dark:bg-white/10 dark:text-gray-300">
                         {s.statusLabel}
                       </span>
                     </span>
