@@ -34,6 +34,13 @@ import { Card } from '@/components/ui/card';
 import { BookButton, WaitlistButton } from '../booking-button';
 import { AgendaTimeGrid, type AgendaTimeGridColumn } from '@/components/schedule/agenda-time-grid';
 import { AgendaColorLegend, type AgendaLegendItem } from '@/components/schedule/agenda-color-legend';
+import { AgendaViewToggle } from '@/components/schedule/agenda-view-toggle';
+import type { AgendaView } from '@/components/schedule/agenda-view-storage';
+import { AgendaTrackFilterPills } from '@/components/schedule/agenda-track-filter-pills';
+import { AgendaSearchBar } from '@/components/schedule/agenda-search-bar';
+import { AgendaTimeline } from '@/components/schedule/agenda-timeline';
+
+const BROWSE_VIEW_STORAGE_KEY = 'coy21-browse-sessions-view-v1';
 
 const MIN_MINUTE_HEIGHT_PX = 0.8;
 const MAX_MINUTE_HEIGHT_PX = 3.2;
@@ -43,10 +50,23 @@ const DEFAULT_MINUTE_HEIGHT_PX = 1.6;
 export interface BrowseSessionBlockData {
   id: string;
   roomId: string;
+  /** The session's track id -- threaded through separately from blockColor
+      so Timeline view's track-filter pills can match sessions by id (Grid
+      view keys its columns by roomId instead, see `trackId: s.roomId`
+      below in the AgendaTimeGrid mapping -- an unrelated, pre-existing use
+      of the name "trackId" scoped to that render-prop call only). */
+  trackId: string;
   blockColor: string;
   startTime: string;
   endTime: string;
   title: string;
+  /** True for a break/plenary "session" (session_types.code === 'BRK') --
+      Timeline view renders these in a muted style with no Book/Waitlist
+      control, never expandable. */
+  isBreak: boolean;
+  /** Locale-aware speaker full names (non-null only) -- used by Timeline
+      view's search bar to match sessions by speaker in addition to title. */
+  speakerNames: string[];
   /** True when this session is already booked by the caller -- renders a static "Booked" state, no button. */
   alreadyBooked: boolean;
   /** True when the caller should see a WaitlistButton instead of a BookButton (full + waitlist-enabled + (already on the waitlist OR still before deadline) -- see the original inline comment this precomputation replaces, preserved below at the render-prop call site). */
@@ -73,6 +93,10 @@ export function BrowseGridClient({
   otherColumnLabel,
   zoomOutLabel,
   zoomInLabel,
+  gridViewLabel,
+  timelineViewLabel,
+  allTracksLabel,
+  searchPlaceholder,
 }: {
   days: BrowseDayData[];
   locale: string;
@@ -81,12 +105,39 @@ export function BrowseGridClient({
   otherColumnLabel: string;
   zoomOutLabel: string;
   zoomInLabel: string;
+  /** Plain hardcoded English literals -- this page has zero next-intl
+      wiring today (see this file's existing emptyDayLabel/otherColumnLabel/
+      zoomOutLabel/zoomInLabel props, all hardcoded English from page.tsx),
+      and Timeline view's new strings follow the exact same convention. */
+  gridViewLabel: string;
+  timelineViewLabel: string;
+  allTracksLabel: string;
+  searchPlaceholder: string;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [minuteHeightPx, setMinuteHeightPx] = useState(DEFAULT_MINUTE_HEIGHT_PX);
+  const [view, setView] = useState<AgendaView>('grid');
+  const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (days.length === 0) return null;
   const activeDay = days[Math.min(activeIndex, days.length - 1)];
+
+  // Timeline-view-only derived list -- Grid view below keeps mapping
+  // activeDay.sessions directly, completely unaffected by this filter.
+  const filteredSessions = activeDay.sessions.filter((s) => {
+    if (selectedTrackIds.size > 0 && !selectedTrackIds.has(s.trackId)) return false;
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      const titleMatch = s.title.toLowerCase().includes(q);
+      const speakerMatch = s.speakerNames.some((n) => n.toLowerCase().includes(q));
+      if (!titleMatch && !speakerMatch) return false;
+    }
+    return true;
+  });
+
+  const resultCountLabel = `${filteredSessions.length} ${filteredSessions.length === 1 ? 'session' : 'sessions'}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -113,81 +164,180 @@ export function BrowseGridClient({
 
       <AgendaColorLegend items={activeDay.legendItems} />
 
-      <div className="flex items-center justify-end gap-1">
-        <button
-          type="button"
-          aria-label={zoomOutLabel}
-          disabled={minuteHeightPx <= MIN_MINUTE_HEIGHT_PX}
-          onClick={() => setMinuteHeightPx((v) => Math.max(MIN_MINUTE_HEIGHT_PX, +(v - STEP_PX).toFixed(2)))}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
-        >
-          −
-        </button>
-        <button
-          type="button"
-          aria-label={zoomInLabel}
-          disabled={minuteHeightPx >= MAX_MINUTE_HEIGHT_PX}
-          onClick={() => setMinuteHeightPx((v) => Math.min(MAX_MINUTE_HEIGHT_PX, +(v + STEP_PX).toFixed(2)))}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
-        >
-          +
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <AgendaViewToggle
+          storageKey={BROWSE_VIEW_STORAGE_KEY}
+          view={view}
+          onChange={setView}
+          gridLabel={gridViewLabel}
+          timelineLabel={timelineViewLabel}
+        />
+
+        {view === 'grid' ? (
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              aria-label={zoomOutLabel}
+              disabled={minuteHeightPx <= MIN_MINUTE_HEIGHT_PX}
+              onClick={() => setMinuteHeightPx((v) => Math.max(MIN_MINUTE_HEIGHT_PX, +(v - STEP_PX).toFixed(2)))}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              aria-label={zoomInLabel}
+              disabled={minuteHeightPx >= MAX_MINUTE_HEIGHT_PX}
+              onClick={() => setMinuteHeightPx((v) => Math.min(MAX_MINUTE_HEIGHT_PX, +(v + STEP_PX).toFixed(2)))}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <AgendaSearchBar
+            value={query}
+            onChange={setQuery}
+            placeholder={searchPlaceholder}
+            resultCountLabel={resultCountLabel}
+          />
+        )}
       </div>
 
-      <AgendaTimeGrid
-        minuteHeightPx={minuteHeightPx}
-        columns={activeDay.rooms}
-        otherColumnLabel={otherColumnLabel}
-        sessions={activeDay.sessions.map((s) => ({
-          id: s.id,
-          trackId: s.roomId,
-          blockColor: s.blockColor,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          title: s.title,
-          alreadyBooked: s.alreadyBooked,
-          showWaitlistButton: s.showWaitlistButton,
-          isWaitlisted: s.isWaitlisted,
-          isFull: s.isFull,
-          isPastDeadline: s.isPastDeadline,
-        }))}
-        emptyState={
-          <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">{emptyDayLabel}</Card>
-        }
-        renderBlock={(s, textColor) => (
-          <div className="flex h-full flex-col gap-1 p-1.5" style={{ color: textColor }}>
-            {/* No `truncate` -- the full title always shows, wrapping to
-                multiple lines if needed, per explicit user feedback that
-                a cut-off title is worse than a taller block (see
-                agenda-time-grid.tsx's minHeightPx comment for the
-                matching layout-side change). */}
-            <span className="text-xs font-semibold leading-snug">{s.title}</span>
-            <div className="mt-auto">
-              {s.alreadyBooked ? (
-                <span className="text-[10px] font-medium">✓ Booked</span>
-              ) : s.showWaitlistButton ? (
-                // `compact` here renders a small underlined-text control
-                // instead of the full <Button size="sm"> (px-3/py-1.5,
-                // 32px+ tall) -- see booking-button.tsx's `compact` doc.
-                // The grid block this lives inside can be as short as
-                // ~20px (a 15-minute slot), too short for the roomy
-                // card-era button. compactTextColor matches this block's
-                // own computed textColor instead of the old hardcoded
-                // white -- see booking-button.tsx's compactTextColor doc.
-                <WaitlistButton
-                  sessionId={s.id}
-                  isWaitlisted={s.isWaitlisted}
-                  isPastDeadline={s.isPastDeadline}
-                  compact
-                  compactTextColor={textColor}
-                />
-              ) : (
-                <BookButton sessionId={s.id} isFull={s.isFull} isPastDeadline={s.isPastDeadline} compact compactTextColor={textColor} />
-              )}
+      {view === 'timeline' && (
+        <AgendaTrackFilterPills
+          options={activeDay.legendItems}
+          selectedIds={selectedTrackIds}
+          onToggle={(trackId) =>
+            setSelectedTrackIds((cur) => {
+              const next = new Set(cur);
+              if (next.has(trackId)) next.delete(trackId);
+              else next.add(trackId);
+              return next;
+            })
+          }
+          onClear={() => setSelectedTrackIds(new Set())}
+          allLabel={allTracksLabel}
+        />
+      )}
+
+      {view === 'timeline' ? (
+        <AgendaTimeline
+          sessions={filteredSessions.map((s) => ({
+            id: s.id,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            isBreak: s.isBreak,
+          }))}
+          emptyState={
+            <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">{emptyDayLabel}</Card>
+          }
+          renderCard={(sessionsInRow, isBreak) => {
+            const bySessionId = new Map(filteredSessions.map((s) => [s.id, s]));
+            return sessionsInRow.map((row) => {
+              const s = bySessionId.get(row.id);
+              if (!s) return null;
+              const expanded = expandedId === s.id;
+              return (
+                <div
+                  key={s.id}
+                  role={isBreak ? undefined : 'button'}
+                  tabIndex={isBreak ? undefined : 0}
+                  onClick={isBreak ? undefined : () => setExpandedId((cur) => (cur === s.id ? null : s.id))}
+                  className={
+                    isBreak
+                      ? 'flex-1 border-s-2 border-charcoal/20 py-1 ps-2 text-xs text-charcoal/50 dark:border-gray-700 dark:text-gray-500'
+                      : 'flex min-w-[220px] flex-1 cursor-pointer flex-col gap-1 rounded-md border border-charcoal/10 bg-warm-white p-2 dark:border-gray-700 dark:bg-gray-900'
+                  }
+                >
+                  {!isBreak && (
+                    <span className="flex items-center gap-1.5 text-[10px] font-medium text-charcoal/60 dark:text-gray-400">
+                      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.blockColor }} />
+                      {activeDay.legendItems.find((t) => t.id === s.trackId)?.name}
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold">{s.title}</span>
+                  {expanded && !isBreak && s.speakerNames.length > 0 && (
+                    <span className="text-xs text-charcoal/60 dark:text-gray-400">{s.speakerNames.join(', ')}</span>
+                  )}
+                  {!isBreak && (
+                    <div className="mt-auto">
+                      {s.alreadyBooked ? (
+                        <span className="text-[10px] font-medium">✓ Booked</span>
+                      ) : s.showWaitlistButton ? (
+                        <WaitlistButton
+                          sessionId={s.id}
+                          isWaitlisted={s.isWaitlisted}
+                          isPastDeadline={s.isPastDeadline}
+                          compact
+                          compactTextColor="#0a1a2e"
+                        />
+                      ) : (
+                        <BookButton sessionId={s.id} isFull={s.isFull} isPastDeadline={s.isPastDeadline} compact compactTextColor="#0a1a2e" />
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          }}
+        />
+      ) : (
+        <AgendaTimeGrid
+          minuteHeightPx={minuteHeightPx}
+          columns={activeDay.rooms}
+          otherColumnLabel={otherColumnLabel}
+          sessions={activeDay.sessions.map((s) => ({
+            id: s.id,
+            trackId: s.roomId,
+            blockColor: s.blockColor,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            title: s.title,
+            alreadyBooked: s.alreadyBooked,
+            showWaitlistButton: s.showWaitlistButton,
+            isWaitlisted: s.isWaitlisted,
+            isFull: s.isFull,
+            isPastDeadline: s.isPastDeadline,
+          }))}
+          emptyState={
+            <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">{emptyDayLabel}</Card>
+          }
+          renderBlock={(s, textColor) => (
+            <div className="flex h-full flex-col gap-1 p-1.5" style={{ color: textColor }}>
+              {/* No `truncate` -- the full title always shows, wrapping to
+                  multiple lines if needed, per explicit user feedback that
+                  a cut-off title is worse than a taller block (see
+                  agenda-time-grid.tsx's minHeightPx comment for the
+                  matching layout-side change). */}
+              <span className="text-xs font-semibold leading-snug">{s.title}</span>
+              <div className="mt-auto">
+                {s.alreadyBooked ? (
+                  <span className="text-[10px] font-medium">✓ Booked</span>
+                ) : s.showWaitlistButton ? (
+                  // `compact` here renders a small underlined-text control
+                  // instead of the full <Button size="sm"> (px-3/py-1.5,
+                  // 32px+ tall) -- see booking-button.tsx's `compact` doc.
+                  // The grid block this lives inside can be as short as
+                  // ~20px (a 15-minute slot), too short for the roomy
+                  // card-era button. compactTextColor matches this block's
+                  // own computed textColor instead of the old hardcoded
+                  // white -- see booking-button.tsx's compactTextColor doc.
+                  <WaitlistButton
+                    sessionId={s.id}
+                    isWaitlisted={s.isWaitlisted}
+                    isPastDeadline={s.isPastDeadline}
+                    compact
+                    compactTextColor={textColor}
+                  />
+                ) : (
+                  <BookButton sessionId={s.id} isFull={s.isFull} isPastDeadline={s.isPastDeadline} compact compactTextColor={textColor} />
+                )}
+              </div>
             </div>
-          </div>
-        )}
-      />
+          )}
+        />
+      )}
     </div>
   );
 }

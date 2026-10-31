@@ -43,7 +43,8 @@ export default async function BrowseSessionsPage() {
       rooms ( name_en, name_ar ),
       tracks ( color, name_en, name_ar ),
       conference_days ( conference_date, label_en, label_ar, display_order ),
-      session_types ( enable_waitlist )
+      session_types ( code, enable_waitlist ),
+      session_people ( people ( full_name_en, full_name_ar ) )
     `)
     .in('status', ['published', 'confirmed'])
     .order('start_time');
@@ -171,10 +172,17 @@ export default async function BrowseSessionsPage() {
               return {
                 id: s.id,
                 roomId: s.room_id,
+                trackId: s.track_id,
                 blockColor: s.tracks?.color ?? '#6b7280',
                 startTime: s.start_time,
                 endTime: s.end_time,
                 title: locale === 'ar' ? s.title_ar : s.title_en,
+                isBreak: s.session_types?.code === 'BRK',
+                speakerNames: (s.session_people ?? [])
+                  .map((sp: { people: { full_name_en: string; full_name_ar: string } | null }) =>
+                    locale === 'ar' ? sp.people?.full_name_ar : sp.people?.full_name_en
+                  )
+                  .filter((n: string | undefined): n is string => Boolean(n)),
                 alreadyBooked,
                 showWaitlistButton,
                 isWaitlisted,
@@ -192,6 +200,10 @@ export default async function BrowseSessionsPage() {
               otherColumnLabel={locale === 'ar' ? 'أخرى' : 'Other'}
               zoomOutLabel={locale === 'ar' ? 'تصغير' : 'Zoom out'}
               zoomInLabel={locale === 'ar' ? 'تكبير' : 'Zoom in'}
+              gridViewLabel="Grid"
+              timelineViewLabel="Timeline"
+              allTracksLabel="All tracks"
+              searchPlaceholder="Search by title or speaker"
             />
           );
         })()
