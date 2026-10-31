@@ -507,15 +507,16 @@ export function AgendaSearchBar({
   value,
   onChange,
   placeholder,
-  resultCount,
   resultCountLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  resultCount: number;
-  /** A next-intl-resolved string like "12 sessions" / "12 جلسة" -- the
-      caller resolves pluralization via t(), this component just renders it. */
+  /** A pre-resolved display string like "12 sessions" / "12 جلسة" -- the
+      caller computes the count and any pluralization, this component just
+      renders the final string. (Implemented without a separate numeric
+      resultCount prop -- this string alone is sufficient, and a second
+      unused prop would only trigger an eslint no-unused-vars warning.) */
   resultCountLabel: string;
 }) {
   return (
