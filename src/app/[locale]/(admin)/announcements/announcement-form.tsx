@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { createAnnouncement } from './actions';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 // Minimal composer per the plan's Task 5 scope: title field, body field,
 // send button -- deliberately no history/list view of past announcements
@@ -62,7 +64,7 @@ export default function AnnouncementForm() {
           <label htmlFor="announcement-title" className="mb-1 block text-xs font-medium text-charcoal/60 dark:text-gray-400">
             {t('titleLabel')}
           </label>
-          <input
+          <Input
             id="announcement-title"
             type="text"
             required
@@ -76,7 +78,7 @@ export default function AnnouncementForm() {
           <label htmlFor="announcement-body" className="mb-1 block text-xs font-medium text-charcoal/60 dark:text-gray-400">
             {t('bodyLabel')}
           </label>
-          <textarea
+          <Textarea
             id="announcement-body"
             value={body}
             onChange={(e) => setBody(e.target.value)}

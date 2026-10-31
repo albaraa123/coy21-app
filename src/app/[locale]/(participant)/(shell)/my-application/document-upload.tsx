@@ -7,6 +7,7 @@
 
 import { useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import { Input } from '@/components/ui/input';
 
 const BUCKET = 'participant-documents';
 
@@ -52,7 +53,7 @@ export function DocumentUpload({ userId, docKey, label }: Props) {
     <div className="flex flex-col items-end gap-1">
       <label className="cursor-pointer rounded-md bg-charcoal/5 px-3 py-1.5 text-xs font-medium text-charcoal hover:bg-charcoal/10 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15">
         {status === 'uploading' ? 'Uploading…' : status === 'done' ? 'Replace' : `Upload ${label}`}
-        <input
+        <Input
           ref={inputRef}
           type="file"
           className="sr-only"

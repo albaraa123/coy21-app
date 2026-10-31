@@ -75,6 +75,7 @@ import { claimApplication, findMyClaimableApplication } from './actions';
 import { LoadingState } from '@/components/states/loading-state';
 import { ErrorState } from '@/components/states/error-state';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type Phase =
   | { kind: 'checking' }
@@ -211,7 +212,7 @@ export default function ClaimPage() {
         <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">{t('claimed.setPasswordPrompt')}</p>
       </div>
       <form onSubmit={handleSetPassword} className="flex flex-col gap-3">
-        <input
+        <Input
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           type="password"
@@ -220,7 +221,7 @@ export default function ClaimPage() {
           minLength={8}
           className="w-full rounded-md border border-charcoal/20 bg-white px-3 py-2 text-sm text-charcoal focus:border-turquoise focus:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         />
-        <input
+        <Input
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           type="password"

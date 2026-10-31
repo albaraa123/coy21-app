@@ -5,6 +5,8 @@ import { useRouter } from '@/i18n/routing';
 import { createStaffAccount, updateStaffRole, deleteStaffAccount } from './actions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 type StaffProfile = {
   id: string;
@@ -133,7 +135,7 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
                   <td className="px-4 py-3">
                     {editingId === member.id ? (
                       <form onSubmit={handleRoleChange} className="flex items-center gap-2">
-                        <select
+                        <Select
                           value={editRole}
                           onChange={(e) => setEditRole(e.target.value)}
                           className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-xs text-charcoal focus:border-turquoise focus:outline-none"
@@ -141,7 +143,7 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
                           {STAFF_ROLES.map((r) => (
                             <option key={r.value} value={r.value}>{r.label}</option>
                           ))}
-                        </select>
+                        </Select>
                         <Button type="submit" size="sm" disabled={submitting}>Save</Button>
                         <Button type="button" size="sm" variant="secondary" onClick={cancel}>Cancel</Button>
                       </form>
@@ -187,7 +189,7 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className={labelClass}>
               Full Name
-              <input
+              <Input
                 value={form.fullName}
                 onChange={(e) => setForm({ ...form, fullName: e.target.value })}
                 required
@@ -197,7 +199,7 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
             </label>
             <label className={labelClass}>
               Email
-              <input
+              <Input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -208,7 +210,7 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
             </label>
             <label className={labelClass}>
               Role
-              <select
+              <Select
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className={inputClass}
@@ -216,11 +218,11 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
                 {STAFF_ROLES.map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className={labelClass}>
               Temporary Password
-              <input
+              <Input
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}

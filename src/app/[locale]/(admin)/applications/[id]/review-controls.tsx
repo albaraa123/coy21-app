@@ -7,6 +7,8 @@ import { updateApplicationStatus, assignReviewer, addNote } from './actions';
 import type { ApplicationStatus } from '@/lib/validation/admission-review';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 type Reviewer = { id: string; full_name: string; email: string };
 type Note = { id: string; body: string; created_at: string; profiles: { full_name: string } | null };
@@ -138,7 +140,7 @@ export default function ReviewControls({
           <label htmlFor="reviewer-select" className="mb-1 block text-xs font-medium text-charcoal/60 dark:text-gray-400">
             {t('assignedReviewer')}
           </label>
-          <select
+          <Select
             id="reviewer-select"
             value={assignedReviewerId ?? ''}
             disabled={reviewerBusy}
@@ -149,7 +151,7 @@ export default function ReviewControls({
             {reviewers.map((r) => (
               <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
             ))}
-          </select>
+          </Select>
         </Card>
       </div>
 
@@ -157,7 +159,7 @@ export default function ReviewControls({
         <h2 className="mb-2 text-sm font-semibold text-charcoal dark:text-gray-100">{t('notesTitle')}</h2>
         <Card className="flex flex-col gap-3">
           <form onSubmit={handleAddNote} className="flex flex-col gap-2">
-            <textarea
+            <Textarea
               value={noteBody}
               onChange={(e) => setNoteBody(e.target.value)}
               placeholder={t('notePlaceholder')}

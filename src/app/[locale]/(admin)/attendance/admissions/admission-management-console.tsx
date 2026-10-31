@@ -17,6 +17,9 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 type Session = { id: string; title_ar: string; title_en: string; status: string; start_time: string; end_time: string };
 
@@ -167,7 +170,7 @@ export default function AdmissionManagementConsole({ sessions }: { sessions: Ses
       <form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3">
         <label className="flex flex-1 min-w-[240px] flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('searchLabel')}
-          <input
+          <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -307,7 +310,7 @@ export default function AdmissionManagementConsole({ sessions }: { sessions: Ses
               {(mode === 'override' || mode === 'transfer') && (
                 <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
                   {t('session')}
-                  <select
+                  <Select
                     value={actionSessionId}
                     onChange={(e) => setActionSessionId(e.target.value)}
                     required
@@ -319,13 +322,13 @@ export default function AdmissionManagementConsole({ sessions }: { sessions: Ses
                         {locale === 'ar' ? s.title_ar : s.title_en}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               )}
 
               <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
                 {t('reasonLabel')}
-                <textarea
+                <Textarea
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   required

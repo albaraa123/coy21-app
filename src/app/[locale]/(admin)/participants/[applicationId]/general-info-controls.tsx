@@ -12,6 +12,7 @@ import { updateGeneralInfoAction, type GeneralInfoUpdateInput } from './actions'
 import { arrayFieldToInput, inputToArrayField } from '@/lib/participants/general-info-array-field';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type GeneralInfoValues = {
   full_name: string | null;
@@ -121,7 +122,7 @@ export default function GeneralInfoControls({
           {TEXT_FIELD_KEYS.map((key) => (
             <div key={key} className="flex flex-col gap-1">
               <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{t(`fields.${i18nKeyFor(key)}`)}</label>
-              <input
+              <Input
                 className="rounded-md border border-charcoal/20 bg-transparent px-2 py-1.5 text-sm text-charcoal dark:border-gray-700 dark:text-gray-100"
                 value={textValues[key]}
                 disabled={busy}
@@ -132,7 +133,7 @@ export default function GeneralInfoControls({
           {ARRAY_FIELD_KEYS.map((key) => (
             <div key={key} className="flex flex-col gap-1">
               <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{t(`fields.${i18nKeyFor(key)}`)}</label>
-              <input
+              <Input
                 className="rounded-md border border-charcoal/20 bg-transparent px-2 py-1.5 text-sm text-charcoal dark:border-gray-700 dark:text-gray-100"
                 value={arrayInputs[key]}
                 disabled={busy}

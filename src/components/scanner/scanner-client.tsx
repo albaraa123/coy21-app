@@ -35,6 +35,7 @@ import { useWakeLock } from './use-wake-lock';
 import { useServiceWorker } from './use-service-worker';
 import { InstallGuidance } from './install-guidance';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ErrorState } from '@/components/states/error-state';
 
 // A non-'result' failure outcome is ALWAYS a network/auth/server
@@ -559,7 +560,7 @@ export function ScannerClient({ sessionId }: { sessionId: string }) {
               {t('manualEntry')}
             </summary>
             <form onSubmit={handleManualFormSubmit} className="mt-2 flex gap-2">
-              <input
+              <Input
                 type="text"
                 value={manualValue}
                 onChange={(e) => setManualValue(e.target.value)}

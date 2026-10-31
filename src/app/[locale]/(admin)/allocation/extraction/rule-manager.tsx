@@ -12,6 +12,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 type Rule = {
   id: string;
@@ -217,7 +219,7 @@ export default function RuleManager({ rules, runs, tags }: { rules: Rule[]; runs
         <h3 className="text-sm font-semibold text-charcoal dark:text-gray-100">{t('newRuleTitle')}</h3>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('sourceField')}
-          <select
+          <Select
             value={form.sourceField}
             onChange={(e) => setForm({ ...form, sourceField: e.target.value })}
             className={inputClasses}
@@ -225,11 +227,11 @@ export default function RuleManager({ rules, runs, tags }: { rules: Rule[]; runs
             {EXTRACTABLE_SOURCE_FIELDS.map((field) => (
               <option key={field} value={field}>{field}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('matchType')}
-          <select
+          <Select
             value={form.matchType}
             onChange={(e) => setForm({ ...form, matchType: e.target.value })}
             className={inputClasses}
@@ -237,11 +239,11 @@ export default function RuleManager({ rules, runs, tags }: { rules: Rule[]; runs
             {MATCH_TYPES.map((type) => (
               <option key={type} value={type}>{type}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('matchValue')}
-          <input
+          <Input
             value={form.matchValue}
             onChange={(e) => setForm({ ...form, matchValue: e.target.value })}
             required
@@ -250,7 +252,7 @@ export default function RuleManager({ rules, runs, tags }: { rules: Rule[]; runs
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('tag')}
-          <select
+          <Select
             value={form.tagId}
             onChange={(e) => setForm({ ...form, tagId: e.target.value })}
             required
@@ -260,11 +262,11 @@ export default function RuleManager({ rules, runs, tags }: { rules: Rule[]; runs
             {tags.map((tag) => (
               <option key={tag.id} value={tag.id}>{tag.name_en}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('weight')}
-          <input
+          <Input
             type="number"
             min={0}
             max={1}

@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
 
 type Room = {
   id: string;
@@ -245,7 +246,7 @@ export default function RoomManager({ rooms }: { rooms: Room[] }) {
           </h2>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('code')}
-            <input
+            <Input
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
               required
@@ -254,7 +255,7 @@ export default function RoomManager({ rooms }: { rooms: Room[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('nameAr')}
-            <input
+            <Input
               value={form.nameAr}
               onChange={(e) => setForm({ ...form, nameAr: e.target.value })}
               required
@@ -263,7 +264,7 @@ export default function RoomManager({ rooms }: { rooms: Room[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('nameEn')}
-            <input
+            <Input
               value={form.nameEn}
               onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
               required
@@ -272,7 +273,7 @@ export default function RoomManager({ rooms }: { rooms: Room[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('capacity')}
-            <input
+            <Input
               type="number"
               min={1}
               step={1}
@@ -284,7 +285,7 @@ export default function RoomManager({ rooms }: { rooms: Room[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('location')}
-            <input
+            <Input
               value={form.location}
               onChange={(e) => setForm({ ...form, location: e.target.value })}
               className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -292,7 +293,7 @@ export default function RoomManager({ rooms }: { rooms: Room[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('floor')}
-            <input
+            <Input
               value={form.floor}
               onChange={(e) => setForm({ ...form, floor: e.target.value })}
               className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"

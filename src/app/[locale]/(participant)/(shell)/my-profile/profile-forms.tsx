@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
@@ -118,7 +119,7 @@ export function IdentityForm({ initial, initialAvatarUrl }: { initial: Identity;
               // eslint-disable-next-line @next/next/no-img-element -- transient blob:/signed URL, not a static asset next/image can cache
               <img src={previewUrl} alt="" className="h-12 w-12 rounded-full object-cover" />
             )}
-            <input
+            <Input
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={handleAvatarChange}
@@ -339,7 +340,7 @@ function Field({
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{label}</label>
-      <input
+      <Input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -7,6 +7,9 @@ import { updateSession } from './actions';
 import { SESSION_LANGUAGES, SESSION_DIFFICULTIES } from '@/lib/validation/agenda';
 import type { Database } from '@/types/database';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { isoToConferenceLocalInputValue, conferenceLocalInputValueToIso } from '@/lib/datetime/conference-time';
 
 type Session = Database['public']['Tables']['sessions']['Row'];
@@ -148,83 +151,83 @@ export default function SessionEditForm({
       <form onSubmit={handleSubmitEdit} className="flex flex-col gap-3 rounded-lg border border-charcoal/10 bg-warm-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <label className={LABEL_CLASS}>
           {t('sessionCode')}
-          <input type="text" value={form.sessionCode} onChange={(e) => updateField('sessionCode', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="text" value={form.sessionCode} onChange={(e) => updateField('sessionCode', e.target.value)} required className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('titleAr')}
-          <input type="text" value={form.titleAr} onChange={(e) => updateField('titleAr', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="text" value={form.titleAr} onChange={(e) => updateField('titleAr', e.target.value)} required className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('titleEn')}
-          <input type="text" value={form.titleEn} onChange={(e) => updateField('titleEn', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="text" value={form.titleEn} onChange={(e) => updateField('titleEn', e.target.value)} required className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('descriptionAr')}
-          <textarea value={form.descriptionAr} onChange={(e) => updateField('descriptionAr', e.target.value)} className={FIELD_CLASS} />
+          <Textarea value={form.descriptionAr} onChange={(e) => updateField('descriptionAr', e.target.value)} className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('descriptionEn')}
-          <textarea value={form.descriptionEn} onChange={(e) => updateField('descriptionEn', e.target.value)} className={FIELD_CLASS} />
+          <Textarea value={form.descriptionEn} onChange={(e) => updateField('descriptionEn', e.target.value)} className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('day')}
-          <select value={form.conferenceDayId} onChange={(e) => updateField('conferenceDayId', e.target.value)} required className={FIELD_CLASS}>
+          <Select value={form.conferenceDayId} onChange={(e) => updateField('conferenceDayId', e.target.value)} required className={FIELD_CLASS}>
             {days.map((d) => (
               <option key={d.id} value={d.id}>{String(d.label_en)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className={LABEL_CLASS}>
           {t('startTime')}
-          <input type="datetime-local" value={form.startTime} onChange={(e) => updateField('startTime', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="datetime-local" value={form.startTime} onChange={(e) => updateField('startTime', e.target.value)} required className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('endTime')}
-          <input type="datetime-local" value={form.endTime} onChange={(e) => updateField('endTime', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="datetime-local" value={form.endTime} onChange={(e) => updateField('endTime', e.target.value)} required className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('track')}
-          <select value={form.trackId} onChange={(e) => updateField('trackId', e.target.value)} required className={FIELD_CLASS}>
+          <Select value={form.trackId} onChange={(e) => updateField('trackId', e.target.value)} required className={FIELD_CLASS}>
             {tracks.map((tr) => (
               <option key={tr.id} value={tr.id}>{String(tr.name_en)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className={LABEL_CLASS}>
           {t('sessionType')}
-          <select value={form.sessionTypeId} onChange={(e) => updateField('sessionTypeId', e.target.value)} required className={FIELD_CLASS}>
+          <Select value={form.sessionTypeId} onChange={(e) => updateField('sessionTypeId', e.target.value)} required className={FIELD_CLASS}>
             {sessionTypes.map((st) => (
               <option key={st.id} value={st.id}>{String(st.name_en)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className={LABEL_CLASS}>
           {t('room')}
-          <select value={form.roomId} onChange={(e) => updateField('roomId', e.target.value)} required className={FIELD_CLASS}>
+          <Select value={form.roomId} onChange={(e) => updateField('roomId', e.target.value)} required className={FIELD_CLASS}>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>{String(r.name_en)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className={LABEL_CLASS}>
           {t('language')}
-          <select value={form.language} onChange={(e) => updateField('language', e.target.value)} className={FIELD_CLASS}>
+          <Select value={form.language} onChange={(e) => updateField('language', e.target.value)} className={FIELD_CLASS}>
             {SESSION_LANGUAGES.map((l) => (
               <option key={l} value={l}>{t(`languageValues.${l}`)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className={LABEL_CLASS}>
           {t('difficultyLevel')}
-          <select value={form.difficultyLevel} onChange={(e) => updateField('difficultyLevel', e.target.value)} className={FIELD_CLASS}>
+          <Select value={form.difficultyLevel} onChange={(e) => updateField('difficultyLevel', e.target.value)} className={FIELD_CLASS}>
             {SESSION_DIFFICULTIES.map((d) => (
               <option key={d} value={d}>{t(`difficultyValues.${d}`)}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className={LABEL_CLASS}>
           {t('capacity')}
-          <input type="number" min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="number" min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)} required className={FIELD_CLASS} />
         </label>
         {/* Snapshot at page load; intentionally not re-fetched while this
             form is open. Purely informational -- the Task 3 capacity-
@@ -235,7 +238,7 @@ export default function SessionEditForm({
         </p>
         <label className={LABEL_CLASS}>
           {t('minCapacity')}
-          <input type="number" min="0" value={form.minCapacity} onChange={(e) => updateField('minCapacity', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="number" min="0" value={form.minCapacity} onChange={(e) => updateField('minCapacity', e.target.value)} required className={FIELD_CLASS} />
         </label>
         <label className={CHECKBOX_LABEL_CLASS}>
           <input type="checkbox" checked={form.isMandatory} onChange={(e) => updateField('isMandatory', e.target.checked)} className={CHECKBOX_CLASS} />
@@ -251,7 +254,7 @@ export default function SessionEditForm({
         </label>
         <label className={LABEL_CLASS}>
           {t('allocationPriority')}
-          <input type="number" value={form.allocationPriority} onChange={(e) => updateField('allocationPriority', e.target.value)} required className={FIELD_CLASS} />
+          <Input type="number" value={form.allocationPriority} onChange={(e) => updateField('allocationPriority', e.target.value)} required className={FIELD_CLASS} />
         </label>
         <label className={CHECKBOX_LABEL_CLASS}>
           <input type="checkbox" checked={form.enableQrCheckin} onChange={(e) => updateField('enableQrCheckin', e.target.checked)} className={CHECKBOX_CLASS} />
@@ -259,15 +262,15 @@ export default function SessionEditForm({
         </label>
         <label className={LABEL_CLASS}>
           {t('checkinOpensAt')}
-          <input type="datetime-local" value={form.checkinOpensAt} onChange={(e) => updateField('checkinOpensAt', e.target.value)} className={FIELD_CLASS} />
+          <Input type="datetime-local" value={form.checkinOpensAt} onChange={(e) => updateField('checkinOpensAt', e.target.value)} className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('checkinClosesAt')}
-          <input type="datetime-local" value={form.checkinClosesAt} onChange={(e) => updateField('checkinClosesAt', e.target.value)} className={FIELD_CLASS} />
+          <Input type="datetime-local" value={form.checkinClosesAt} onChange={(e) => updateField('checkinClosesAt', e.target.value)} className={FIELD_CLASS} />
         </label>
         <label className={LABEL_CLASS}>
           {t('internalNotes')}
-          <textarea value={form.internalNotes} onChange={(e) => updateField('internalNotes', e.target.value)} className={FIELD_CLASS} />
+          <Textarea value={form.internalNotes} onChange={(e) => updateField('internalNotes', e.target.value)} className={FIELD_CLASS} />
         </label>
         <div className="mt-2">
           <Button type="submit" disabled={submitting}>{t('save')}</Button>

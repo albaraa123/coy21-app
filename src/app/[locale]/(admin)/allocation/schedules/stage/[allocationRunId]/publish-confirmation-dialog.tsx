@@ -34,6 +34,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { computeFocusTrapTarget, isEscapeKey } from '@/components/shell/mobile-drawer-logic';
 import { canSubmitConfirmation, createReentrancyGuard, isConfirmationTextValid, runGuardedOnce } from './publish-confirmation-logic';
 
@@ -236,7 +237,7 @@ function OpenPublishConfirmationDialog({
           <label htmlFor="publish-confirmation-input" className="mt-4 block text-sm font-medium text-charcoal dark:text-gray-100">
             {t('typePrompt', { phrase: requiredPhrase })}
           </label>
-          <input
+          <Input
             ref={inputRef}
             id="publish-confirmation-input"
             type="text"

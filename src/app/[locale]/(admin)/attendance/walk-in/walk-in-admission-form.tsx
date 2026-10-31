@@ -34,6 +34,8 @@ import { useTranslations, useLocale } from 'next-intl';
 import { nextBackoffDelayMs, isStaleAttempt } from '@/components/scanner/use-scan-retry';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 type Session = { id: string; title_ar: string; title_en: string; status: string; start_time: string; end_time: string };
 
@@ -293,7 +295,7 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('session')}
-          <select
+          <Select
             value={sessionId}
             onChange={(e) => setSessionId(e.target.value)}
             required
@@ -306,12 +308,12 @@ export default function WalkInAdmissionForm({ sessions }: { sessions: Session[] 
                 {locale === 'ar' ? s.title_ar : s.title_en}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('identifierLabel')}
-          <input
+          <Input
             type="text"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}

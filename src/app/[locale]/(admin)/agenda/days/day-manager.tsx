@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
 
 type ConferenceDay = {
   id: string;
@@ -219,7 +220,7 @@ export default function DayManager({ days }: { days: ConferenceDay[] }) {
           </h2>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('date')}
-            <input
+            <Input
               type="date"
               value={form.conferenceDate}
               onChange={(e) => setForm({ ...form, conferenceDate: e.target.value })}
@@ -229,7 +230,7 @@ export default function DayManager({ days }: { days: ConferenceDay[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('nameAr')}
-            <input
+            <Input
               value={form.labelAr}
               onChange={(e) => setForm({ ...form, labelAr: e.target.value })}
               required
@@ -238,7 +239,7 @@ export default function DayManager({ days }: { days: ConferenceDay[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('nameEn')}
-            <input
+            <Input
               value={form.labelEn}
               onChange={(e) => setForm({ ...form, labelEn: e.target.value })}
               required
@@ -247,7 +248,7 @@ export default function DayManager({ days }: { days: ConferenceDay[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('displayOrder')}
-            <input
+            <Input
               type="number"
               step={1}
               value={form.displayOrder}

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQrScanner, type CameraStatus } from './use-qr-scanner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type DeductionResult = 'deducted' | 'insufficient_balance' | 'ineligible' | 'invalid_qr' | 'error';
 
@@ -147,7 +148,7 @@ export function CafeteriaCoffeeScannerClient() {
             </p>
             <label className="flex flex-col gap-1 text-sm">
               {t('cafeteria.coffee.amountLabel')}
-              <input
+              <Input
                 type="number"
                 inputMode="decimal"
                 min="0.01"

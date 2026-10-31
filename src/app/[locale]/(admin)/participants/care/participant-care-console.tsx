@@ -7,6 +7,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 const STATUS_BADGE_VARIANT: Record<string, 'mandatory' | 'elective' | 'cancelled' | 'changed' | 'pending' | 'neutral'> = {
   submitted: 'pending',
@@ -178,7 +180,7 @@ export default function ParticipantCareConsole() {
       <form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3">
         <label className="flex flex-1 min-w-[240px] flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('searchLabel')}
-          <input
+          <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -245,14 +247,14 @@ export default function ParticipantCareConsole() {
                 <label key={key} className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
                   {t(labelKey)}
                   {multiline ? (
-                    <textarea
+                    <Textarea
                       value={form[key] ?? ''}
                       onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                       rows={2}
                       className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                     />
                   ) : (
-                    <input
+                    <Input
                       type="text"
                       value={form[key] ?? ''}
                       onChange={(e) => setForm({ ...form, [key]: e.target.value })}
