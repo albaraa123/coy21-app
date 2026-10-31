@@ -30,12 +30,12 @@ function PartnerCard({ name, slug }: { name: string; slug: string }) {
     // white: every partner logo is a white-on-transparent SVG, which is
     // invisible against a white card -- the navy background is what makes
     // the white logo artwork visible.
-    <div className="flex h-36 items-center justify-center rounded-xl border border-charcoal/10 bg-turquoise p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+    <div className="flex h-56 items-center justify-center rounded-xl border border-charcoal/10 bg-turquoise p-4 shadow-sm transition-shadow duration-200 hover:shadow-md">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/partners/${slug}.svg`}
         alt={name}
-        className="h-24 w-auto max-w-full object-contain"
+        className="h-48 w-auto max-w-full object-contain"
       />
     </div>
   );
