@@ -28,6 +28,14 @@ import { Link } from '@/i18n/routing';
 import type { BadgeVariant } from '@/components/ui/badge';
 import { AgendaTimeGrid, type AgendaTimeGridColumn } from '@/components/schedule/agenda-time-grid';
 import { AgendaColorLegend, type AgendaLegendItem } from '@/components/schedule/agenda-color-legend';
+import { AgendaViewToggle } from '@/components/schedule/agenda-view-toggle';
+import type { AgendaView } from '@/components/schedule/agenda-view-storage';
+import { AgendaTrackFilterPills } from '@/components/schedule/agenda-track-filter-pills';
+import { AgendaSearchBar } from '@/components/schedule/agenda-search-bar';
+import { AgendaTimeline } from '@/components/schedule/agenda-timeline';
+import { pickReadableTextColor } from '@/lib/schedule/readable-text-color';
+
+const ADMIN_SESSIONS_VIEW_STORAGE_KEY = 'coy21-admin-sessions-view-v1';
 
 const MIN_MINUTE_HEIGHT_PX = 0.8;
 const MAX_MINUTE_HEIGHT_PX = 3.2;
@@ -37,6 +45,13 @@ const DEFAULT_MINUTE_HEIGHT_PX = 1.6;
 export interface SessionBlockData {
   id: string;
   roomId: string;
+  /** The session's track id -- threaded through separately from blockColor
+      so Timeline view's track-filter pills can match sessions by id (Grid
+      view keys its columns by roomId instead, see `trackId: s.roomId` below
+      in the AgendaTimeGrid mapping -- an unrelated, pre-existing use of the
+      name "trackId" scoped to that render-prop call only, same convention
+      already established in browse-grid-client.tsx). */
+  trackId: string;
   blockColor: string;
   startTime: string;
   endTime: string;
@@ -44,6 +59,13 @@ export interface SessionBlockData {
   titleEn: string;
   statusLabel: string;
   statusVariant: BadgeVariant;
+  /** True for a break/plenary "session" (session_types.code === 'BRK') --
+      Timeline view renders these in a muted style with no status chip,
+      never expandable or navigable. */
+  isBreak: boolean;
+  /** Locale-aware speaker full names (non-null only) -- used by Timeline
+      view's search bar to match sessions by speaker in addition to title. */
+  speakerNames: string[];
 }
 
 export interface DayGroupData {
@@ -60,91 +82,243 @@ export function SessionsGridClient({
   zoomOutLabel,
   zoomInLabel,
   legendItems,
+  gridViewLabel,
+  timelineViewLabel,
+  allTracksLabel,
+  searchPlaceholder,
+  resultCountSingularLabel,
+  resultCountPluralLabel,
 }: {
   dayGroups: DayGroupData[];
-  /** True when more than one day group is present -- matches the original "only show the heading when there's more than one day" behavior. */
+  /** True when more than one day group is present -- matches the original "only show the heading when there's more than one day" behavior. Grid view only; Timeline view always shows day tabs instead when more than one day group is present (see activeDayIndex below). */
   showDayHeading: boolean;
   otherColumnLabel: string;
   zoomOutLabel: string;
   zoomInLabel: string;
-  /** Real track id/name/color triples, for the color-key legend explaining what each block color means. */
+  /** Real track id/name/color triples, for the color-key legend explaining what each block color means (Grid view) and for Timeline view's track-filter pill options. */
   legendItems: AgendaLegendItem[];
+  gridViewLabel: string;
+  timelineViewLabel: string;
+  allTracksLabel: string;
+  searchPlaceholder: string;
+  /** Pre-resolved noun strings ("session" / "sessions", locale-aware) --
+      the count itself is only known client-side (post-filter), so this
+      component composes the final "{n} {noun}" string itself, same
+      resolved-strings-as-props shape as every other label on this page;
+      t() itself (a function) can never cross into this 'use client'
+      component. */
+  resultCountSingularLabel: string;
+  resultCountPluralLabel: string;
 }) {
   const [minuteHeightPx, setMinuteHeightPx] = useState(DEFAULT_MINUTE_HEIGHT_PX);
+  const [view, setView] = useState<AgendaView>('grid');
+  const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Timeline-view-only state/derivation -- Grid view below keeps its
+  // original unconditional .map() over every dayGroups entry, stacked,
+  // completely untouched by any of this.
+  const activeDayGroup = dayGroups[Math.min(activeDayIndex, dayGroups.length - 1)];
+
+  const filteredSessions = activeDayGroup.sessions.filter((s) => {
+    if (selectedTrackIds.size > 0 && !selectedTrackIds.has(s.trackId)) return false;
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      const titleMatch = s.titleEn.toLowerCase().includes(q);
+      const speakerMatch = s.speakerNames.some((n) => n.toLowerCase().includes(q));
+      if (!titleMatch && !speakerMatch) return false;
+    }
+    return true;
+  });
+
+  const resultCountLabel = `${filteredSessions.length} ${filteredSessions.length === 1 ? resultCountSingularLabel : resultCountPluralLabel}`;
 
   return (
     <div className="flex flex-col gap-3">
       <AgendaColorLegend items={legendItems} />
-      <div className="flex items-center justify-end gap-1">
-        <button
-          type="button"
-          aria-label={zoomOutLabel}
-          disabled={minuteHeightPx <= MIN_MINUTE_HEIGHT_PX}
-          onClick={() => setMinuteHeightPx((v) => Math.max(MIN_MINUTE_HEIGHT_PX, +(v - STEP_PX).toFixed(2)))}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
-        >
-          −
-        </button>
-        <button
-          type="button"
-          aria-label={zoomInLabel}
-          disabled={minuteHeightPx >= MAX_MINUTE_HEIGHT_PX}
-          onClick={() => setMinuteHeightPx((v) => Math.min(MAX_MINUTE_HEIGHT_PX, +(v + STEP_PX).toFixed(2)))}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
-        >
-          +
-        </button>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <AgendaViewToggle
+          storageKey={ADMIN_SESSIONS_VIEW_STORAGE_KEY}
+          view={view}
+          onChange={setView}
+          gridLabel={gridViewLabel}
+          timelineLabel={timelineViewLabel}
+        />
+
+        {view === 'grid' ? (
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              aria-label={zoomOutLabel}
+              disabled={minuteHeightPx <= MIN_MINUTE_HEIGHT_PX}
+              onClick={() => setMinuteHeightPx((v) => Math.max(MIN_MINUTE_HEIGHT_PX, +(v - STEP_PX).toFixed(2)))}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              aria-label={zoomInLabel}
+              disabled={minuteHeightPx >= MAX_MINUTE_HEIGHT_PX}
+              onClick={() => setMinuteHeightPx((v) => Math.min(MAX_MINUTE_HEIGHT_PX, +(v + STEP_PX).toFixed(2)))}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-charcoal/20 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal/5 disabled:opacity-40 disabled:pointer-events-none dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <AgendaSearchBar
+            value={query}
+            onChange={setQuery}
+            placeholder={searchPlaceholder}
+            resultCountLabel={resultCountLabel}
+          />
+        )}
       </div>
 
-      <div className="flex flex-col gap-8">
-        {dayGroups.map((dayGroup) => (
-          <div key={dayGroup.dayId} className="flex flex-col gap-2">
-            {showDayHeading && (
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">{dayGroup.label}</h2>
-            )}
-            <AgendaTimeGrid
-              minuteHeightPx={minuteHeightPx}
-              columns={dayGroup.rooms}
-              otherColumnLabel={otherColumnLabel}
-              sessions={dayGroup.sessions.map((s) => ({
-                id: s.id,
-                trackId: s.roomId,
-                blockColor: s.blockColor,
-                startTime: s.startTime,
-                endTime: s.endTime,
-                sessionCode: s.sessionCode,
-                titleEn: s.titleEn,
-                statusLabel: s.statusLabel,
-                statusVariant: s.statusVariant,
-              }))}
-              renderBlock={(session, textColor) => (
-                <Link
-                  href={`/agenda/sessions/${session.id}`}
-                  className="flex h-full flex-col gap-1 p-1.5 text-start hover:brightness-95 focus-visible:outline-none focus-visible:ring-2"
-                  style={{ color: textColor, outlineColor: textColor }}
+      {view === 'timeline' && dayGroups.length > 1 && (
+        <div role="tablist" className="flex gap-2 border-b border-charcoal/10 dark:border-gray-700">
+          {dayGroups.map((dayGroup, i) => (
+            <button
+              key={dayGroup.dayId}
+              type="button"
+              role="tab"
+              aria-selected={i === activeDayIndex}
+              onClick={() => setActiveDayIndex(i)}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                i === activeDayIndex
+                  ? 'border-b-2 border-turquoise text-turquoise'
+                  : 'text-charcoal/60 hover:text-charcoal dark:text-gray-400'
+              }`}
+            >
+              {dayGroup.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === 'timeline' && (
+        <AgendaTrackFilterPills
+          options={legendItems}
+          selectedIds={selectedTrackIds}
+          onToggle={(trackId) =>
+            setSelectedTrackIds((cur) => {
+              const next = new Set(cur);
+              if (next.has(trackId)) next.delete(trackId);
+              else next.add(trackId);
+              return next;
+            })
+          }
+          onClear={() => setSelectedTrackIds(new Set())}
+          allLabel={allTracksLabel}
+        />
+      )}
+
+      {view === 'timeline' ? (
+        <AgendaTimeline
+          sessions={filteredSessions.map((s) => ({
+            id: s.id,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            isBreak: s.isBreak,
+          }))}
+          renderCard={(sessionsInRow, isBreak) => {
+            const bySessionId = new Map(filteredSessions.map((s) => [s.id, s]));
+            return sessionsInRow.map((row) => {
+              const s = bySessionId.get(row.id);
+              if (!s) return null;
+              const expanded = expandedId === s.id;
+              const chipTextColor = pickReadableTextColor(s.blockColor);
+              return (
+                <div
+                  key={s.id}
+                  role={isBreak ? undefined : 'button'}
+                  tabIndex={isBreak ? undefined : 0}
+                  onClick={isBreak ? undefined : () => setExpandedId((cur) => (cur === s.id ? null : s.id))}
+                  className={
+                    isBreak
+                      ? 'flex-1 border-s-2 border-charcoal/20 py-1 ps-2 text-xs text-charcoal/50 dark:border-gray-700 dark:text-gray-500'
+                      : 'flex min-w-[220px] flex-1 cursor-pointer flex-col gap-1 rounded-md border border-charcoal/10 bg-warm-white p-2 dark:border-gray-700 dark:bg-gray-900'
+                  }
                 >
-                  <span className="flex flex-wrap items-center justify-between gap-1">
-                    <span className="text-xs font-semibold">{session.sessionCode}</span>
-                    {/* A small self-contained status chip instead of the shared Badge component: Badge's per-variant colors (e.g. neutral's charcoal-toned border/text) assume a light page background, not an arbitrary track color -- it would clash or go near-invisible on a dark block. This chip always derives its colors from the SAME computed textColor as the rest of the block, so it stays readable against any track color automatically. */}
-                    <span
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                      style={{ backgroundColor: `color-mix(in srgb, ${textColor} 18%, transparent)`, color: textColor }}
-                    >
-                      {session.statusLabel}
+                  {!isBreak && (
+                    <span className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="flex items-center gap-1.5 text-[10px] font-medium text-charcoal/60 dark:text-gray-400">
+                        <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.blockColor }} />
+                        {s.sessionCode}
+                      </span>
+                      {/* Same color-mix-based chip markup as Grid view's renderBlock below, computed from this card's own blockColor via pickReadableTextColor. */}
+                      <span
+                        className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                        style={{ backgroundColor: `color-mix(in srgb, ${chipTextColor} 18%, transparent)`, color: chipTextColor }}
+                      >
+                        {s.statusLabel}
+                      </span>
                     </span>
-                  </span>
-                  {/* No `truncate` -- the full title always shows, wrapping
-                      to multiple lines if needed, per explicit user
-                      feedback that a cut-off title is worse than a taller
-                      block (see agenda-time-grid.tsx's minHeightPx comment
-                      for the matching layout-side change). */}
-                  <span className="text-xs leading-snug">{session.titleEn}</span>
-                </Link>
+                  )}
+                  <span className="text-sm font-semibold">{s.titleEn}</span>
+                  {expanded && !isBreak && s.speakerNames.length > 0 && (
+                    <span className="text-xs text-charcoal/60 dark:text-gray-400">{s.speakerNames.join(', ')}</span>
+                  )}
+                </div>
+              );
+            });
+          }}
+        />
+      ) : (
+        <div className="flex flex-col gap-8">
+          {dayGroups.map((dayGroup) => (
+            <div key={dayGroup.dayId} className="flex flex-col gap-2">
+              {showDayHeading && (
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">{dayGroup.label}</h2>
               )}
-            />
-          </div>
-        ))}
-      </div>
+              <AgendaTimeGrid
+                minuteHeightPx={minuteHeightPx}
+                columns={dayGroup.rooms}
+                otherColumnLabel={otherColumnLabel}
+                sessions={dayGroup.sessions.map((s) => ({
+                  id: s.id,
+                  trackId: s.roomId,
+                  blockColor: s.blockColor,
+                  startTime: s.startTime,
+                  endTime: s.endTime,
+                  sessionCode: s.sessionCode,
+                  titleEn: s.titleEn,
+                  statusLabel: s.statusLabel,
+                  statusVariant: s.statusVariant,
+                }))}
+                renderBlock={(session, textColor) => (
+                  <Link
+                    href={`/agenda/sessions/${session.id}`}
+                    className="flex h-full flex-col gap-1 p-1.5 text-start hover:brightness-95 focus-visible:outline-none focus-visible:ring-2"
+                    style={{ color: textColor, outlineColor: textColor }}
+                  >
+                    <span className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="text-xs font-semibold">{session.sessionCode}</span>
+                      {/* A small self-contained status chip instead of the shared Badge component: Badge's per-variant colors (e.g. neutral's charcoal-toned border/text) assume a light page background, not an arbitrary track color -- it would clash or go near-invisible on a dark block. This chip always derives its colors from the SAME computed textColor as the rest of the block, so it stays readable against any track color automatically. */}
+                      <span
+                        className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                        style={{ backgroundColor: `color-mix(in srgb, ${textColor} 18%, transparent)`, color: textColor }}
+                      >
+                        {session.statusLabel}
+                      </span>
+                    </span>
+                    {/* No `truncate` -- the full title always shows, wrapping
+                        to multiple lines if needed, per explicit user
+                        feedback that a cut-off title is worse than a taller
+                        block (see agenda-time-grid.tsx's minHeightPx comment
+                        for the matching layout-side change). */}
+                    <span className="text-xs leading-snug">{session.titleEn}</span>
+                  </Link>
+                )}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

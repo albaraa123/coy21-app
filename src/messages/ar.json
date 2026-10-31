@@ -1168,6 +1168,12 @@
       "unscheduled": "غير مُجدولة",
       "zoomOut": "تصغير",
       "zoomIn": "تكبير",
+      "gridView": "شبكة",
+      "timelineView": "الخط الزمني",
+      "allTracks": "جميع المسارات",
+      "searchPlaceholder": "البحث بالعنوان أو اسم المتحدث",
+      "resultCountSingular": "جلسة",
+      "resultCountPlural": "جلسات",
       "filters": {
         "day": "اليوم",
         "track": "المسار",

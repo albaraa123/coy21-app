@@ -85,7 +85,7 @@ export default async function SessionsListPage({
   let dataQuery = supabase
     .from('sessions')
     .select(
-      'id, session_code, title_en, start_time, end_time, status, capacity, track_id, room_id, conference_day_id, conference_day:conference_days(label_en), track:tracks(name_en, color), room:rooms(name_en)'
+      'id, session_code, title_en, start_time, end_time, status, capacity, track_id, room_id, conference_day_id, conference_day:conference_days(label_en), track:tracks(name_en, color), room:rooms(name_en), session_type:session_types(code), session_people (people (full_name_en, full_name_ar))'
     )
     .order('start_time', { ascending: true })
     .order('session_code', { ascending: true });
@@ -239,6 +239,7 @@ export default async function SessionsListPage({
               sessions: dayGroup.sessions.map((s) => ({
                 id: s.id,
                 roomId: s.room_id,
+                trackId: s.track_id,
                 blockColor: s.track?.color ?? '#6b7280',
                 startTime: s.start_time,
                 endTime: s.end_time,
@@ -246,6 +247,12 @@ export default async function SessionsListPage({
                 titleEn: s.title_en,
                 statusLabel: t(`statusValues.${s.status}`),
                 statusVariant: STATUS_BADGE_VARIANT[s.status] ?? 'neutral',
+                isBreak: s.session_type?.code === 'BRK',
+                speakerNames: (s.session_people ?? [])
+                  .map((sp: { people: { full_name_en: string; full_name_ar: string } | null }) =>
+                    locale === 'ar' ? sp.people?.full_name_ar : sp.people?.full_name_en
+                  )
+                  .filter((n: string | undefined): n is string => Boolean(n)),
               })),
             }));
             return (
@@ -256,6 +263,12 @@ export default async function SessionsListPage({
                 zoomOutLabel={t('zoomOut')}
                 zoomInLabel={t('zoomIn')}
                 legendItems={(tracks ?? []).map((tr) => ({ id: tr.id, name: tr.name_en, color: tr.color ?? '#6b7280' }))}
+                gridViewLabel={t('gridView')}
+                timelineViewLabel={t('timelineView')}
+                allTracksLabel={t('allTracks')}
+                searchPlaceholder={t('searchPlaceholder')}
+                resultCountSingularLabel={t('resultCountSingular')}
+                resultCountPluralLabel={t('resultCountPlural')}
               />
             );
           })()}

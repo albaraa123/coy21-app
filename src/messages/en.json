@@ -1168,6 +1168,12 @@
       "unscheduled": "Unscheduled",
       "zoomOut": "Zoom out",
       "zoomIn": "Zoom in",
+      "gridView": "Grid",
+      "timelineView": "Timeline",
+      "allTracks": "All tracks",
+      "searchPlaceholder": "Search by title or speaker",
+      "resultCountSingular": "session",
+      "resultCountPlural": "sessions",
       "filters": {
         "day": "Day",
         "track": "Track",
