@@ -2,18 +2,23 @@
 'use client';
 
 // Grid/Timeline segmented control shared by the admin Sessions page and
-// the participant Browse Sessions page. Owns the active-view useState and
-// persists it via agenda-view-storage.ts.
+// the participant Browse Sessions page. The active `view` is owned by the
+// PARENT client component (SessionsGridClient/BrowseGridClient), not here
+// -- the parent needs it to decide which of AgendaTimeGrid/AgendaTimeline
+// to render, so this component is a controlled view + onChange callback,
+// same lift-state-up shape already used for minuteHeightPx in the
+// existing zoom controls. This component's only local behavior is reading
+// the persisted preference on mount and reporting it up.
 //
 // SSR-hydration safety, matching src/components/shell/sidebar-nav.tsx's
 // established pattern exactly (see that file's own header comment for the
-// full rationale): the initial useState value is a fixed deterministic
-// default ('grid'), NEVER read from localStorage during render -- the
-// server has no localStorage to read from, so reading it synchronously
-// here would produce a server/client markup mismatch whenever a user's
-// stored preference is 'timeline'. The actual stored preference is read
-// inside a useEffect that runs once after mount, then applied via
-// setState.
+// full rationale): the PARENT's initial state for `view` is a fixed
+// deterministic default ('grid'), NEVER read from localStorage during
+// render -- the server has no localStorage to read from, so reading it
+// synchronously would produce a server/client markup mismatch whenever a
+// user's stored preference is 'timeline'. The actual stored preference is
+// read here inside a useEffect that runs once after mount, then reported
+// to the parent via onChange.
 import { useEffect } from 'react';
 import { readAgendaView, writeAgendaView, type AgendaView } from './agenda-view-storage';
 
