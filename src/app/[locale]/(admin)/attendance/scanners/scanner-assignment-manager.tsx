@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Select } from '@/components/ui/select';
 
 type Scanner = { id: string; full_name: string; email: string };
 type Session = { id: string; title_ar: string; title_en: string; status: string; room_id: string; start_time: string; end_time: string };
@@ -178,7 +179,7 @@ export default function ScannerAssignmentManager({
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('filterByScanner')}
-          <select
+          <Select
             value={filterScanner}
             onChange={(e) => setFilterScanner(e.target.value)}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -189,11 +190,11 @@ export default function ScannerAssignmentManager({
                 {s.full_name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('filterByStatus')}
-          <select
+          <Select
             value={filterActive}
             onChange={(e) => setFilterActive(e.target.value as typeof filterActive)}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -201,7 +202,7 @@ export default function ScannerAssignmentManager({
             <option value="active">{t('active')}</option>
             <option value="inactive">{t('inactive')}</option>
             <option value="all">{t('allStatuses')}</option>
-          </select>
+          </Select>
         </label>
       </div>
 
@@ -294,7 +295,7 @@ export default function ScannerAssignmentManager({
 
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('scanner')}
-            <select
+            <Select
               value={form.scannerUserId}
               onChange={(e) => {
                 const next = { ...form, scannerUserId: e.target.value };
@@ -311,7 +312,7 @@ export default function ScannerAssignmentManager({
                   {s.full_name} ({s.email})
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
 
           <fieldset className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
@@ -348,7 +349,7 @@ export default function ScannerAssignmentManager({
           {form.scope === 'session' ? (
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('session')}
-              <select
+              <Select
                 value={form.sessionId}
                 onChange={(e) => {
                   const next = { ...form, sessionId: e.target.value };
@@ -364,12 +365,12 @@ export default function ScannerAssignmentManager({
                     {locale === 'ar' ? s.title_ar : s.title_en}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           ) : (
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('room')}
-              <select
+              <Select
                 value={form.roomId}
                 onChange={(e) => setForm({ ...form, roomId: e.target.value })}
                 required
@@ -381,7 +382,7 @@ export default function ScannerAssignmentManager({
                     {locale === 'ar' ? r.name_ar : r.name_en} ({r.code})
                   </option>
                 ))}
-              </select>
+              </Select>
               <span className="text-xs text-charcoal/60 dark:text-gray-400">{t('roomScopeExplanation')}</span>
             </label>
           )}

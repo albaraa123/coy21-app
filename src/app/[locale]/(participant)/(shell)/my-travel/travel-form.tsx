@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { saveTravelLeg, deleteTravelLeg, type TravelLegInput } from './actions';
 import type { Database } from '@/types/database';
 
@@ -76,7 +78,7 @@ export function TravelForm({ initialLegs }: Props) {
     return (
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{label}</span>
-        <input
+        <Input
           type={type}
           value={form[key] as string}
           onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
@@ -182,7 +184,7 @@ function LegEditCard({ form, setForm, onSave, onCancel, isPending, error, field 
     <Card className="flex flex-col gap-3">
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium text-charcoal/70 dark:text-gray-400">Leg type</span>
-        <select
+        <Select
           value={form.leg_type}
           onChange={(e) => setForm((f) => ({ ...f, leg_type: e.target.value as LegType }))}
           className="rounded-md border border-charcoal/20 bg-white px-3 py-2 text-sm text-charcoal focus:outline-none dark:border-white/20 dark:bg-white/5 dark:text-gray-100"
@@ -190,7 +192,7 @@ function LegEditCard({ form, setForm, onSave, onCancel, isPending, error, field 
           <option value="outbound">Outbound (to Antalya)</option>
           <option value="return">Return (from Antalya)</option>
           <option value="connecting">Connecting flight</option>
-        </select>
+        </Select>
       </label>
       {field('Flight number', 'flight_number')}
       <div className="grid grid-cols-2 gap-3">

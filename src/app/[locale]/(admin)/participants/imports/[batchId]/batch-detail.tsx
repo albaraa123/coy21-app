@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { LoadingState } from '@/components/states/loading-state';
 import RollbackTrigger from '../../import/[batchId]/rollback/rollback-trigger';
 import { runDownstreamProcessing } from '../../import/[batchId]/downstream-actions';
@@ -235,7 +236,7 @@ export default function BatchDetail({
               <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 text-sm text-charcoal/70 dark:text-gray-400">
                   {t('clusterCountLabel')}
-                  <input
+                  <Input
                     type="number"
                     min={1}
                     value={manualK}

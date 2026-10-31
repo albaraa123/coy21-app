@@ -6,6 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { setSessionTags } from './actions';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type SessionTagRow = {
   id: string;
@@ -100,7 +101,7 @@ export default function TagWeighting({
                 {selectedTagIds.has(tag.id) && (
                   <label className="flex items-center gap-1 text-xs text-charcoal/70 dark:text-gray-400">
                     {t('weight')}
-                    <input
+                    <Input
                       type="number"
                       min="0"
                       max="1"

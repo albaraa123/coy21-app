@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { MAPPING_CONFIDENCE_THRESHOLD } from '@/lib/validation/import';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { confirmMapping } from './actions';
 
 export type Suggestion = {
@@ -194,7 +196,7 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
             <div className="mt-2 flex flex-col gap-2">
               <label className="text-xs font-medium text-charcoal/60 dark:text-gray-400">
                 {t('targetKind')}
-                <select
+                <Select
                   value={row.targetKind}
                   onChange={(e) => updateRow(index, { targetKind: e.target.value as TargetKind })}
                   className="mt-1 block w-full rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -205,12 +207,12 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
                   <option value="travel_field">{t('kindTravelField')}</option>
                   <option value="health_field">{t('kindHealthField')}</option>
                   <option value="ignored">{t('kindIgnored')}</option>
-                </select>
+                </Select>
               </label>
               {row.targetKind !== 'ignored' && (
                 <label className="text-xs font-medium text-charcoal/60 dark:text-gray-400">
                   {t('targetKey')}
-                  <input
+                  <Input
                     type="text"
                     value={row.targetKey}
                     onChange={(e) => updateRow(index, { targetKey: e.target.value })}
@@ -283,7 +285,7 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
                   </div>
                 </td>
                 <td className="px-4 py-2">
-                  <select
+                  <Select
                     value={row.targetKind}
                     onChange={(e) => updateRow(index, { targetKind: e.target.value as TargetKind })}
                     className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-sm text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -294,11 +296,11 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
                     <option value="travel_field">{t('kindTravelField')}</option>
                     <option value="health_field">{t('kindHealthField')}</option>
                     <option value="ignored">{t('kindIgnored')}</option>
-                  </select>
+                  </Select>
                 </td>
                 <td className="px-4 py-2">
                   {row.targetKind !== 'ignored' && (
-                    <input
+                    <Input
                       type="text"
                       value={row.targetKey}
                       onChange={(e) => updateRow(index, { targetKey: e.target.value })}
@@ -331,7 +333,7 @@ export default function MappingTable({ batchId, initialData }: { batchId: string
       <div>
         <label className="text-sm text-charcoal/70 dark:text-gray-400">
           {t('saveTemplateLabel')}{' '}
-          <input
+          <Input
             type="text"
             value={saveAsTemplateName}
             onChange={(e) => setSaveAsTemplateName(e.target.value)}

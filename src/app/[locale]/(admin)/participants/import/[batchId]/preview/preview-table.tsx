@@ -6,6 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingState } from '@/components/states/loading-state';
+import { Select } from '@/components/ui/select';
 import { runValidation, getPreviewRows, downloadErrorReport, approveClaimedUpdates, updateRowParticipantType } from './actions';
 import { TRAVEL_FIELD_COLUMNS, HEALTH_FIELD_COLUMNS } from '@/lib/import/known-application-columns';
 
@@ -299,7 +300,7 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-charcoal/70 dark:text-gray-400">
               {t('filterLabel')}
-              <select
+              <Select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value as Filter)}
                 className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-sm text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -309,7 +310,7 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                 <option value="warning">{t('filterWarning')}</option>
                 <option value="invalid">{t('filterInvalid')}</option>
                 <option value="duplicate">{t('filterDuplicate')}</option>
-              </select>
+              </Select>
             </label>
             <Button type="button" size="sm" variant="secondary" onClick={() => void handleDownloadErrorReport()}>
               {t('downloadErrorReport')}
@@ -342,7 +343,7 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                     </p>
                     <label className="mt-1 flex items-center gap-2 text-xs text-charcoal/70 dark:text-gray-400">
                       {t('participantTypeLabel')}
-                      <select
+                      <Select
                         value={(row.normalized_row?.participant_type as ParticipantType | undefined) ?? ''}
                         disabled={savingRowId === row.id}
                         onChange={(e) => void handleParticipantTypeChange(row.id, e.target.value as ParticipantType)}
@@ -353,7 +354,7 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                             {tClassification(`types.${type}`)}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     {(hasSectionData(row, TRAVEL_FIELD_COLUMNS) || hasSectionData(row, HEALTH_FIELD_COLUMNS)) && (
                       <div className="mt-1 flex flex-wrap gap-1">
@@ -417,7 +418,7 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                           {row.normalized_row?.email != null ? String(row.normalized_row.email) : ''}
                         </td>
                         <td className="px-4 py-2">
-                          <select
+                          <Select
                             value={(row.normalized_row?.participant_type as ParticipantType | undefined) ?? ''}
                             disabled={savingRowId === row.id}
                             onChange={(e) => void handleParticipantTypeChange(row.id, e.target.value as ParticipantType)}
@@ -428,7 +429,7 @@ export default function PreviewTable({ batchId, initialBatch }: { batchId: strin
                                 {tClassification(`types.${type}`)}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex flex-wrap gap-1">

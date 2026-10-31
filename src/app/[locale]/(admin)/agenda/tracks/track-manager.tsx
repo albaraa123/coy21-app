@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
 
 type Track = {
   id: string;
@@ -229,7 +230,7 @@ export default function TrackManager({ tracks }: { tracks: Track[] }) {
           </h2>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('code')}
-            <input
+            <Input
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
               required
@@ -238,7 +239,7 @@ export default function TrackManager({ tracks }: { tracks: Track[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('nameAr')}
-            <input
+            <Input
               value={form.nameAr}
               onChange={(e) => setForm({ ...form, nameAr: e.target.value })}
               required
@@ -247,7 +248,7 @@ export default function TrackManager({ tracks }: { tracks: Track[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('nameEn')}
-            <input
+            <Input
               value={form.nameEn}
               onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
               required
@@ -256,7 +257,7 @@ export default function TrackManager({ tracks }: { tracks: Track[] }) {
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('color')}
-            <input
+            <Input
               value={form.color}
               onChange={(e) => setForm({ ...form, color: e.target.value })}
               placeholder={t('colorPlaceholder')}

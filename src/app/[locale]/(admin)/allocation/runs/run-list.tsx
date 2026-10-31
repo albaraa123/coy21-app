@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Select } from '@/components/ui/select';
 
 type AllocationRun = {
   id: string;
@@ -81,7 +82,7 @@ export default function RunList({
         <h2 className="text-sm font-semibold text-charcoal dark:text-gray-100">{t('newRunTitle')}</h2>
         <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('extractionRun')}
-          <select
+          <Select
             value={featureExtractionRunId}
             onChange={(e) => setFeatureExtractionRunId(e.target.value)}
             required
@@ -93,7 +94,7 @@ export default function RunList({
                 {t('extractionRunOption', { id: run.id, version: run.rules_version, count: run.application_count })}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <div className="mt-2">
           <Button type="submit" disabled={submitting}>{t('runAllocation')}</Button>

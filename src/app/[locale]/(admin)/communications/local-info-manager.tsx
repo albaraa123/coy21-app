@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   createSection, updateSection, deleteSection, toggleSectionActive,
   createItem, updateItem, deleteItem,
@@ -142,7 +143,7 @@ export function LocalInfoManager({
       <Card className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-charcoal dark:text-gray-100">Add Section</h2>
         <form onSubmit={handleCreateSection} className="flex gap-2">
-          <input
+          <Input
             name="title"
             required
             placeholder="Section title (e.g. Emergency Numbers)"
@@ -175,10 +176,10 @@ export function LocalInfoManager({
         <form onSubmit={(e) => handleUploadImage(e, null)} className="flex flex-wrap gap-2 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-charcoal/60 dark:text-gray-400">Image (max 5 MB)</label>
-            <input ref={fileRef} name="file" type="file" accept="image/*" required
+            <Input ref={fileRef} name="file" type="file" accept="image/*" required
               className="text-sm file:mr-2 file:rounded file:border-0 file:bg-turquoise file:px-3 file:py-1 file:text-white file:text-xs" />
           </div>
-          <input name="caption" placeholder="Caption (optional)"
+          <Input name="caption" placeholder="Caption (optional)"
             className="flex-1 min-w-36 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
           <Button type="submit" disabled={isPending}>Upload</Button>
         </form>
@@ -253,9 +254,9 @@ export function LocalInfoManager({
                   onSubmit={(e) => handleCreateItem(e, section.id)}
                   className="flex flex-wrap gap-2 border-t border-charcoal/10 pt-3 dark:border-gray-700"
                 >
-                  <input name="label" required placeholder="Label (e.g. Police)"
+                  <Input name="label" required placeholder="Label (e.g. Police)"
                     className="w-36 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
-                  <input name="value" required placeholder="Value (e.g. 155)"
+                  <Input name="value" required placeholder="Value (e.g. 155)"
                     className="flex-1 min-w-48 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
                   <Button type="submit" disabled={isPending} variant="secondary">+ Add Row</Button>
                 </form>
@@ -282,9 +283,9 @@ export function LocalInfoManager({
                     </div>
                   )}
                   <form onSubmit={(e) => handleUploadImage(e, section.id)} className="flex flex-wrap gap-2 items-end">
-                    <input name="file" type="file" accept="image/*" required
+                    <Input name="file" type="file" accept="image/*" required
                       className="text-sm file:mr-2 file:rounded file:border-0 file:bg-turquoise file:px-3 file:py-1 file:text-white file:text-xs" />
-                    <input name="caption" placeholder="Caption (optional)"
+                    <Input name="caption" placeholder="Caption (optional)"
                       className="flex-1 min-w-36 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
                     <Button type="submit" disabled={isPending} variant="secondary">Upload</Button>
                   </form>
@@ -320,12 +321,12 @@ function ItemRow({
   if (editing) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <input
+        <Input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           className="w-36 rounded-md border border-charcoal/20 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         />
-        <input
+        <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="flex-1 min-w-48 rounded-md border border-charcoal/20 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"

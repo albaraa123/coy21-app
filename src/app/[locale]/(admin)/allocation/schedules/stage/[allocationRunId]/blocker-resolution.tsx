@@ -6,6 +6,8 @@ import { reassignDraftItem, overrideDraftItemWithGap } from './actions';
 import type { DraftItem } from './draft-review';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function BlockerResolution({
   item,
@@ -95,7 +97,7 @@ export default function BlockerResolution({
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
         <label className="flex flex-1 flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('reassign.label')}
-          <input
+          <Input
             type="text"
             value={newSessionId}
             onChange={(e) => setNewSessionId(e.target.value)}
@@ -111,7 +113,7 @@ export default function BlockerResolution({
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
         <label className="flex flex-1 flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
           {t('override.label')}
-          <textarea
+          <Textarea
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
             disabled={!editable || submitting}

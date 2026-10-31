@@ -7,6 +7,7 @@ import { assignSessionPerson, removeSessionPerson } from './actions';
 import { SESSION_PERSON_ROLES, type SessionPersonRole } from '@/lib/validation/agenda';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 type SessionPersonRow = {
   id: string;
@@ -105,7 +106,7 @@ export default function SpeakerAssignment({
           </ul>
         )}
         <form onSubmit={handleAssignPerson} className="flex flex-wrap items-end gap-2">
-          <select
+          <Select
             value={newPersonId}
             onChange={(e) => setNewPersonId(e.target.value)}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -114,8 +115,8 @@ export default function SpeakerAssignment({
             {availablePeopleForAssignment.map((p) => (
               <option key={p.id} value={p.id}>{String(p.full_name_en)}</option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             value={newPersonRole}
             onChange={(e) => setNewPersonRole(e.target.value as SessionPersonRole)}
             className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-1.5 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -123,7 +124,7 @@ export default function SpeakerAssignment({
             {SESSION_PERSON_ROLES.map((role) => (
               <option key={role} value={role}>{t(`roleValues.${role}`)}</option>
             ))}
-          </select>
+          </Select>
           <Button type="submit" size="sm" disabled={!newPersonId || submitting}>{t('assign')}</Button>
         </form>
       </Card>

@@ -6,6 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { setGlobalBookingDeadline, clearGlobalBookingDeadline } from './actions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { isoToConferenceLocalInputValue, conferenceLocalInputValueToIso, formatConferenceDate, formatConferenceTime } from '@/lib/datetime/conference-time';
 
 type Props = {
@@ -112,7 +113,7 @@ export default function ConferenceSettingsForm({ globalBookingDeadline, isSuperA
           <form onSubmit={handleSave} className="mt-4 flex flex-col gap-4 md:max-w-md">
             <label className={labelClass}>
               {t('globalDeadlineLabel')}
-              <input
+              <Input
                 type="datetime-local"
                 value={deadlineInput}
                 onChange={(e) => setDeadlineInput(e.target.value)}

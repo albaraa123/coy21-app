@@ -11,6 +11,8 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import {
   createAccountsForSelected,
   createAccountsAndSendLoginDetails,
@@ -266,14 +268,14 @@ export default function AccountsTable({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <input
+        <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('searchPlaceholder')}
           className="rounded-md border border-charcoal/20 bg-warm-white px-3 py-2 text-sm text-charcoal transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         />
-        <select
+        <Select
           value={batchFilter}
           onChange={(e) => setBatchFilter(e.target.value)}
           className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-sm text-charcoal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -284,8 +286,8 @@ export default function AccountsTable({
               {b.name}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-sm text-charcoal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -297,8 +299,8 @@ export default function AccountsTable({
           <option value="existing_account">{t('noAccount')}</option>
           <option value="creation_failed">{t('presetFailedOrConflict')}</option>
           <option value="conflict">{t('presetFailedOrConflict')}</option>
-        </select>
-        <select
+        </Select>
+        <Select
           value={emailFilter}
           onChange={(e) => setEmailFilter(e.target.value)}
           className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-sm text-charcoal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -307,7 +309,7 @@ export default function AccountsTable({
           <option value="not_sent">{t('presetNoEmail')}</option>
           <option value="sent">{t('filterEmailStatus')}</option>
           <option value="failed">{t('presetFailedOrConflict')}</option>
-        </select>
+        </Select>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -433,7 +435,7 @@ export default function AccountsTable({
           {pendingAction === 'reset' && (
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium text-red-700 dark:text-red-300">{t('confirmResetWarning', { count: dialogCounts.total })}</p>
-              <input
+              <Input
                 type="text"
                 value={resetConfirmText}
                 onChange={(e) => setResetConfirmText(e.target.value)}

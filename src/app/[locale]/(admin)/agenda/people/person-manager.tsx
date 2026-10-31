@@ -8,6 +8,9 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 type Person = {
   id: string;
@@ -296,7 +299,7 @@ export default function PersonManager({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('nameAr')}
-              <input
+              <Input
                 value={form.fullNameAr}
                 onChange={(e) => setForm({ ...form, fullNameAr: e.target.value })}
                 required
@@ -305,7 +308,7 @@ export default function PersonManager({
             </label>
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('nameEn')}
-              <input
+              <Input
                 value={form.fullNameEn}
                 onChange={(e) => setForm({ ...form, fullNameEn: e.target.value })}
                 required
@@ -314,7 +317,7 @@ export default function PersonManager({
             </label>
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('titleAr')}
-              <input
+              <Input
                 value={form.titleAr}
                 onChange={(e) => setForm({ ...form, titleAr: e.target.value })}
                 className={inputClass}
@@ -322,7 +325,7 @@ export default function PersonManager({
             </label>
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('titleEn')}
-              <input
+              <Input
                 value={form.titleEn}
                 onChange={(e) => setForm({ ...form, titleEn: e.target.value })}
                 className={inputClass}
@@ -330,7 +333,7 @@ export default function PersonManager({
             </label>
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('organizationAr')}
-              <input
+              <Input
                 value={form.organizationAr}
                 onChange={(e) => setForm({ ...form, organizationAr: e.target.value })}
                 className={inputClass}
@@ -338,7 +341,7 @@ export default function PersonManager({
             </label>
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('organizationEn')}
-              <input
+              <Input
                 value={form.organizationEn}
                 onChange={(e) => setForm({ ...form, organizationEn: e.target.value })}
                 className={inputClass}
@@ -347,7 +350,7 @@ export default function PersonManager({
           </div>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('bioAr')}
-            <textarea
+            <Textarea
               value={form.bioAr}
               onChange={(e) => setForm({ ...form, bioAr: e.target.value })}
               rows={3}
@@ -356,7 +359,7 @@ export default function PersonManager({
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('bioEn')}
-            <textarea
+            <Textarea
               value={form.bioEn}
               onChange={(e) => setForm({ ...form, bioEn: e.target.value })}
               rows={3}
@@ -365,7 +368,7 @@ export default function PersonManager({
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('photoPath')}
-            <input
+            <Input
               value={form.photoPath}
               onChange={(e) => setForm({ ...form, photoPath: e.target.value })}
               className={inputClass}
@@ -374,7 +377,7 @@ export default function PersonManager({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('email')}
-              <input
+              <Input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -383,7 +386,7 @@ export default function PersonManager({
             </label>
             <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
               {t('phone')}
-              <input
+              <Input
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 className={inputClass}
@@ -392,7 +395,7 @@ export default function PersonManager({
           </div>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('linkedAccount')}
-            <select
+            <Select
               value={form.linkedProfileId}
               onChange={(e) => setForm({ ...form, linkedProfileId: e.target.value })}
               className={inputClass}
@@ -401,7 +404,7 @@ export default function PersonManager({
               {profileOptions.map((p) => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex items-center gap-2 text-sm text-charcoal dark:text-gray-100">
             <input

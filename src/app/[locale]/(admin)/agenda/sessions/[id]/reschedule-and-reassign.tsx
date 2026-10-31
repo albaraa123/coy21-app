@@ -9,6 +9,8 @@ import { isoToConferenceLocalInputValue, conferenceLocalInputValueToIso } from '
 import type { Database } from '@/types/database';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 type Session = Database['public']['Tables']['sessions']['Row'];
 
@@ -122,7 +124,7 @@ export default function RescheduleAndReassign({
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('startTime')}
-            <input
+            <Input
               type="datetime-local"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
@@ -132,7 +134,7 @@ export default function RescheduleAndReassign({
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('endTime')}
-            <input
+            <Input
               type="datetime-local"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
@@ -142,7 +144,7 @@ export default function RescheduleAndReassign({
           </label>
           <label className="flex flex-col gap-1 text-sm text-charcoal dark:text-gray-100">
             {t('room')}
-            <select
+            <Select
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
               required
@@ -151,7 +153,7 @@ export default function RescheduleAndReassign({
               {rooms.map((r) => (
                 <option key={r.id} value={r.id}>{String(r.name_en)}</option>
               ))}
-            </select>
+            </Select>
           </label>
 
           <fieldset className="rounded-lg border border-charcoal/10 p-3 dark:border-gray-700">
@@ -170,7 +172,7 @@ export default function RescheduleAndReassign({
                   </label>
                   {selectedPersonIds.has(p.id) && (
                     <>
-                      <select
+                      <Select
                         value={personRoles[p.id] ?? SESSION_PERSON_ROLES[0]}
                         onChange={(e) => setPersonRoles((r) => ({ ...r, [p.id]: e.target.value as SessionPersonRole }))}
                         className="rounded-md border border-charcoal/20 bg-warm-white px-2 py-1 text-sm text-charcoal focus:border-turquoise focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
@@ -178,7 +180,7 @@ export default function RescheduleAndReassign({
                         {SESSION_PERSON_ROLES.map((role) => (
                           <option key={role} value={role}>{tRoles(`roleValues.${role}`)}</option>
                         ))}
-                      </select>
+                      </Select>
                       <label className="flex items-center gap-1 text-xs text-charcoal/70 dark:text-gray-400">
                         <input
                           type="radio"

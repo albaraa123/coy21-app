@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import type { Database } from '@/types/database';
 
 type ParticipantType = Database['public']['Enums']['participant_type'];
@@ -48,7 +49,7 @@ export default function ClassificationDialog({
         <label htmlFor="bulk-participant-type-select" className="text-sm text-charcoal/70 dark:text-gray-400">
           {t('changeClassificationNewType')}
         </label>
-        <select
+        <Select
           id="bulk-participant-type-select"
           value={selectedType}
           disabled={processing}
@@ -63,7 +64,7 @@ export default function ClassificationDialog({
               {tTypes(`types.${type}`)}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="flex gap-2">

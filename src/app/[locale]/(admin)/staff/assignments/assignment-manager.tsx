@@ -5,6 +5,9 @@ import { useRouter } from '@/i18n/routing';
 import { createAssignment, deleteAssignment } from './actions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 type StaffProfile = { id: string; full_name: string; email: string; role: string };
 type Room = { id: string; code: string; name_en: string };
@@ -173,7 +176,7 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className={labelClass}>
               Staff Member
-              <select
+              <Select
                 value={form.staffId}
                 onChange={(e) => setForm({ ...form, staffId: e.target.value })}
                 required
@@ -183,11 +186,11 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
                 {staff.map((s) => (
                   <option key={s.id} value={s.id}>{s.full_name || s.email}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className={labelClass}>
               Assignment Type
-              <select
+              <Select
                 value={form.assignmentType}
                 onChange={(e) => setForm({ ...form, assignmentType: e.target.value })}
                 className={inputClass}
@@ -195,11 +198,11 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
                 {ASSIGNMENT_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className={labelClass}>
               Label
-              <input
+              <Input
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
                 required
@@ -209,7 +212,7 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
             </label>
             <label className={labelClass}>
               Room (optional)
-              <select
+              <Select
                 value={form.roomId}
                 onChange={(e) => setForm({ ...form, roomId: e.target.value })}
                 className={inputClass}
@@ -218,11 +221,11 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>{r.code} — {r.name_en}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className={labelClass}>
               Starts At (optional)
-              <input
+              <Input
                 type="datetime-local"
                 value={form.startsAt}
                 onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
@@ -231,7 +234,7 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
             </label>
             <label className={labelClass}>
               Ends At (optional)
-              <input
+              <Input
                 type="datetime-local"
                 value={form.endsAt}
                 onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
@@ -240,7 +243,7 @@ export default function AssignmentManager({ staff, assignments, rooms }: { staff
             </label>
             <label className={`${labelClass} md:col-span-2`}>
               Notes (optional)
-              <textarea
+              <Textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={2}
