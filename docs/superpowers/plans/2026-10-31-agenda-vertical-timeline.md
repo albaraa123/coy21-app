@@ -668,7 +668,10 @@ git commit -m "feat: add AgendaTimeline shared vertical-timeline component"
 **Files:**
 - Modify: `src/app/[locale]/(participant)/(shell)/my-agenda/browse/page.tsx`
 - Modify: `src/app/[locale]/(participant)/(shell)/my-agenda/browse/browse-grid-client.tsx`
-- Modify: `src/messages/en.json`, `src/messages/ar.json`
+
+(No `src/messages/*.json` changes -- see Step 4 below: this page has no
+`next-intl` wiring today and Timeline's new strings stay hardcoded
+English, matching its existing convention.)
 
 This page already has day tabs (`activeIndex` state) -- Timeline view
 reuses that same state, so no new day-selection concept is needed here
@@ -720,7 +723,7 @@ unaffected -- it keeps using `activeDay.sessions` exactly as today):
 
 ```typescript
 const filteredSessions = activeDay.sessions.filter((s) => {
-  if (selectedTrackIds.size > 0 && !selectedTrackIds.has(s.trackColumnId /* see note below */)) return false;
+  if (selectedTrackIds.size > 0 && !selectedTrackIds.has(s.trackId)) return false;
   if (query.trim()) {
     const q = query.trim().toLowerCase();
     const titleMatch = s.title.toLowerCase().includes(q);
@@ -731,7 +734,7 @@ const filteredSessions = activeDay.sessions.filter((s) => {
 });
 ```
 
-**Note on `trackColumnId`:** `BrowseSessionBlockData` currently carries
+**Note on `trackId`:** `BrowseSessionBlockData` currently carries
 `roomId` (the Grid view's column key) but NOT a separate `trackId` field --
 `blockColor` is derived from the track but the id itself isn't threaded
 through. Add `trackId: string` to `BrowseSessionBlockData` in `page.tsx`'s
@@ -770,9 +773,9 @@ renderCard={(sessionsInRow, isBreak) => sessionsInRow.map((s) => (
         {s.alreadyBooked ? (
           <span className="text-[10px] font-medium">✓ Booked</span>
         ) : s.showWaitlistButton ? (
-          <WaitlistButton sessionId={s.id} isWaitlisted={s.isWaitlisted} isPastDeadline={s.isPastDeadline} compact />
+          <WaitlistButton sessionId={s.id} isWaitlisted={s.isWaitlisted} isPastDeadline={s.isPastDeadline} compact compactTextColor="#0a1a2e" />
         ) : (
-          <BookButton sessionId={s.id} isFull={s.isFull} isPastDeadline={s.isPastDeadline} compact />
+          <BookButton sessionId={s.id} isFull={s.isFull} isPastDeadline={s.isPastDeadline} compact compactTextColor="#0a1a2e" />
         )}
       </div>
     )}
@@ -780,18 +783,16 @@ renderCard={(sessionsInRow, isBreak) => sessionsInRow.map((s) => (
 ))}
 ```
 
-Note: `compact` is passed WITHOUT `compactTextColor` here -- per the
-spec's clarification, Timeline cards have a neutral (non-track-colored)
-background, so the button should use its default white-on-nothing... wait,
-default is white text, which is wrong on a neutral/light card background.
-**Correction needed during implementation:** since the card background here
-is `bg-warm-white` (light), the compact button's default `compactTextColor
-= '#ffffff'` (white) would be unreadable. Either pass an explicit dark
-`compactTextColor` (e.g. `'#1a1a1a'` matching `--color-charcoal`) or check
-whether `BookButton`/`WaitlistButton`'s compact mode has a non-white
-option already -- if not, this is a one-line prop addition
-(`compactTextColor="#1a1a1a"` or similar), not a new component. Verify
-visually in the browser (Task 8) before considering this card style done.
+**`compactTextColor` fix (overrides the spec's wording):** the spec said
+to leave `compactTextColor` at its default since Timeline cards aren't
+track-colored, but that default is `'#ffffff'` (white — see
+`booking-button.tsx`'s `compactTextColor = '#ffffff'`), which is
+unreadable against this card's `bg-warm-white` (light) background. Pass
+`compactTextColor="#0a1a2e"` explicitly instead — this is the project's
+real dark-charcoal constant (`DARK_TEXT` in `readable-text-color.ts`,
+documented there as `--color-charcoal`), not an approximate hex value.
+Spec-review round 3 confirmed this correction; no further decision needed
+at implementation time.
 
 Expand-on-click: wrap the card in a `useState`-driven expand toggle (one
 `expandedId: string | null` in the parent, or a small local component if
@@ -801,15 +802,29 @@ click (not on the Book/Waitlist button, which already calls
 `stopPropagation` internally per `booking-button.tsx`'s compact-mode
 handlers).
 
-- [ ] **Step 4: Add translation keys**
+- [ ] **Step 4: Label strings -- plain hardcoded English, matching this page's existing convention**
 
-Add to `src/messages/en.json`'s `agenda.sessions` (or a new shared
-`agenda.timeline` namespace if cleaner -- match whichever existing
-structure this page's translations already use) and the matching
-`src/messages/ar.json` keys: `view.grid`, `view.timeline`, `search.placeholder`,
-`search.resultCount` (with `{count}` ICU plural if the codebase's existing
-i18n setup supports it -- check an existing pluralized key like `pageOf`
-for the pattern), `filters.allTracks`.
+**No `next-intl` wiring exists anywhere in the Browse page today** --
+confirmed: `page.tsx` and `browse-grid-client.tsx` have zero
+`useTranslations`/`getTranslations` calls; every existing string (`"My
+Agenda"`, `"Browse Sessions"`, `"No sessions available yet. Check back
+soon."`, `"Book"`, `"Join waitlist"`, etc.) is a hardcoded English JSX
+literal. This is a pre-existing characteristic of this page, not something
+introduced by this plan -- do NOT introduce `next-intl` here as a side
+effect of adding Timeline view; that would be a much larger, unrelated
+refactor out of this plan's scope (the admin Sessions page in Task 7 DOES
+already use `getTranslations`, which is why Task 7's translation-key step
+is different -- see Task 7 Step 4).
+
+Instead, add the new Timeline strings (view-toggle labels, search
+placeholder, result-count text, "All tracks" filter label) as plain
+hardcoded English string literals passed directly as props to
+`AgendaViewToggle`/`AgendaSearchBar`/`AgendaTrackFilterPills`, exactly
+matching how `emptyDayLabel`/`otherColumnLabel`/`zoomOutLabel`/
+`zoomInLabel` are already hardcoded English literals passed from
+`page.tsx` into `BrowseGridClient` today (see that file's existing
+`<BrowseGridClient ... emptyDayLabel="No sessions this day yet." ... />`
+call). No `src/messages/*.json` changes needed for this task.
 
 - [ ] **Step 5: Typecheck, lint, test, build**
 
@@ -826,7 +841,7 @@ given this session's prior RSC-boundary production outage.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/app/\[locale\]/\(participant\)/\(shell\)/my-agenda/browse/ src/messages/en.json src/messages/ar.json
+git add src/app/\[locale\]/\(participant\)/\(shell\)/my-agenda/browse/
 git commit -m "feat: add Timeline view to the participant Browse Sessions page"
 ```
 

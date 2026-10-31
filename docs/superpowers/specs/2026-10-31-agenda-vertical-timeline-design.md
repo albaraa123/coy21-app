@@ -5,7 +5,11 @@
 RTL hour-label bug, admin day-tabs data-flow ambiguity, localStorage
 hydration-safety + key-naming convention, timeline-layout.ts single-day
 precondition, readable-text-color.ts reuse scope — all fixed and
-verified). Ready for implementation planning.
+verified). Amended during the plan-review round (round 3): the
+`compactTextColor` guidance here was backwards (see "Session card"
+section) and one leftover physical "left border" reference was fixed
+(see "Breaks" bullet) — both corrected in place below. Plan in
+`docs/superpowers/plans/2026-10-31-agenda-vertical-timeline.md`.
 
 ## Problem
 
@@ -118,15 +122,23 @@ preference is a pure UX nicety, never worth crashing the page over.
   reasoning as `sessions-grid-client.tsx`'s existing chip, just scoped to
   the chip itself rather than the whole card. Participant cards always
   show the Book/Waitlist control (reusing `BookButton`/`WaitlistButton` in
-  their existing `compact` mode, with `compactTextColor` left at its
-  default since the card background is neutral, not track-colored).
+  their existing `compact` mode). **Correction (spec-review round 3):**
+  `compactTextColor` must be passed explicitly as `'#0a1a2e'` (the
+  project's real dark-charcoal constant, `DARK_TEXT` in
+  `readable-text-color.ts`), NOT left at its default — the default is
+  `'#ffffff'` (white), which is unreadable against this card's neutral
+  light background. The earlier wording here ("left at its default") was
+  backwards: a non-track-colored card still needs an explicit *dark* text
+  color, since white-on-white is the actual contrast failure.
 - **Expand on click:** reveals additional detail (description, assigned
   speakers/guests where available) in place, no navigation. This differs
   from the Grid view's admin behavior (which navigates to the session detail
   page on block click) — Timeline view's click always expands in place on
   both pages.
 - **Breaks:** rendered visually lighter — no track color fill, a thin
-  left border only, muted text — distinguishing them from real sessions.
+  inline-start border only (logical property, matching the RTL convention
+  established above — never a hardcoded "left"), muted text —
+  distinguishing them from real sessions.
 - **Mobile:** single column, hour labels remain at the inline-start edge
   (same logical-property convention as above) at reduced width; cards
   stack full-width.
