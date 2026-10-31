@@ -6,10 +6,13 @@
 // rendered 2026-11-01 from the venue's own harita.pdf at 2400px wide,
 // WebP for a ~298KB payload vs. the ~7.2MB raw PNG render).
 //
-// Only 3 locations are confirmed and pinned (per explicit user mapping):
+// 4 locations are confirmed and pinned (per explicit user mapping):
 // - Main Hall      -> Atatürk Konferans Salonu (map marker #24)
 // - Cafeteria      -> Merkezi Yemekhane (map marker #21)
 // - Side Event rooms -> İBB Fakültesi building cluster (map marker #46)
+// - Main Entrance  -> Gate A / "A Kapı" (map marker "A", the red gate
+//   marker on the venue's own legend, not one of the numbered building
+//   markers)
 // "Foyer" and "Off-campus" (real rooms in the `rooms` table) have no
 // confirmed map location yet and are deliberately NOT shown here, per
 // explicit user decision, rather than guessing or inventing a pin.
@@ -45,12 +48,17 @@ interface VenueLocation {
       name) to build a Google Maps search query specific to this
       building -- see googleMapsUrlFor() below. */
   searchTerm: string;
+  /** True for the campus entrance gate, rendered with a distinct color/
+      icon from the building pins -- it's a different kind of landmark
+      (an access point, not a room), not another venue to search inside. */
+  isEntrance?: boolean;
 }
 
 const VENUE_LOCATIONS: VenueLocation[] = [
   { id: 'main-hall', nameEn: 'Main Hall (Atatürk Konferans Salonu)', nameAr: 'القاعة الرئيسية (Atatürk Konferans Salonu)', xPct: 56.5, yPct: 28.7, searchTerm: 'Atatürk Konferans Salonu' },
   { id: 'cafeteria', nameEn: 'Cafeteria (Merkezi Yemekhane)', nameAr: 'الكافتيريا (Merkezi Yemekhane)', xPct: 56.7, yPct: 44.0, searchTerm: 'Merkezi Yemekhane' },
   { id: 'side-events', nameEn: 'Side Event Rooms (İBB Fakültesi)', nameAr: 'قاعات الفعاليات الجانبية (İBB Fakültesi)', xPct: 49.6, yPct: 39.0, searchTerm: 'İBB Fakültesi' },
+  { id: 'main-entrance', nameEn: 'Main Entrance (Gate A)', nameAr: 'المدخل الرئيسي (بوابة A)', xPct: 79.6, yPct: 57.3, searchTerm: 'Akdeniz Üniversitesi Ana Giriş Kapısı', isEntrance: true },
 ];
 
 // Google's own search-query URL (not a bare lat/lng pin) so it resolves
@@ -122,7 +130,9 @@ export default async function VenueMapPage() {
               >
                 <span
                   aria-hidden="true"
-                  className="block h-5 w-5 rounded-full border-2 border-white bg-turquoise shadow-md ring-2 ring-turquoise/40 transition-transform group-hover:scale-125"
+                  className={`block h-5 w-5 rounded-full border-2 border-white shadow-md ring-2 transition-transform group-hover:scale-125 ${
+                    loc.isEntrance ? 'bg-gold ring-gold/40' : 'bg-turquoise ring-turquoise/40'
+                  }`}
                 />
                 <span className="pointer-events-none absolute start-1/2 top-full z-10 mt-1 w-max max-w-[180px] -translate-x-1/2 rounded-md bg-charcoal px-2 py-1 text-center text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-gray-900">
                   {locale === 'ar' ? loc.nameAr : loc.nameEn}
@@ -136,7 +146,7 @@ export default async function VenueMapPage() {
       <MountReveal delayMs={80}>
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-charcoal/70 dark:text-gray-400">Key locations</h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
             {VENUE_LOCATIONS.map((loc) => (
               <a
                 key={loc.id}
@@ -145,7 +155,7 @@ export default async function VenueMapPage() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-lg bg-charcoal/5 px-3 py-2 text-xs text-charcoal/70 transition-colors hover:bg-charcoal/10 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10"
               >
-                <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full bg-turquoise" />
+                <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${loc.isEntrance ? 'bg-gold' : 'bg-turquoise'}`} />
                 {locale === 'ar' ? loc.nameAr : loc.nameEn}
               </a>
             ))}
