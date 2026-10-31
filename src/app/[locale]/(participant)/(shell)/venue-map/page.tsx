@@ -49,6 +49,14 @@ const VENUE_LOCATIONS: VenueLocation[] = [
   { id: 'side-events', nameEn: 'Side Event Rooms (İBB Fakültesi)', nameAr: 'قاعات الفعاليات الجانبية (İBB Fakültesi)', xPct: 49.6, yPct: 39.0 },
 ];
 
+// Google's own search-query URL (not a bare lat/lng pin) so it resolves
+// to Google's verified "Akdeniz Üniversitesi" place card -- more
+// reliable than a raw coordinate, which can drop slightly off a large
+// campus. Coordinates (36.895, 30.6511) cross-checked against Wikipedia
+// and the Turkish e-Devlet government portal as a sanity fallback, not
+// used directly in the URL.
+const GOOGLE_MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=Akdeniz+%C3%9Cniversitesi+Antalya';
+
 export default async function VenueMapPage() {
   const locale = await getLocale();
   const supabase = await createClient();
@@ -60,11 +68,25 @@ export default async function VenueMapPage() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 p-6 md:p-10">
-      <div>
-        <h1 className="text-xl font-semibold text-charcoal dark:text-gray-100">Venue Map</h1>
-        <p className="mt-1 text-sm text-charcoal/60 dark:text-gray-400">
-          Akdeniz Üniversitesi Yerleşkesi — COY21 Antalya conference venue
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-charcoal dark:text-gray-100">Venue Map</h1>
+          <p className="mt-1 text-sm text-charcoal/60 dark:text-gray-400">
+            Akdeniz Üniversitesi Yerleşkesi — COY21 Antalya conference venue
+          </p>
+        </div>
+        <a
+          href={GOOGLE_MAPS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-charcoal/20 px-3 py-1.5 text-sm font-medium text-charcoal transition-colors hover:bg-charcoal/5 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+          </svg>
+          Open in Google Maps
+        </a>
       </div>
 
       <MountReveal delayMs={0}>
