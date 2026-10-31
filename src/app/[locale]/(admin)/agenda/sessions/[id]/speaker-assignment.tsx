@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { assignSessionPerson, removeSessionPerson } from './actions';
@@ -36,6 +37,11 @@ export default function SpeakerAssignment({
 
   const [newPersonId, setNewPersonId] = useState('');
   const [newPersonRole, setNewPersonRole] = useState<SessionPersonRole>(SESSION_PERSON_ROLES[0]);
+  // Inline confirm/abort before removing -- matches the established
+  // destructive-action pattern elsewhere in the app (e.g.
+  // invitation-controls.tsx's revoke flow, scanner-assignment-manager.tsx's
+  // deactivate flow).
+  const [confirmingRemoveId, setConfirmingRemoveId] = useState<string | null>(null);
 
   async function handleAssignPerson(e: React.FormEvent) {
     e.preventDefault();
@@ -64,12 +70,16 @@ export default function SpeakerAssignment({
 
   async function handleRemovePerson(sessionPeopleId: string) {
     setError(null);
+    setConfirmingRemoveId(null);
     setSubmitting(true);
     try {
       await removeSessionPerson(sessionPeopleId);
+      toast.success(t('removeSuccess'));
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('removeError'));
+      const message = err instanceof Error ? err.message : t('removeError');
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -98,9 +108,21 @@ export default function SpeakerAssignment({
                   {sp.people?.full_name_en} — {t(`roleValues.${sp.role}`)}
                   {sp.is_primary && ` (${t('primary')})`}
                 </span>
-                <Button size="sm" variant="destructive" onClick={() => handleRemovePerson(sp.id)} disabled={submitting}>
-                  {t('remove')}
-                </Button>
+                {confirmingRemoveId === sp.id ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-red-700 dark:text-red-300">{t('removeConfirmPrompt')}</span>
+                    <Button size="sm" variant="destructive" onClick={() => void handleRemovePerson(sp.id)} disabled={submitting}>
+                      {t('removeConfirmButton')}
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => setConfirmingRemoveId(null)} disabled={submitting}>
+                      {t('cancel')}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="destructive" onClick={() => setConfirmingRemoveId(sp.id)} disabled={submitting}>
+                    {t('remove')}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

@@ -306,6 +306,9 @@
       "resending": "جارٍ إعادة الإرسال…",
       "revoke": "إلغاء الدعوة",
       "revoking": "جارٍ الإلغاء…",
+      "revokeConfirmPrompt": "سيؤدي هذا إلى إبطال رابط دعوة المشارك فوراً. سيحتاجون إلى دعوة جديدة لربط حسابهم.",
+      "revokeConfirmButton": "نعم، ألغِ الدعوة",
+      "cancel": "إلغاء",
       "genericError": "فشل الإجراء"
     },
     "classification": {
@@ -1262,6 +1265,10 @@
           "assign": "إسناد",
           "assignError": "تعذر إسناد الشخص",
           "removeError": "تعذر إزالة الشخص",
+          "removeSuccess": "تمت الإزالة",
+          "removeConfirmPrompt": "هل تريد إزالة هذا الشخص من الجلسة؟",
+          "removeConfirmButton": "نعم، أزِل",
+          "cancel": "إلغاء",
           "roleValues": {
             "speaker": "متحدث",
             "guest": "ضيف",
@@ -1695,6 +1702,9 @@
     "cancel": "إلغاء",
     "reassign": "إعادة تعيين",
     "deactivate": "إلغاء التفعيل",
+    "deactivateConfirmPrompt": "سيمنع هذا الماسح فوراً من قبول الحضور لهذا التعيين.",
+    "deactivateConfirmButton": "نعم، ألغِ التفعيل",
+    "deactivateSuccess": "تم إلغاء تفعيل التعيين",
     "roomScopeExplanation": "يسمح تعيين القاعة لهذا الماسح بالعمل في الجلسات المؤهلة المخصصة لهذه القاعة.",
     "scannerRequiredError": "يرجى اختيار ماسح",
     "sessionRequiredError": "يرجى اختيار جلسة",

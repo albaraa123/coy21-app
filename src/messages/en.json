@@ -306,6 +306,9 @@
       "resending": "Resending…",
       "revoke": "Revoke invitation",
       "revoking": "Revoking…",
+      "revokeConfirmPrompt": "This will immediately invalidate the participant's invitation link. They will need a new invitation to claim their account.",
+      "revokeConfirmButton": "Yes, revoke invitation",
+      "cancel": "Cancel",
       "genericError": "Action failed"
     },
     "classification": {
@@ -1262,6 +1265,10 @@
           "assign": "Assign",
           "assignError": "Failed to assign person",
           "removeError": "Failed to remove person",
+          "removeSuccess": "Removed",
+          "removeConfirmPrompt": "Remove this person from the session?",
+          "removeConfirmButton": "Yes, remove",
+          "cancel": "Cancel",
           "roleValues": {
             "speaker": "Speaker",
             "guest": "Guest",
@@ -1695,6 +1702,9 @@
     "cancel": "Cancel",
     "reassign": "Reassign",
     "deactivate": "Deactivate",
+    "deactivateConfirmPrompt": "This will immediately prevent this scanner from admitting attendees for this assignment.",
+    "deactivateConfirmButton": "Yes, deactivate",
+    "deactivateSuccess": "Assignment deactivated",
     "roomScopeExplanation": "Room assignment allows this scanner to operate for eligible sessions assigned to this room.",
     "scannerRequiredError": "Select a scanner",
     "sessionRequiredError": "Select a session",

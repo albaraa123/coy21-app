@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { sendInvitationAction, resendInvitationAction, revokeInvitationAction } from './actions';
 import { Card } from '@/components/ui/card';
@@ -29,6 +30,13 @@ export default function InvitationControls({
   const state = invitation;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Inline confirm/abort step before revoking -- matches the established
+  // destructive-action pattern elsewhere in the app (e.g.
+  // agenda/sessions/[id]/status-control.tsx's cancellation flow,
+  // my-qr/my-qr-client.tsx's reissue flow). Revoking immediately invalidates
+  // the participant's invitation link with no undo, so a single misclick on
+  // the destructive-styled button should not be enough to trigger it.
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
 
   // Rule 1: an Auth user existing (or even an invitation being 'sent') never
   // implies ownership — only Task 21's explicit claim step links applicant_id.
@@ -40,6 +48,7 @@ export default function InvitationControls({
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
+    setConfirmingRevoke(false);
     try {
       await action();
       // Re-derive minimal client state rather than trusting the action's
@@ -49,7 +58,9 @@ export default function InvitationControls({
       // for simplicity instead of hand-rolling optimistic state here).
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('genericError'));
+      const message = err instanceof Error ? err.message : t('genericError');
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -111,12 +122,26 @@ export default function InvitationControls({
               {busy ? t('resending') : t('resend')}
             </Button>
           )}
-          {state && (state.status === 'sent' || state.status === 'failed') && (
-            <Button size="sm" variant="destructive" disabled={busy} onClick={() => void run(() => revokeInvitationAction(applicationId))}>
-              {busy ? t('revoking') : t('revoke')}
+          {state && (state.status === 'sent' || state.status === 'failed') && !confirmingRevoke && (
+            <Button size="sm" variant="destructive" disabled={busy} onClick={() => setConfirmingRevoke(true)}>
+              {t('revoke')}
             </Button>
           )}
         </div>
+
+        {confirmingRevoke && (
+          <div className="flex flex-col gap-2 rounded-md border border-red-700/40 bg-red-50 p-3 dark:border-red-400/40 dark:bg-red-950/20">
+            <p className="text-xs text-red-700 dark:text-red-300">{t('revokeConfirmPrompt')}</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="destructive" disabled={busy} onClick={() => void run(() => revokeInvitationAction(applicationId))}>
+                {busy ? t('revoking') : t('revokeConfirmButton')}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => setConfirmingRevoke(false)}>
+                {t('cancel')}
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </section>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
@@ -64,6 +65,12 @@ export default function ScannerAssignmentManager({
   const [submitting, setSubmitting] = useState(false);
   const [filterScanner, setFilterScanner] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('active');
+  // Inline confirm/abort before deactivating -- matches the established
+  // destructive-action pattern elsewhere in the app (e.g. invitation-controls.tsx's
+  // revoke flow, agenda/sessions/[id]/status-control.tsx's cancellation flow).
+  // Deactivating immediately removes a scanner's ability to admit attendees
+  // for their assigned session/room, so a single misclick should not trigger it.
+  const [confirmingDeactivateId, setConfirmingDeactivateId] = useState<string | null>(null);
 
   const scannerName = (id: string) => scanners.find((s) => s.id === id)?.full_name ?? id;
 
@@ -148,11 +155,15 @@ export default function ScannerAssignmentManager({
 
   async function handleDeactivate(id: string) {
     setError(null);
+    setConfirmingDeactivateId(null);
     try {
       await deactivateAssignment(id);
+      toast.success(t('deactivateSuccess'));
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('deactivateError'));
+      const message = err instanceof Error ? err.message : t('deactivateError');
+      setError(message);
+      toast.error(message);
     }
   }
 
@@ -220,14 +231,27 @@ export default function ScannerAssignmentManager({
                 <p className="mt-1 text-sm text-charcoal/70 dark:text-gray-400">
                   {assignmentScopeLabel(a)}: {assignmentTarget(a)}
                 </p>
-                {a.is_active && (
+                {a.is_active && confirmingDeactivateId !== a.id && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" variant="secondary" onClick={() => startReassign(a)}>
                       {t('reassign')}
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDeactivate(a.id)}>
+                    <Button size="sm" variant="destructive" onClick={() => setConfirmingDeactivateId(a.id)}>
                       {t('deactivate')}
                     </Button>
+                  </div>
+                )}
+                {a.is_active && confirmingDeactivateId === a.id && (
+                  <div className="mt-3 flex flex-col gap-2 rounded-md border border-red-700/40 bg-red-50 p-3 dark:border-red-400/40 dark:bg-red-950/20">
+                    <p className="text-xs text-red-700 dark:text-red-300">{t('deactivateConfirmPrompt')}</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="destructive" onClick={() => void handleDeactivate(a.id)}>
+                        {t('deactivateConfirmButton')}
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setConfirmingDeactivateId(null)}>
+                        {t('cancel')}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </Card>
@@ -264,14 +288,27 @@ export default function ScannerAssignmentManager({
                       <Badge variant={a.is_active ? 'changed' : 'neutral'}>{a.is_active ? t('active') : t('inactive')}</Badge>
                     </td>
                     <td className="px-4 py-2">
-                      {a.is_active && (
+                      {a.is_active && confirmingDeactivateId !== a.id && (
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="secondary" onClick={() => startReassign(a)}>
                             {t('reassign')}
                           </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDeactivate(a.id)}>
+                          <Button size="sm" variant="destructive" onClick={() => setConfirmingDeactivateId(a.id)}>
                             {t('deactivate')}
                           </Button>
+                        </div>
+                      )}
+                      {a.is_active && confirmingDeactivateId === a.id && (
+                        <div className="flex flex-col gap-2 rounded-md border border-red-700/40 bg-red-50 p-2 dark:border-red-400/40 dark:bg-red-950/20">
+                          <p className="text-xs text-red-700 dark:text-red-300">{t('deactivateConfirmPrompt')}</p>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="destructive" onClick={() => void handleDeactivate(a.id)}>
+                              {t('deactivateConfirmButton')}
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => setConfirmingDeactivateId(null)}>
+                              {t('cancel')}
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </td>
