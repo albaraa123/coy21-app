@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
 
   const { data: apps } = await service
     .from('applications')
-    .select('id, preferred_language, profiles!applications_applicant_id_fkey(full_name, email)')
+    .select('id, profiles!applications_applicant_id_fkey(full_name, email)')
     .in('id', applicationIds);
 
   if (!apps) {
@@ -143,11 +143,16 @@ export async function GET(req: NextRequest) {
     const bookedSessionIds = sessionsByApplication.get(app.id) ?? [];
     if (bookedSessionIds.length === 0) continue;
 
-    const locale = (app.preferred_language as 'ar' | 'en') ?? 'en';
+    // English-only by product decision (2026-10-31): never write Arabic
+    // text into the stored notification row, regardless of a
+    // participant's preferred_language. Matching fix in
+    // process-notifications/route.ts (controls the email wrapper/greeting)
+    // and applications/[id]/actions.ts.
+    const locale = 'en' as const;
     const lines = bookedSessionIds.map((sessionId) => {
       const session = sessionById.get(sessionId);
       if (!session) return null;
-      const title = (session.title_en ?? session.title_ar ?? '').trim() || (locale === 'ar' ? 'جلسة' : 'Session');
+      const title = (session.title_en ?? session.title_ar ?? '').trim() || 'Session';
       const room = Array.isArray(session.rooms)
         ? session.rooms[0]?.name_en ?? session.rooms[0]?.name_ar ?? ''
         : (session.rooms as { name_en?: string; name_ar?: string } | null)?.name_en ?? '';
@@ -158,9 +163,7 @@ export async function GET(req: NextRequest) {
 
     if (lines.length === 0) continue;
 
-    const title = locale === 'ar'
-      ? `جدولك اليوم في COY21 (${lines.length} جلسة)`
-      : `Your COY21 schedule today (${lines.length} session${lines.length === 1 ? '' : 's'})`;
+    const title = `Your COY21 schedule today (${lines.length} session${lines.length === 1 ? '' : 's'})`;
     const body = lines.join('\n');
 
     // Dedup key: the earliest booked session that day for this

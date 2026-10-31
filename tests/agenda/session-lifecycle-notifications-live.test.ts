@@ -194,7 +194,11 @@ describe('session cancellation syncs bookings and queues notifications', () => {
     expect(notifs[0].link_path).toBe('/my-agenda/browse');
   });
 
-  it('uses the Arabic session title for an applicant with preferred_language=ar (exercises the trigger\'s Arabic-branch title logic)', async () => {
+  // English-only by product decision (2026-10-31): the title must stay
+  // English even for an applicant with preferred_language='ar' -- it's
+  // seeded as 'ar' here specifically to prove it's ignored, not honored.
+  // See 20261031210000_english_only_notification_titles.sql.
+  it('still uses the English session title for an applicant with preferred_language=ar', async () => {
     const { applicationId } = await seedAcceptedApplicant('cancel-ar-locale', 'ar');
     const sessionId = await seedSession('cancel-ar-locale');
     await directBooking(applicationId, sessionId);
@@ -213,8 +217,8 @@ describe('session cancellation syncs bookings and queues notifications', () => {
     const notifs = notifRows ?? [];
     for (const r of notifs) notificationIds.push(r.id);
     expect(notifs).toHaveLength(1);
-    // seedSession always inserts title_ar: 'جلسة اختبار' unless overridden.
-    expect(notifs[0].title).toBe('تم إلغاء الجلسة: جلسة اختبار');
+    // seedSession always inserts title_en: 'Test Session' unless overridden.
+    expect(notifs[0].title).toBe('Session cancelled: Test Session');
   });
 
   it('queues one outbox row per booking when multiple participants booked the same session', async () => {

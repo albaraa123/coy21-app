@@ -226,7 +226,12 @@ export async function GET(req: NextRequest) {
             batch.map(async (recipient) => {
               const profile = Array.isArray(recipient.profiles) ? recipient.profiles[0] : recipient.profiles;
               if (!profile?.email) return false;
-              const locale = (recipient.preferred_language as 'ar' | 'en') ?? 'en';
+              // English-only by product decision (2026-10-31): never send
+              // Arabic email, regardless of a participant's
+              // preferred_language. See the matching fix on the personal-row
+              // path below and in session-reminders/route.ts and
+              // applications/[id]/actions.ts.
+              const locale = 'en' as const;
               const { error } = await sendAnnouncementEmail({
                 to: profile.email,
                 fullName: profile.full_name ?? '',
@@ -307,7 +312,9 @@ export async function GET(req: NextRequest) {
         failed++;
         continue;
       }
-      const locale = (app?.preferred_language as 'ar' | 'en') ?? 'en';
+      // English-only by product decision (2026-10-31): see the matching
+      // comment on the broadcast path above.
+      const locale = 'en' as const;
 
       let result: { id: string | null; error: string | null };
       switch (r.channel) {

@@ -112,7 +112,11 @@ describe('updateApplicationStatusForCaller dual-writes application_accepted/appl
     expect(notifs[0].title).toBe('Update on your application');
   });
 
-  it('uses the Arabic title for an applicant with preferred_language=ar (accepted)', async () => {
+  // English-only by product decision (2026-10-31): the title must stay
+  // English even for an applicant with preferred_language='ar' -- it's
+  // seeded as 'ar' here specifically to prove it's ignored, not honored.
+  // See the matching comment in applications/[id]/actions.ts.
+  it('still uses the English title for an applicant with preferred_language=ar (accepted)', async () => {
     const applicationId = await seedUnderReviewApplicant('accept-ar', 'ar');
     const { data: staff } = await admin.auth.admin.createUser({ email: `app-decision-notif-live-${runId}-staff-accept-ar@test.local`, password: 'password123', email_confirm: true });
     staffId = staff!.user!.id;
@@ -128,10 +132,10 @@ describe('updateApplicationStatusForCaller dual-writes application_accepted/appl
     const notifs = rows ?? [];
     for (const r of notifs) notificationIds.push(r.id);
     expect(notifs).toHaveLength(1);
-    expect(notifs[0].title).toBe('تم قبول طلبك!');
+    expect(notifs[0].title).toBe('Your application has been accepted!');
   });
 
-  it('uses the Arabic title for an applicant with preferred_language=ar (rejected)', async () => {
+  it('still uses the English title for an applicant with preferred_language=ar (rejected)', async () => {
     const applicationId = await seedUnderReviewApplicant('reject-ar', 'ar');
     const { data: staff } = await admin.auth.admin.createUser({ email: `app-decision-notif-live-${runId}-staff-reject-ar@test.local`, password: 'password123', email_confirm: true });
     staffId = staff!.user!.id;
@@ -147,7 +151,7 @@ describe('updateApplicationStatusForCaller dual-writes application_accepted/appl
     const notifs = rows ?? [];
     for (const r of notifs) notificationIds.push(r.id);
     expect(notifs).toHaveLength(1);
-    expect(notifs[0].title).toBe('تحديث بخصوص طلبك');
+    expect(notifs[0].title).toBe('Update on your application');
   });
 
   it('creates zero application_accepted/application_rejected notifications for an unrelated transition (under_review -> submitted)', async () => {

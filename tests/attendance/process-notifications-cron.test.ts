@@ -638,7 +638,11 @@ describe('GET /api/cron/process-notifications', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('a pending broadcast row queries all accepted applications, batches sends, and marks sent', async () => {
+  // English-only by product decision (2026-10-31): locale is always 'en'
+  // regardless of a recipient's preferred_language -- see the matching
+  // comment in process-notifications/route.ts. Bilal's preferred_language
+  // is deliberately 'ar' here to prove it's ignored, not honored.
+  it('a pending broadcast row queries all accepted applications, batches sends, and marks sent, always in English', async () => {
     const row = baseRow({ is_broadcast: true, application_id: null, channel: 'announcement', title: 'Venue change', body: 'New hall assignment' });
     const recipients = [
       { id: randomUUID(), preferred_language: 'en', profiles: { full_name: 'Alice', email: 'alice@example.com' } },
@@ -658,7 +662,7 @@ describe('GET /api/cron/process-notifications', () => {
       to: 'alice@example.com', fullName: 'Alice', title: 'Venue change', body: 'New hall assignment', locale: 'en',
     });
     expect(sendAnnouncementEmailMock).toHaveBeenCalledWith({
-      to: 'bilal@example.com', fullName: 'Bilal', title: 'Venue change', body: 'New hall assignment', locale: 'ar',
+      to: 'bilal@example.com', fullName: 'Bilal', title: 'Venue change', body: 'New hall assignment', locale: 'en',
     });
     expect(updates).toHaveLength(1);
     expect(updates[0].payload.email_status).toBe('sent');

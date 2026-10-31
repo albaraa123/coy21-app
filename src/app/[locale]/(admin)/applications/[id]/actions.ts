@@ -87,15 +87,13 @@ export async function updateApplicationStatusForCaller(
   }
 
   if (newStatus === 'accepted' || newStatus === 'rejected') {
-    const { data: applicant } = await service
-      .from('applications')
-      .select('preferred_language')
-      .eq('id', applicationId)
-      .single();
-    const locale = (applicant?.preferred_language as 'ar' | 'en') ?? 'en';
+    // English-only by product decision (2026-10-31): never write Arabic
+    // text into the stored notification row, regardless of a
+    // participant's preferred_language. Matching fix in
+    // process-notifications/route.ts and session-reminders/route.ts.
     const title = newStatus === 'accepted'
-      ? (locale === 'ar' ? 'تم قبول طلبك!' : 'Your application has been accepted!')
-      : (locale === 'ar' ? 'تحديث بخصوص طلبك' : 'Update on your application');
+      ? 'Your application has been accepted!'
+      : 'Update on your application';
     const { error: notifError } = await service.rpc('create_notification' as never, {
       p_application_id: applicationId,
       p_channel: newStatus === 'accepted' ? 'application_accepted' : 'application_rejected',

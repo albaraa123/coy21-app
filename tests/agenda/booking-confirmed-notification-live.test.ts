@@ -152,7 +152,11 @@ describe('book_session() dual-writes a booking_confirmed notification', () => {
     expect(notifRows[0].title).toContain('Your booking is confirmed');
   });
 
-  it('uses the Arabic session title and Arabic wording for an applicant with preferred_language=ar', async () => {
+  // English-only by product decision (2026-10-31): the title must stay
+  // English even for an applicant with preferred_language='ar' -- it's
+  // seeded as 'ar' here specifically to prove it's ignored, not honored.
+  // See 20261031210000_english_only_notification_titles.sql.
+  it('still uses the English session title for an applicant with preferred_language=ar', async () => {
     const { applicationId, client } = await seedAcceptedApplicant('ar-locale', 'ar');
     const sessionId = await seedSession('ar-locale');
 
@@ -168,7 +172,7 @@ describe('book_session() dual-writes a booking_confirmed notification', () => {
     for (const r of notifRows) notificationIds.push(r.id);
 
     expect(notifRows).toHaveLength(1);
-    expect(notifRows[0].title).toBe('تم تأكيد حجزك في: جلسة تأكيد الحجز');
+    expect(notifRows[0].title).toBe('Your booking is confirmed: Booking Confirmation Session');
   });
 
   it('creates zero notifications rows when book_session() rejects the booking (session full)', async () => {
