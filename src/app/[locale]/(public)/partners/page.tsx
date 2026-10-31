@@ -2,22 +2,35 @@ import { useTranslations } from 'next-intl';
 import { Reveal } from '@/components/motion/reveal';
 import { Blob } from '@/components/motion/blob';
 
-const TURKIYE_COALITION = [
-  { name: 'Youth for Good', slug: 'youth-for-good' },
-  { name: 'European Youth Energy Network', slug: 'eyen' },
+// Replaced 2026-11-01 with the real COY21 sponsor/co-host list (previous
+// placeholder "Türkiye Coalition" / "Australia Coalition" entries removed
+// entirely, including their now-unused /public/partners/*.svg files).
+const SPONSORED_BY = [
+  { name: 'British Council', slug: 'british-council' },
+  { name: 'IOM UN Migration', slug: 'iom' },
+  { name: 'UNICEF', slug: 'unicef' },
+  { name: 'UN Women', slug: 'un-women' },
+  { name: 'SANKO', slug: 'sanko' },
+  { name: 'UNDP', slug: 'undp' },
 ];
 
-const AUSTRALIA_COALITION = [
-  { name: 'Climate CATCH Lab', slug: 'climate-catch-lab' },
-  { name: 'Orygen', slug: 'orygen' },
-  { name: 'Climate Writers', slug: 'climate-writers' },
-  { name: 'Australian Youth for International Climate Engagement (AYFICE)', slug: 'ayfice' },
-  { name: 'Oceania Youth Climate Negotiation Network (OYCNN)', slug: 'oycnn' },
+const CO_HOSTED_BY = [
+  { name: 'Esmiyor.', slug: 'esmiyor' },
+  { name: 'İklim Elçileri', slug: 'iklim-elcileri' },
+  { name: 'Genç Enerji Derneği', slug: 'genc-enerji' },
+  { name: 'Sosyal İklim', slug: 'sosyal-iklim' },
+  { name: 'Ecomind', slug: 'ecomind' },
+  { name: 'Habitat', slug: 'habitat' },
+  { name: 'Climate and Health Alliance (CAHA)', slug: 'caha' },
 ];
 
 function PartnerCard({ name, slug }: { name: string; slug: string }) {
   return (
-    <div className="flex h-28 items-center justify-center rounded-xl border border-charcoal/10 bg-white p-4 shadow-sm transition-shadow duration-200 hover:shadow-md">
+    // bg-turquoise (the brand's navy-blue token, see globals.css) instead of
+    // white: every partner logo is a white-on-transparent SVG, which is
+    // invisible against a white card -- the navy background is what makes
+    // the white logo artwork visible.
+    <div className="flex h-28 items-center justify-center rounded-xl border border-charcoal/10 bg-turquoise p-4 shadow-sm transition-shadow duration-200 hover:shadow-md">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/partners/${slug}.svg`}
@@ -42,14 +55,11 @@ export default function PartnersPage() {
       </div>
 
       <Reveal className="mt-12">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-charcoal/40">
-          Co-Host Coalition
-        </p>
         <h2 className="font-[family-name:var(--font-thmanyah)] text-xl font-semibold text-charcoal">
-          Türkiye Coalition
+          Sponsored by
         </h2>
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {TURKIYE_COALITION.map((p) => (
+          {SPONSORED_BY.map((p) => (
             <PartnerCard key={p.slug} name={p.name} slug={p.slug} />
           ))}
         </div>
@@ -57,10 +67,10 @@ export default function PartnersPage() {
 
       <Reveal delayMs={100} className="mt-10">
         <h2 className="font-[family-name:var(--font-thmanyah)] text-xl font-semibold text-charcoal">
-          Australia Coalition
+          Co-Hosted by
         </h2>
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {AUSTRALIA_COALITION.map((p) => (
+          {CO_HOSTED_BY.map((p) => (
             <PartnerCard key={p.slug} name={p.name} slug={p.slug} />
           ))}
         </div>
