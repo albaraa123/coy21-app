@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { bookSession, cancelBooking, joinWaitlist, leaveWaitlist } from './actions';
 
@@ -78,8 +79,8 @@ export function BookButton({ sessionId, isFull, isPastDeadline, compact = false,
           setError(null);
           startTransition(async () => {
             const result = await bookSession(sessionId);
-            if (result.error) setError(result.error);
-            else setBooked(true);
+            if (result.error) { setError(result.error); toast.error(result.error); }
+            else { setBooked(true); toast.success('Booked'); }
           });
         }}
         className="text-[10px] font-semibold underline underline-offset-1 disabled:opacity-60"
@@ -99,8 +100,8 @@ export function BookButton({ sessionId, isFull, isPastDeadline, compact = false,
           setError(null);
           startTransition(async () => {
             const result = await bookSession(sessionId);
-            if (result.error) setError(result.error);
-            else setBooked(true);
+            if (result.error) { setError(result.error); toast.error(result.error); }
+            else { setBooked(true); toast.success('Booked'); }
           });
         }}
       >
@@ -136,8 +137,8 @@ export function CancelButton({ bookingId, isPastDeadline, onCancelled }: CancelB
           setError(null);
           startTransition(async () => {
             const result = await cancelBooking(bookingId);
-            if (result.error) setError(result.error);
-            else onCancelled();
+            if (result.error) { setError(result.error); toast.error(result.error); }
+            else { onCancelled(); toast.success('Booking cancelled'); }
           });
         }}
         className="text-xs text-charcoal/50 underline hover:text-red-600 disabled:opacity-50 dark:text-gray-500"
@@ -210,9 +211,12 @@ export function WaitlistButton({
             setError(null);
             startTransition(async () => {
               const result = await leaveWaitlist(sessionId);
-              if (result.error) setError(result.error);
-              else if (onLeft) onLeft();
-              else setWaitlisted(false);
+              if (result.error) { setError(result.error); toast.error(result.error); }
+              else {
+                if (onLeft) onLeft();
+                else setWaitlisted(false);
+                toast.success('Left waitlist');
+              }
             });
           }}
           className="text-[10px] font-semibold underline underline-offset-1 disabled:opacity-60"
@@ -231,9 +235,12 @@ export function WaitlistButton({
             setError(null);
             startTransition(async () => {
               const result = await leaveWaitlist(sessionId);
-              if (result.error) setError(result.error);
-              else if (onLeft) onLeft();
-              else setWaitlisted(false);
+              if (result.error) { setError(result.error); toast.error(result.error); }
+              else {
+                if (onLeft) onLeft();
+                else setWaitlisted(false);
+                toast.success('Left waitlist');
+              }
             });
           }}
           className="text-xs text-charcoal/50 underline hover:text-red-600 disabled:opacity-50 dark:text-gray-500"
@@ -266,8 +273,8 @@ export function WaitlistButton({
           setError(null);
           startTransition(async () => {
             const result = await joinWaitlist(sessionId);
-            if (result.error) setError(result.error);
-            else setWaitlisted(true);
+            if (result.error) { setError(result.error); toast.error(result.error); }
+            else { setWaitlisted(true); toast.success('Joined waitlist'); }
           });
         }}
         className="text-[10px] font-semibold underline underline-offset-1 disabled:opacity-60"
@@ -288,8 +295,8 @@ export function WaitlistButton({
           setError(null);
           startTransition(async () => {
             const result = await joinWaitlist(sessionId);
-            if (result.error) setError(result.error);
-            else setWaitlisted(true);
+            if (result.error) { setError(result.error); toast.error(result.error); }
+            else { setWaitlisted(true); toast.success('Joined waitlist'); }
           });
         }}
       >

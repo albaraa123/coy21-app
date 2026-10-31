@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
@@ -59,11 +60,15 @@ export function IdentityForm({ initial, initialAvatarUrl }: { initial: Identity;
     // real enforcement boundary -- this is just a faster, friendlier
     // first check.
     if (!AVATAR_ALLOWED_MIME_TYPES.includes(file.type)) {
-      setError('Please choose a PNG, JPEG, or WebP image.');
+      const message = 'Please choose a PNG, JPEG, or WebP image.';
+      setError(message);
+      toast.error(message);
       return;
     }
     if (file.size > AVATAR_MAX_BYTES) {
-      setError('Image must be 5 MB or smaller.');
+      const message = 'Image must be 5 MB or smaller.';
+      setError(message);
+      toast.error(message);
       return;
     }
     // Instant local preview, before any network round trip -- revoke the
@@ -78,14 +83,22 @@ export function IdentityForm({ initial, initialAvatarUrl }: { initial: Identity;
     try {
       const supabase = createBrowserSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setError('Not authenticated'); return; }
+      if (!user) {
+        setError('Not authenticated');
+        toast.error('Not authenticated');
+        return;
+      }
       // Fixed filename (no variable extension) -- uploading a new photo
       // always overwrites the same object via upsert:true, instead of
       // leaving the previous upload's file orphaned in the bucket when
       // the file extension changes between saves.
       const path = `${user.id}/avatar`;
       const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-      if (uploadError) { setError(uploadError.message); return; }
+      if (uploadError) {
+        setError(uploadError.message);
+        toast.error(uploadError.message);
+        return;
+      }
       setAvatarPath(path);
     } finally {
       setUploading(false);
@@ -96,13 +109,20 @@ export function IdentityForm({ initial, initialAvatarUrl }: { initial: Identity;
     setSaved(false);
     setError(null);
     if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim() || !avatarPath) {
-      setError('Name, email, phone, and a profile picture are required.');
+      const message = 'Name, email, phone, and a profile picture are required.';
+      setError(message);
+      toast.error(message);
       return;
     }
     startSave(async () => {
       const res = await saveIdentity({ ...form, avatarPath });
-      if (res.error) { setError(res.error); return; }
+      if (res.error) {
+        setError(res.error);
+        toast.error(res.error);
+        return;
+      }
       setSaved(true);
+      toast.success('Profile saved');
     });
   }
 
@@ -179,19 +199,26 @@ export function EmergencyContactsForm({
 
   function handleSave() {
     if (!form.name.trim() || !form.relationship.trim() || !form.phone.trim()) {
-      setError('Name, relationship, and phone are required.');
+      const message = 'Name, relationship, and phone are required.';
+      setError(message);
+      toast.error(message);
       return;
     }
     startSave(async () => {
       const contactId = editing === 'new' ? null : editing;
       const res = await saveEmergencyContact(contactId, applicationId, form);
-      if (res.error) { setError(res.error); return; }
+      if (res.error) {
+        setError(res.error);
+        toast.error(res.error);
+        return;
+      }
       if (editing === 'new' && res.id) {
         setContacts((prev) => [...prev, { id: res.id!, ...form, email: form.email || null }]);
       } else {
         setContacts((prev) => prev.map((c) => c.id === editing ? { ...c, ...form, email: form.email || null } : c));
       }
       setEditing(null);
+      toast.success('Emergency contact saved');
     });
   }
 
@@ -199,8 +226,13 @@ export function EmergencyContactsForm({
     if (!confirm('Remove this emergency contact?')) return;
     startDelete(async () => {
       const res = await deleteEmergencyContact(id, applicationId);
-      if (res.error) { setError(res.error); return; }
+      if (res.error) {
+        setError(res.error);
+        toast.error(res.error);
+        return;
+      }
       setContacts((prev) => prev.filter((c) => c.id !== id));
+      toast.success('Emergency contact removed');
     });
   }
 
@@ -296,13 +328,20 @@ export function AccommodationForm({
     setSaved(false);
     setError(null);
     if (!form.hotel_name.trim() || !form.location_note.trim()) {
-      setError('Hotel name and location note are required.');
+      const message = 'Hotel name and location note are required.';
+      setError(message);
+      toast.error(message);
       return;
     }
     startSave(async () => {
       const res = await saveAccommodation(applicationId, form);
-      if (res.error) { setError(res.error); return; }
+      if (res.error) {
+        setError(res.error);
+        toast.error(res.error);
+        return;
+      }
       setSaved(true);
+      toast.success('Accommodation saved');
     });
   }
 

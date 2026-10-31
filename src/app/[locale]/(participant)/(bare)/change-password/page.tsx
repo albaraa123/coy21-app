@@ -8,6 +8,7 @@
 // this file's own no-gate-on-entry note below), so no extra check is
 // needed here beyond "is someone signed in at all".
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/client';
@@ -28,10 +29,12 @@ export default function ChangePasswordPage() {
     setError(null);
     if (password !== confirmPassword) {
       setError(t('mismatchError'));
+      toast.error(t('mismatchError'));
       return;
     }
     if (password === 'password@123') {
       setError(t('sameAsTemporaryError'));
+      toast.error(t('sameAsTemporaryError'));
       return;
     }
     setSubmitting(true);
@@ -45,13 +48,16 @@ export default function ChangePasswordPage() {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) {
         setError(updateError.message);
+        toast.error(updateError.message);
         return;
       }
       const result = await completePasswordChange();
       if (!result.success) {
         setError(result.errorMessage);
+        toast.error(result.errorMessage);
         return;
       }
+      toast.success(t('success'));
       router.push('/my-dashboard');
     } finally {
       setSubmitting(false);

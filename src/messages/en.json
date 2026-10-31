@@ -222,6 +222,7 @@
     "reissueLink": "Having trouble with this QR?",
     "reissueWarning": "This will stop your current QR from working and replace it with a new one. Only do this if your QR is lost, shared, or not working.",
     "reissueConfirm": "Replace my QR",
+    "reissueSuccess": "QR replaced",
     "cancel": "Cancel",
     "actionError": "Something went wrong. Please try again.",
     "states": {
@@ -247,7 +248,8 @@
     "submitLabel": "Change password and continue",
     "saving": "Saving…",
     "mismatchError": "Passwords do not match",
-    "sameAsTemporaryError": "Please choose a different password than the temporary one"
+    "sameAsTemporaryError": "Please choose a different password than the temporary one",
+    "success": "Password changed"
   },
   "participants": {
     "overview": {

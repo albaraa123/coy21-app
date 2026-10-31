@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
@@ -149,9 +150,13 @@ export default function RegistrationForm({ draft }: { draft: ApplicationDraft })
     try {
       await autosaveStep(STEP_3_FIELDS);
       await submitApplication(draft.id);
+      // No success toast here -- navigation happens immediately after and
+      // /my-application's own page is the real confirmation.
       router.push('/my-application');
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Submission failed');
+      const message = err instanceof Error ? err.message : 'Submission failed';
+      setSubmitError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }

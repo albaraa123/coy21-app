@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,8 +61,14 @@ export function TravelForm({ initialLegs }: Props) {
     setError(null);
     startTransition(async () => {
       const result = await saveTravelLeg(editing === 'new' ? null : editing, form);
-      if (result.error) { setError(result.error); return; }
-      // Refresh by reloading the page — simple, avoids stale closure issues
+      if (result.error) {
+        setError(result.error);
+        toast.error(result.error);
+        return;
+      }
+      // Refresh by reloading the page — simple, avoids stale closure issues.
+      // No success toast here: it would be wiped out by the reload before
+      // it's visible, and the reload itself already confirms the save.
       window.location.reload();
     });
   }
@@ -69,8 +76,13 @@ export function TravelForm({ initialLegs }: Props) {
   function handleDelete(legId: string) {
     startTransition(async () => {
       const result = await deleteTravelLeg(legId);
-      if (result.error) { setError(result.error); return; }
+      if (result.error) {
+        setError(result.error);
+        toast.error(result.error);
+        return;
+      }
       setLegs((prev) => prev.filter((l) => l.id !== legId));
+      toast.success('Flight leg removed');
     });
   }
 

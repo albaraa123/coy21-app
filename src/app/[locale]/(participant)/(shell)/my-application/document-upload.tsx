@@ -7,6 +7,7 @@
 
 import { useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
 const BUCKET = 'participant-documents';
@@ -44,8 +45,10 @@ export function DocumentUpload({ userId, docKey, label }: Props) {
     if (error) {
       setStatus('error');
       setErrorMsg(error.message);
+      toast.error(error.message);
     } else {
       setStatus('done');
+      toast.success(`${label} uploaded`);
     }
   }
 

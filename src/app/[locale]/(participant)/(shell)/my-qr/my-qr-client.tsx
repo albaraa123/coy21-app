@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,9 +50,11 @@ export default function MyQrClient({
         setCafeteriaQrImageDataUri(result.qrImageDataUri);
       } else {
         setCafeteriaActionError(t('actionError'));
+        toast.error(t('actionError'));
       }
     } catch {
       setCafeteriaActionError(t('actionError'));
+      toast.error(t('actionError'));
     } finally {
       setCafeteriaBusy(false);
     }
@@ -66,6 +69,7 @@ export default function MyQrClient({
       setQrImageDataUri(result.qrImageDataUri);
     } catch {
       setActionError(t('actionError'));
+      toast.error(t('actionError'));
     } finally {
       setBusy(false);
     }
@@ -80,8 +84,10 @@ export default function MyQrClient({
       const result = await reissueMyQrCredentialAction({ expectedCurrentCredentialId: state.credentialId });
       setState(result.state);
       setQrImageDataUri(result.qrImageDataUri);
+      toast.success(t('reissueSuccess'));
     } catch {
       setActionError(t('actionError'));
+      toast.error(t('actionError'));
     } finally {
       setBusy(false);
     }
