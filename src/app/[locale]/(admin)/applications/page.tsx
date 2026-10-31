@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { calculateAge } from '@/lib/participants/age';
 import { MountReveal } from '@/components/motion/mount-reveal';
+import { ApplicationsSearchBox } from './applications-search-box';
 
 const PAGE_SIZE = 50;
 
@@ -164,6 +165,10 @@ export default async function ApplicationsListPage({
         )}
       </div>
       <p className="mb-4 text-sm text-charcoal/70 dark:text-gray-400 md:mb-6">{t('description')}</p>
+
+      <div className="mb-4">
+        <ApplicationsSearchBox placeholder={t('searchPlaceholder')} />
+      </div>
 
       {!applications || applications.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />

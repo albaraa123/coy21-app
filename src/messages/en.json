@@ -659,7 +659,8 @@
       "reviewer": "Reviewer",
       "submitted": "Submitted",
       "unassigned": "Unassigned",
-      "pageOf": "Page {page} of {totalPages}"
+      "pageOf": "Page {page} of {totalPages}",
+      "searchPlaceholder": "Search by name or email"
     },
     "detail": {
       "backLabel": "Back to applications",

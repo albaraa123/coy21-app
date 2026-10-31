@@ -659,7 +659,8 @@
       "reviewer": "المراجع",
       "submitted": "تاريخ الإرسال",
       "unassigned": "غير معيّن",
-      "pageOf": "صفحة {page} من {totalPages}"
+      "pageOf": "صفحة {page} من {totalPages}",
+      "searchPlaceholder": "البحث بالاسم أو البريد الإلكتروني"
     },
     "detail": {
       "backLabel": "العودة إلى الطلبات",
