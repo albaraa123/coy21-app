@@ -1,6 +1,7 @@
 ﻿import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { notFound } from "next/navigation";
+import { Toaster } from "sonner";
 import { routing } from "@/i18n/routing";
 import { thmanyahSerif } from "@/lib/fonts";
 import "../globals.css";
@@ -50,6 +51,14 @@ export default async function LocaleLayout({
     >
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        {/* theme="system" matches globals.css's own @media
+            (prefers-color-scheme: dark) strategy -- no manual
+            toggle/class exists in this app, so sonner needs no
+            additional wiring to stay in sync. dir is hardcoded "ltr"
+            to match the <html dir="ltr"> above -- routing.ts's locales
+            is currently just ['en'] (Arabic not yet a live route), so
+            there is no locale value this could branch on today. */}
+        <Toaster theme="system" richColors dir="ltr" />
       </body>
     </html>
   );

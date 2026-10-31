@@ -12,6 +12,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { useRouter } from '@/i18n/routing';
 import { updateSessionStatus } from './actions';
 import type { SessionStatus } from '@/lib/validation/agenda';
@@ -46,9 +47,12 @@ export default function StatusControl({
     setSubmitting(true);
     try {
       await updateSessionStatus(sessionId, newStatus as SessionStatus);
+      toast.success(t('current') + ': ' + newStatus);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('statusError'));
+      const message = err instanceof Error ? err.message : t('statusError');
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -64,7 +68,9 @@ export default function StatusControl({
       setCancellationReason('');
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('cancelError'));
+      const message = err instanceof Error ? err.message : t('cancelError');
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
