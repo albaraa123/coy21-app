@@ -1,14 +1,15 @@
 // tests/attendance/session-reminders-dedupe.test.ts
 //
-// Final whole-branch review of sub-project 6 found that
-// src/app/api/cron/session-reminders/route.ts had no coverage for its own
-// 10-minute match window overlapping its 5-minute cron cadence: 2-3
-// consecutive invocations can match the SAME upcoming session for the
-// SAME participant, and without a guard each would insert its own
-// session_reminder row (duplicate bell entries, duplicate emails). Fixed
-// via a unique partial index (notifications_session_reminder_dedupe_idx,
-// migration 20261008090000) plus route-level handling of the resulting
-// 23505 unique-violation as "already reminded", not a failure.
+// Covers the once-daily digest design (changed 2026-10-31 from a
+// per-session "30 minutes before" reminder running every 5 minutes, to a
+// once-a-day summary of all of a participant's bookings for the Istanbul
+// calendar day -- see this route's own header comment for why: quota
+// pressure on Resend's free tier). Dedup is still backed by the existing
+// unique partial index notifications_session_reminder_dedupe_idx on
+// (application_id, session_id, channel) -- this route now keys each
+// digest's session_id to the participant's EARLIEST booked session that
+// day, so a second same-day invocation (cron drift, manual re-trigger)
+// hits the same unique-violation this index was built for.
 //
 // This suite does not exercise the live unique index itself (that's a
 // live-DB behavior, not something a mocked unit test can usefully fake
@@ -42,7 +43,6 @@ type Session = {
   title_en: string;
   title_ar: string | null;
   start_time: string;
-  end_time: string;
   rooms: { name_en: string; name_ar: string } | null;
 };
 
@@ -51,8 +51,7 @@ function baseSession(overrides: Partial<Session> = {}): Session {
     id: randomUUID(),
     title_en: 'Opening Ceremony',
     title_ar: null,
-    start_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    end_time: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+    start_time: new Date().toISOString(),
     rooms: { name_en: 'Main Hall', name_ar: 'القاعة الرئيسية' },
     ...overrides,
   };
@@ -60,15 +59,15 @@ function baseSession(overrides: Partial<Session> = {}): Session {
 
 /**
  * Builds a fake service-role client:
- *  - 'sessions' select chain -> `sessions` (one matched session).
- *  - 'session_bookings' select chain -> `bookings` (active bookings for it).
+ *  - 'sessions' select chain -> `sessions` (today's confirmed sessions).
+ *  - 'session_bookings' select chain -> `bookings` (active bookings for them).
  *  - 'applications' select chain -> `apps` (resolved applicant profiles).
  *  - rpc('create_notification', ...) -> consumes `rpcResults` in call
  *    order (one entry per application processed), defaulting to success.
  */
 function fakeService(opts: {
   sessions: Session[];
-  bookings: Array<{ application_id: string }>;
+  bookings: Array<{ application_id: string; session_id: string }>;
   apps: Array<{ id: string; preferred_language: string | null; profiles: { full_name: string; email: string } }>;
   rpcResults?: Array<{ error: { code: string; message: string } | null }>;
 }) {
@@ -80,8 +79,10 @@ function fakeService(opts: {
       return {
         select: vi.fn(() => ({
           gte: vi.fn(() => ({
-            lte: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ data: opts.sessions, error: null })),
+            lt: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(() => Promise.resolve({ data: opts.sessions, error: null })),
+              })),
             })),
           })),
         })),
@@ -90,7 +91,7 @@ function fakeService(opts: {
     if (table === 'session_bookings') {
       return {
         select: vi.fn(() => ({
-          eq: vi.fn(() => ({
+          in: vi.fn(() => ({
             eq: vi.fn(() => Promise.resolve({ data: opts.bookings, error: null })),
           })),
         })),
@@ -122,12 +123,12 @@ beforeEach(() => {
 });
 
 describe('GET /api/cron/session-reminders', () => {
-  it('sends a reminder for a newly-matched participant', async () => {
+  it('sends a digest for a participant booked into a session today', async () => {
     const session = baseSession();
     const appId = randomUUID();
     const { client } = fakeService({
       sessions: [session],
-      bookings: [{ application_id: appId }],
+      bookings: [{ application_id: appId, session_id: session.id }],
       apps: [{ id: appId, preferred_language: 'en', profiles: { full_name: 'Jane Doe', email: 'jane@example.com' } }],
     });
     createServiceRoleClientMock.mockReturnValue(client);
@@ -139,16 +140,41 @@ describe('GET /api/cron/session-reminders', () => {
     expect(json.alreadyReminded).toBe(0);
   });
 
-  // The core regression test: a second (or third) invocation within the
-  // same 10-minute match window, for the same participant/session, must
-  // be recognized as a duplicate via the RPC's 23505 response -- not
-  // counted as a failure, and not silently swallowed as a success either.
+  it('lists every booked session today in one digest body, keyed to the earliest for dedup', async () => {
+    const earlier = baseSession({ start_time: new Date(Date.now() - 60 * 60 * 1000).toISOString(), title_en: 'Morning Plenary' });
+    const later = baseSession({ start_time: new Date(Date.now() + 60 * 60 * 1000).toISOString(), title_en: 'Afternoon Workshop' });
+    const appId = randomUUID();
+    const { client, rpcCalls } = fakeService({
+      sessions: [earlier, later],
+      bookings: [
+        { application_id: appId, session_id: earlier.id },
+        { application_id: appId, session_id: later.id },
+      ],
+      apps: [{ id: appId, preferred_language: 'en', profiles: { full_name: 'Jane Doe', email: 'jane@example.com' } }],
+    });
+    createServiceRoleClientMock.mockReturnValue(client);
+
+    const response = await GET(cronRequest(`Bearer ${CRON_SECRET}`) as never);
+    const json = await response.json();
+    expect(json.sent).toBe(1);
+    expect(rpcCalls).toHaveLength(1);
+    const call = rpcCalls[0] as { p_body: string; p_session_id: string; p_title: string };
+    expect(call.p_body).toContain('Morning Plenary');
+    expect(call.p_body).toContain('Afternoon Workshop');
+    expect(call.p_session_id).toBe(earlier.id); // earliest session is the dedup key
+    expect(call.p_title).toContain('2'); // 2 sessions today
+  });
+
+  // Core regression coverage carried over from the per-session design: a
+  // second same-day invocation for the same participant must be recognized
+  // as a duplicate via the RPC's 23505 response -- not counted as a
+  // failure, and not silently swallowed as a success either.
   it('counts a 23505 unique-violation from create_notification as alreadyReminded, not failed', async () => {
     const session = baseSession();
     const appId = randomUUID();
     const { client } = fakeService({
       sessions: [session],
-      bookings: [{ application_id: appId }],
+      bookings: [{ application_id: appId, session_id: session.id }],
       apps: [{ id: appId, preferred_language: 'en', profiles: { full_name: 'Jane Doe', email: 'jane@example.com' } }],
       rpcResults: [{ error: { code: '23505', message: 'duplicate key value violates unique constraint "notifications_session_reminder_dedupe_idx"' } }],
     });
@@ -166,7 +192,7 @@ describe('GET /api/cron/session-reminders', () => {
     const appId = randomUUID();
     const { client } = fakeService({
       sessions: [session],
-      bookings: [{ application_id: appId }],
+      bookings: [{ application_id: appId, session_id: session.id }],
       apps: [{ id: appId, preferred_language: 'en', profiles: { full_name: 'Jane Doe', email: 'jane@example.com' } }],
       rpcResults: [{ error: { code: '42501', message: 'permission denied' } }],
     });
@@ -182,18 +208,14 @@ describe('GET /api/cron/session-reminders', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  // Simulates the exact scenario the finding described: three consecutive
-  // 5-minute cron ticks all matching the same session/participant pair
-  // (the 10-minute window overlapping 2-3 cadences). Only the first call
-  // should ever land as a real send; the rest must be deduped.
-  it('across repeated invocations for the same participant/session, only the first is sent and the rest are deduped', async () => {
+  it('across repeated same-day invocations for the same participant, only the first is sent and the rest are deduped', async () => {
     const session = baseSession();
     const appId = randomUUID();
     const appFixture = { id: appId, preferred_language: 'en' as const, profiles: { full_name: 'Jane Doe', email: 'jane@example.com' } };
 
     const tick1 = fakeService({
       sessions: [session],
-      bookings: [{ application_id: appId }],
+      bookings: [{ application_id: appId, session_id: session.id }],
       apps: [appFixture],
       rpcResults: [{ error: null }],
     });
@@ -203,7 +225,7 @@ describe('GET /api/cron/session-reminders', () => {
 
     const tick2 = fakeService({
       sessions: [session],
-      bookings: [{ application_id: appId }],
+      bookings: [{ application_id: appId, session_id: session.id }],
       apps: [appFixture],
       rpcResults: [{ error: { code: '23505', message: 'duplicate key value violates unique constraint' } }],
     });
@@ -213,20 +235,16 @@ describe('GET /api/cron/session-reminders', () => {
   });
 
   // Regression test for a live incident (2026-10-13): a real, non-staff
-  // participant's profiles.full_name was '' (empty, not null -- no profile
-  // row is ever missing full_name entirely, since it's NOT NULL with a
-  // default, but a self-registered participant can leave it blank). This
-  // route's own `!profile?.full_name` check (the only full_name gate
-  // anywhere in the reminder pipeline -- process-notifications itself
-  // never skips on a missing name, it degrades to an empty greeting)
-  // silently dropped them from session_reminder dispatch entirely despite
-  // having an active booking and a valid email.
-  it('still creates a reminder for a participant whose profile full_name is empty, not just missing email', async () => {
+  // participant's profiles.full_name was '' (empty, not null). This
+  // route must still send -- gating only on email, matching
+  // process-notifications's own established pattern of degrading to an
+  // empty greeting rather than skipping on a missing name.
+  it('still creates a digest for a participant whose profile full_name is empty, not just missing email', async () => {
     const session = baseSession();
     const appId = randomUUID();
     const { client, rpcCalls } = fakeService({
       sessions: [session],
-      bookings: [{ application_id: appId }],
+      bookings: [{ application_id: appId, session_id: session.id }],
       apps: [{ id: appId, preferred_language: 'en', profiles: { full_name: '', email: 'noname@example.com' } }],
     });
     createServiceRoleClientMock.mockReturnValue(client);

@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/travel-reminders",
-      "schedule": "0 9 * * *"
+      "path": "/api/cron/session-reminders",
+      "schedule": "0 4 * * *"
     }
   ]
 }
