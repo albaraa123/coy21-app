@@ -137,7 +137,14 @@ export default async function ReportsPage() {
             COY21 operational snapshot — updated in real time.
           </p>
         </div>
-        <CsvExportButton />
+        <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-start">
+          <CsvExportButton />
+          <CsvExportButton
+            endpoint="/api/admin/reports/attendance-csv"
+            filenamePrefix="coy21-attendance"
+            label="Export Attendance CSV"
+          />
+        </div>
       </div>
 
       {/* ------------------------------------------------------------------ */}
