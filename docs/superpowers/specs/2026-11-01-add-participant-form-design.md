@@ -79,8 +79,18 @@ zod-validated input (fullName, email, participantType, + optional fields)
 
 The page then redirects (client-side, via the existing
 `useRouter()`-after-server-action pattern `staff-manager.tsx` already
-uses) to `/applications/{newId}`, where the existing detail page and its
-existing "Send Invitation" button take over.
+uses) to `/participants/{newId}` -- **not** `/applications/{newId}`.
+Correction after live manual QA (2026-11-01): this codebase has TWO
+separate detail pages for the same `applications` row.
+`/applications/[id]` is the legacy review-workflow page (status
+transitions, reviewer assignment) and does not mount
+`InvitationControls` at all. `/participants/[applicationId]` is the
+newer page built specifically for imported/unclaimed rows -- read-only
+data plus the Send/Resend/Revoke Invitation controls this whole flow
+depends on. Confirmed live: redirecting to `/applications/{id}` first
+rendered a page with blank Name/Email (that page's "Applicant" card
+reads from the joined `profiles` row, which doesn't exist yet for an
+unclaimed application) and no invitation button anywhere.
 
 ## Explicitly out of scope
 

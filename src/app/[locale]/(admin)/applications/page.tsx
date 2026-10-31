@@ -149,7 +149,20 @@ export default async function ApplicationsListPage({
 
   return (
     <div className="p-4 md:p-6">
-      <h1 className="mb-2 text-lg font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
+        {/* super_admin only -- matches /applications/new's own page-level
+            gate, so this button never links to a page the current staff
+            member would just get a 404 from. */}
+        {profile.role === 'super_admin' && (
+          <Link
+            href="/applications/new"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-turquoise px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-turquoise/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-turquoise focus-visible:ring-offset-2"
+          >
+            Add Participant
+          </Link>
+        )}
+      </div>
       <p className="mb-4 text-sm text-charcoal/70 dark:text-gray-400 md:mb-6">{t('description')}</p>
 
       {!applications || applications.length === 0 ? (
