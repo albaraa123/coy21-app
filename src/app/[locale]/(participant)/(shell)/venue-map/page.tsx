@@ -41,21 +41,31 @@ interface VenueLocation {
   /** Percentage of the image's natural width/height, 0-100. */
   xPct: number;
   yPct: number;
+  /** The building's own Turkish name, used (combined with the campus
+      name) to build a Google Maps search query specific to this
+      building -- see googleMapsUrlFor() below. */
+  searchTerm: string;
 }
 
 const VENUE_LOCATIONS: VenueLocation[] = [
-  { id: 'main-hall', nameEn: 'Main Hall (Atatürk Konferans Salonu)', nameAr: 'القاعة الرئيسية (Atatürk Konferans Salonu)', xPct: 56.5, yPct: 28.7 },
-  { id: 'cafeteria', nameEn: 'Cafeteria (Merkezi Yemekhane)', nameAr: 'الكافتيريا (Merkezi Yemekhane)', xPct: 56.7, yPct: 44.0 },
-  { id: 'side-events', nameEn: 'Side Event Rooms (İBB Fakültesi)', nameAr: 'قاعات الفعاليات الجانبية (İBB Fakültesi)', xPct: 49.6, yPct: 39.0 },
+  { id: 'main-hall', nameEn: 'Main Hall (Atatürk Konferans Salonu)', nameAr: 'القاعة الرئيسية (Atatürk Konferans Salonu)', xPct: 56.5, yPct: 28.7, searchTerm: 'Atatürk Konferans Salonu' },
+  { id: 'cafeteria', nameEn: 'Cafeteria (Merkezi Yemekhane)', nameAr: 'الكافتيريا (Merkezi Yemekhane)', xPct: 56.7, yPct: 44.0, searchTerm: 'Merkezi Yemekhane' },
+  { id: 'side-events', nameEn: 'Side Event Rooms (İBB Fakültesi)', nameAr: 'قاعات الفعاليات الجانبية (İBB Fakültesi)', xPct: 49.6, yPct: 39.0, searchTerm: 'İBB Fakültesi' },
 ];
 
 // Google's own search-query URL (not a bare lat/lng pin) so it resolves
-// to Google's verified "Akdeniz Üniversitesi" place card -- more
-// reliable than a raw coordinate, which can drop slightly off a large
-// campus. Coordinates (36.895, 30.6511) cross-checked against Wikipedia
-// and the Turkish e-Devlet government portal as a sanity fallback, not
-// used directly in the URL.
-const GOOGLE_MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=Akdeniz+%C3%9Cniversitesi+Antalya';
+// to Google's verified place card -- more reliable than a raw
+// coordinate, which this codebase has no per-building value for anyway
+// (only the campus-wide center, cross-checked against Wikipedia and the
+// Turkish e-Devlet government portal). Combining the building's Turkish
+// name with the campus name disambiguates it from any same-named place
+// elsewhere, the same way a person would search it manually.
+function googleMapsUrlFor(searchTerm: string): string {
+  const query = searchTerm ? `${searchTerm} Akdeniz Üniversitesi Antalya` : 'Akdeniz Üniversitesi Antalya';
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+const CAMPUS_GOOGLE_MAPS_URL = googleMapsUrlFor('');
 
 export default async function VenueMapPage() {
   const locale = await getLocale();
@@ -76,7 +86,7 @@ export default async function VenueMapPage() {
           </p>
         </div>
         <a
-          href={GOOGLE_MAPS_URL}
+          href={CAMPUS_GOOGLE_MAPS_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-charcoal/20 px-3 py-1.5 text-sm font-medium text-charcoal transition-colors hover:bg-charcoal/5 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
@@ -101,19 +111,23 @@ export default async function VenueMapPage() {
               priority
             />
             {VENUE_LOCATIONS.map((loc) => (
-              <div
+              <a
                 key={loc.id}
+                href={googleMapsUrlFor(loc.searchTerm)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`${locale === 'ar' ? loc.nameAr : loc.nameEn} — ${locale === 'ar' ? 'افتح في خرائط جوجل' : 'Open in Google Maps'}`}
                 className="group absolute -translate-x-1/2 -translate-y-1/2"
                 style={{ left: `${loc.xPct}%`, top: `${loc.yPct}%` }}
               >
                 <span
                   aria-hidden="true"
-                  className="block h-5 w-5 rounded-full border-2 border-white bg-turquoise shadow-md ring-2 ring-turquoise/40"
+                  className="block h-5 w-5 rounded-full border-2 border-white bg-turquoise shadow-md ring-2 ring-turquoise/40 transition-transform group-hover:scale-125"
                 />
                 <span className="pointer-events-none absolute start-1/2 top-full z-10 mt-1 w-max max-w-[180px] -translate-x-1/2 rounded-md bg-charcoal px-2 py-1 text-center text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-gray-900">
                   {locale === 'ar' ? loc.nameAr : loc.nameEn}
                 </span>
-              </div>
+              </a>
             ))}
           </div>
         </div>
@@ -124,13 +138,16 @@ export default async function VenueMapPage() {
           <h2 className="text-sm font-semibold text-charcoal/70 dark:text-gray-400">Key locations</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {VENUE_LOCATIONS.map((loc) => (
-              <div
+              <a
                 key={loc.id}
-                className="flex items-center gap-2 rounded-lg bg-charcoal/5 px-3 py-2 text-xs text-charcoal/70 dark:bg-white/5 dark:text-gray-300"
+                href={googleMapsUrlFor(loc.searchTerm)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg bg-charcoal/5 px-3 py-2 text-xs text-charcoal/70 transition-colors hover:bg-charcoal/10 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10"
               >
                 <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full bg-turquoise" />
                 {locale === 'ar' ? loc.nameAr : loc.nameEn}
-              </div>
+              </a>
             ))}
           </div>
         </div>
