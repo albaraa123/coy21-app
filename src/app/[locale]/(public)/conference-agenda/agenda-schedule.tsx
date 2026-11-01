@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-
 // Renders the day/session list entirely client-side, receiving sessions
 // as plain serialized data (not JSX) via props. Introduced as a
 // workaround for a reproduced React 19.2.4 / Next.js 16.2.11 Server
@@ -41,41 +39,15 @@ type PublicSession = {
 
 const ACCENTS = ['var(--color-turquoise)', 'var(--color-green)', 'var(--color-gold)'];
 
-// Mirrors Reveal's own scroll-triggered fade-up behavior (src/components/
-// motion/reveal.tsx), reimplemented locally rather than imported so this
-// client module has zero dependency on the page's own client-component
-// tree shape -- the whole point of this file is to be a self-contained
-// leaf that only ever receives plain data as props.
-function RevealBlock({ children, delayMs }: { children: React.ReactNode; delayMs: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      data-reveal={visible ? 'visible' : 'hidden'}
-      style={visible ? { animationDelay: `${delayMs}ms` } : undefined}
-    >
-      {children}
-    </div>
-  );
-}
+// Deliberately NOT using Reveal's scroll-triggered fade-up animation here
+// (unlike the rest of this page's sections). Found live: a 112-session,
+// 3-day page is tall enough that the IntersectionObserver's threshold/
+// rootMargin tuning (designed for shorter marketing sections) left later
+// day-sections permanently stuck at data-reveal="hidden" -- opacity: 0
+// per globals.css, present in the DOM and in the server-rendered HTML
+// (confirmed: all 112 session cards ARE in the raw HTML) but invisible to
+// the user with no error of any kind. Day sections here always render at
+// full opacity -- correctness over a cosmetic entrance animation.
 
 export function AgendaSchedule({
   sessions,
@@ -111,7 +83,7 @@ export function AgendaSchedule({
   return (
     <div className="flex flex-col gap-12">
       {[...sessionsByDay.entries()].map(([dayLabel, daySessions], dayIndex) => (
-        <RevealBlock key={dayLabel} delayMs={dayIndex * 60}>
+        <div key={dayLabel}>
           <div className="flex items-baseline gap-3">
             <span
               aria-hidden="true"
@@ -146,7 +118,7 @@ export function AgendaSchedule({
               );
             })}
           </div>
-        </RevealBlock>
+        </div>
       ))}
     </div>
   );
