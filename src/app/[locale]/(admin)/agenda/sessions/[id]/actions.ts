@@ -186,6 +186,14 @@ export async function updateSessionStatus(id: string, to: SessionStatus, cancell
   const updates: Database['public']['Tables']['sessions']['Update'] = { status: to, updated_by: userId };
   if (to === 'published') updates.published_at = new Date().toISOString();
   if (to === 'confirmed') updates.confirmed_at = new Date().toISOString();
+  // Stepping back (confirmed -> published, published -> draft) clears the
+  // timestamp for the state just left, so published_at/confirmed_at always
+  // reflect this session's CURRENT standing, not a stale mark from before
+  // it was reverted. The audit log inserted below still keeps the full
+  // old-status/new-status history regardless -- these two columns are a
+  // live-state convenience field, not the historical record.
+  if (to === 'draft') updates.published_at = null;
+  if (to === 'published' && existing.status === 'confirmed') updates.confirmed_at = null;
   if (to === 'cancelled') {
     updates.cancelled_at = new Date().toISOString();
     updates.cancellation_reason = cancellationReason;

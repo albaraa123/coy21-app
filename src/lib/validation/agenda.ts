@@ -3,12 +3,16 @@ import { z } from 'zod';
 export const SESSION_STATUSES = ['draft', 'published', 'confirmed', 'cancelled', 'completed'] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-// Linear forward progression with cancel-from-anywhere-except-completed.
-// Mirrored exactly in the enforce_session_status_transition DB trigger.
+// Forward progression with one-step-back allowed (draft <-> published <->
+// confirmed), plus cancel-from-anywhere-except-completed. completed has no
+// forward OR backward move -- it is the one true terminal state once a
+// session has actually happened; confirmed -> completed is intentionally
+// one-way. Mirrored exactly in the enforce_session_status_transition DB
+// trigger.
 export const SESSION_VALID_TRANSITIONS: Record<SessionStatus, SessionStatus[]> = {
   draft: ['published', 'cancelled'],
-  published: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled'],
+  published: ['draft', 'confirmed', 'cancelled'],
+  confirmed: ['published', 'completed', 'cancelled'],
   cancelled: [],
   completed: [],
 };
