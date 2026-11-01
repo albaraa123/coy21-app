@@ -24,13 +24,20 @@
 // general; sessions had no public RLS policy) are addressed here for
 // `sessions` specifically via the migration above, not by exposing any
 // per-participant table.
+//
+// RENDERING NOTE (2026-11-01): the actual day/session list is rendered by
+// a Client Component (agenda-schedule.tsx), not inline JSX here, as a
+// workaround for a reproduced React 19.2.4 / Next.js 16.2.11 RSC
+// streaming bug -- see that file's header comment for the full
+// investigation. This Server Component's only remaining job is the
+// data fetch and handing plain (JSON-serializable) data down as props.
 import { getLocale, getTranslations } from 'next-intl/server';
 import { createClient } from '@/lib/supabase/server';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Reveal } from '@/components/motion/reveal';
 import { Blob } from '@/components/motion/blob';
 import { Parallax } from '@/components/motion/parallax';
-import { formatConferenceTime, formatConferenceDate } from '@/lib/datetime/conference-time';
+import { formatConferenceDate } from '@/lib/datetime/conference-time';
+import { AgendaSchedule } from './agenda-schedule';
 
 type PublicSession = {
   id: string;
@@ -58,16 +65,8 @@ export default async function AgendaPage() {
   const sessions: PublicSession[] = error ? [] : ((data ?? []) as unknown as PublicSession[]);
 
   const resolvedLocale = locale === 'ar' ? 'ar' : 'en';
-  const formatDay = (iso: string) => formatConferenceDate(iso, resolvedLocale);
-  const formatTime = (iso: string) => formatConferenceTime(iso, resolvedLocale, { hour12: false });
-
-  const sessionsByDay = new Map<string, PublicSession[]>();
-  for (const session of sessions) {
-    const dayLabel = formatDay(session.start_time);
-    const existing = sessionsByDay.get(dayLabel) ?? [];
-    existing.push(session);
-    sessionsByDay.set(dayLabel, existing);
-  }
+  const dayLabels = sessions.map((session) => formatConferenceDate(session.start_time, resolvedLocale));
+  const hasSessions = sessions.length > 0;
 
   return (
     <>
@@ -91,61 +90,23 @@ export default async function AgendaPage() {
             {t('pages.agenda.title')}
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-charcoal/80">
-            {sessionsByDay.size === 0 ? t('pages.agenda.intro') : t('pages.agenda.introPublished')}
+            {hasSessions ? t('pages.agenda.introPublished') : t('pages.agenda.intro')}
           </p>
         </div>
       </section>
 
-      {sessionsByDay.size === 0 ? (
+      {!hasSessions ? (
         <div className="mx-auto max-w-3xl px-4 py-16">
           <EmptyState title={t('comingSoon.title')} description={t('pages.agenda.note')} />
         </div>
       ) : (
         <div className="mx-auto max-w-3xl px-4 py-16">
-          <div className="flex flex-col gap-12">
-            {(() => {
-              const ACCENTS = ['var(--color-turquoise)', 'var(--color-green)', 'var(--color-gold)'];
-              let sessionIndex = 0;
-              return [...sessionsByDay.entries()].map(([dayLabel, daySessions], dayIndex) => (
-                <Reveal key={dayLabel} delayMs={dayIndex * 60}>
-                  <div className="flex items-baseline gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="font-[family-name:var(--font-thmanyah)] text-4xl font-bold leading-none opacity-25"
-                      style={{ color: ACCENTS[dayIndex % ACCENTS.length] }}
-                    >
-                      {String(dayIndex + 1).padStart(2, '0')}
-                    </span>
-                    <h2 className="text-xl font-semibold text-charcoal">{dayLabel}</h2>
-                  </div>
-                  <div className="mt-4 flex flex-col gap-3">
-                    {daySessions.map((session) => {
-                      const title = locale === 'ar' ? session.title_ar : session.title_en;
-                      const roomName = session.rooms ? (locale === 'ar' ? session.rooms.name_ar : session.rooms.name_en) : null;
-                      const trackName = session.tracks ? (locale === 'ar' ? session.tracks.name_ar : session.tracks.name_en) : null;
-                      const accent = ACCENTS[sessionIndex++ % ACCENTS.length];
-                      return (
-                        <div
-                          key={session.id}
-                          className="rounded-lg border border-charcoal/10 border-s-4 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                          style={{ borderInlineStartColor: accent }}
-                        >
-                          <div className="text-xs font-medium uppercase tracking-wide text-charcoal/60">
-                            {formatTime(session.start_time)} – {formatTime(session.end_time)} · {t('pages.agenda.timezoneLabel')}
-                          </div>
-                          <p className="mt-1 text-base font-semibold text-charcoal">{title}</p>
-                          <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-charcoal/70">
-                            {roomName && <span>{roomName}</span>}
-                            {trackName && <span>{trackName}</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Reveal>
-              ));
-            })()}
-          </div>
+          <AgendaSchedule
+            sessions={sessions}
+            locale={resolvedLocale}
+            dayLabels={dayLabels}
+            timezoneLabel={t('pages.agenda.timezoneLabel')}
+          />
         </div>
       )}
     </>
