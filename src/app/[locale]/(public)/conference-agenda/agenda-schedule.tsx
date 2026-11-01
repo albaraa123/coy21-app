@@ -25,6 +25,8 @@
 // JSX tree, so whatever the upstream bug is in RSC streaming never gets
 // triggered.
 
+import { SESSION_TYPE_COLORS, DEFAULT_SESSION_TYPE_COLOR } from './session-type-colors';
+
 type PublicSession = {
   id: string;
   session_code: string;
@@ -40,24 +42,6 @@ type PublicSession = {
 
 // Day-number accent, cycled per day-section — unrelated to session type.
 const ACCENTS = ['var(--color-turquoise)', 'var(--color-green)', 'var(--color-gold)'];
-
-// Session-card border color, by session_types.code — matches the real
-// colors already stored on tracks.color
-// (supabase/migrations/20261027150000_seed_coy21_conference_days_and_tracks.sql:
-// PLN #1F3864, CUL #8E7CC3, SDE #E69138, BRK #8C8C8C) rather than cycling
-// through brand accents arbitrarily. REG has no tracks row of its own (it
-// is a session_type, not a track — resolves to a null track_id), so it
-// isn't in that table at all; given the site's own turquoise
-// (--color-blue-sky, #019de6) for it, matching the brand identity instead
-// of inventing an unrelated color.
-const TYPE_COLORS: Record<string, string> = {
-  REG: 'var(--color-blue-sky)',
-  PLN: '#1F3864',
-  CUL: '#8E7CC3',
-  SDE: '#E69138',
-  BRK: '#8C8C8C',
-};
-const DEFAULT_TYPE_COLOR = 'var(--color-turquoise)';
 
 // Deliberately NOT using Reveal's scroll-triggered fade-up animation here
 // (unlike the rest of this page's sections). Found live: a 112-session,
@@ -119,7 +103,7 @@ export function AgendaSchedule({
               const title = locale === 'ar' ? session.title_ar : session.title_en;
               const roomName = session.rooms ? (locale === 'ar' ? session.rooms.name_ar : session.rooms.name_en) : null;
               const trackName = session.tracks ? (locale === 'ar' ? session.tracks.name_ar : session.tracks.name_en) : null;
-              const accent = (session.session_types && TYPE_COLORS[session.session_types.code]) || DEFAULT_TYPE_COLOR;
+              const accent = (session.session_types && SESSION_TYPE_COLORS[session.session_types.code]) || DEFAULT_SESSION_TYPE_COLOR;
               return (
                 <div
                   key={session.id}

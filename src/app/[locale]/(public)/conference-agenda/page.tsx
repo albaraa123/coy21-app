@@ -38,6 +38,7 @@ import { Blob } from '@/components/motion/blob';
 import { Parallax } from '@/components/motion/parallax';
 import { formatConferenceDate } from '@/lib/datetime/conference-time';
 import { AgendaSchedule } from './agenda-schedule';
+import { SESSION_TYPE_COLORS, DEFAULT_SESSION_TYPE_COLOR } from './session-type-colors';
 
 type PublicSession = {
   id: string;
@@ -49,7 +50,7 @@ type PublicSession = {
   language: string;
   rooms: { name_ar: string; name_en: string } | null;
   tracks: { name_ar: string; name_en: string } | null;
-  session_types: { code: string } | null;
+  session_types: { code: string; name_ar: string; name_en: string } | null;
 };
 
 export default async function AgendaPage() {
@@ -59,7 +60,7 @@ export default async function AgendaPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, session_code, title_ar, title_en, start_time, end_time, language, rooms(name_ar, name_en), tracks(name_ar, name_en), session_types(code)')
+    .select('id, session_code, title_ar, title_en, start_time, end_time, language, rooms(name_ar, name_en), tracks(name_ar, name_en), session_types(code, name_ar, name_en)')
     .eq('is_public', true)
     .order('start_time', { ascending: true });
 
@@ -68,6 +69,21 @@ export default async function AgendaPage() {
   const resolvedLocale = locale === 'ar' ? 'ar' : 'en';
   const dayLabels = sessions.map((session) => formatConferenceDate(session.start_time, resolvedLocale));
   const hasSessions = sessions.length > 0;
+
+  // One legend entry per distinct session type actually present in the
+  // published agenda, in first-seen order — never a fixed list of all 5
+  // possible types, since a type with zero published sessions (e.g.
+  // before CUL sessions are added) would show a color key for something
+  // the reader can't find anywhere on the page.
+  const typeLegend: { code: string; name: string }[] = [];
+  const seenTypeCodes = new Set<string>();
+  for (const session of sessions) {
+    const type = session.session_types;
+    if (type && !seenTypeCodes.has(type.code)) {
+      seenTypeCodes.add(type.code);
+      typeLegend.push({ code: type.code, name: resolvedLocale === 'ar' ? type.name_ar : type.name_en });
+    }
+  }
 
   return (
     <>
@@ -102,6 +118,22 @@ export default async function AgendaPage() {
         </div>
       ) : (
         <div className="mx-auto max-w-3xl px-4 py-16">
+          {/* Color key — explains each session card's left-border color
+              (see session-type-colors.ts), one entry per type actually
+              present in the published agenda below, same order they
+              first appear. */}
+          <div className="mb-10 flex flex-wrap gap-x-5 gap-y-2">
+            {typeLegend.map((type) => (
+              <div key={type.code} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: SESSION_TYPE_COLORS[type.code] ?? DEFAULT_SESSION_TYPE_COLOR }}
+                />
+                <span className="text-sm text-charcoal/70">{type.name}</span>
+              </div>
+            ))}
+          </div>
           <AgendaSchedule
             sessions={sessions}
             locale={resolvedLocale}
