@@ -77,7 +77,6 @@ export interface DayGroupData {
 
 export function SessionsGridClient({
   dayGroups,
-  showDayHeading,
   otherColumnLabel,
   zoomOutLabel,
   zoomInLabel,
@@ -92,8 +91,6 @@ export function SessionsGridClient({
   timelineEmptyDescription,
 }: {
   dayGroups: DayGroupData[];
-  /** True when more than one day group is present -- matches the original "only show the heading when there's more than one day" behavior. Grid view only; Timeline view always shows day tabs instead when more than one day group is present (see activeDayIndex below). */
-  showDayHeading: boolean;
   otherColumnLabel: string;
   zoomOutLabel: string;
   zoomInLabel: string;
@@ -192,7 +189,16 @@ export function SessionsGridClient({
         )}
       </div>
 
-      {view === 'timeline' && dayGroups.length > 1 && (
+      {/* Day tabs -- shared by both views (previously Timeline-only). Grid
+          view used to stack every day group vertically on one scroll,
+          which made a page.tsx server-side PAGE_SIZE split (unrelated to
+          this component, now removed) look like "most of the agenda is
+          missing" to an admin who hadn't scrolled past the first day or
+          two -- see sessions/page.tsx's own comment for the full report.
+          Tabs make each day's own complete set of sessions the unit of
+          navigation in both views, with no pagination boundary cutting a
+          day in half. */}
+      {dayGroups.length > 1 && (
         <div role="tablist" className="flex gap-2 border-b border-charcoal/10 dark:border-gray-700">
           {dayGroups.map((dayGroup, i) => (
             <button
@@ -291,55 +297,46 @@ export function SessionsGridClient({
           }}
         />
       ) : (
-        <div className="flex flex-col gap-8">
-          {dayGroups.map((dayGroup) => (
-            <div key={dayGroup.dayId} className="flex flex-col gap-2">
-              {showDayHeading && (
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-charcoal/60 dark:text-gray-400">{dayGroup.label}</h2>
-              )}
-              <AgendaTimeGrid
-                minuteHeightPx={minuteHeightPx}
-                columns={dayGroup.rooms}
-                otherColumnLabel={otherColumnLabel}
-                sessions={dayGroup.sessions.map((s) => ({
-                  id: s.id,
-                  trackId: s.roomId,
-                  blockColor: s.blockColor,
-                  startTime: s.startTime,
-                  endTime: s.endTime,
-                  sessionCode: s.sessionCode,
-                  titleEn: s.titleEn,
-                  statusLabel: s.statusLabel,
-                  statusVariant: s.statusVariant,
-                }))}
-                renderBlock={(session, textColor) => (
-                  <Link
-                    href={`/agenda/sessions/${session.id}`}
-                    className="flex h-full flex-col gap-1 p-1.5 text-start hover:brightness-95 focus-visible:outline-none focus-visible:ring-2"
-                    style={{ color: textColor, outlineColor: textColor }}
-                  >
-                    <span className="flex flex-wrap items-center justify-between gap-1">
-                      <span className="text-xs font-semibold">{session.sessionCode}</span>
-                      {/* A small self-contained status chip instead of the shared Badge component: Badge's per-variant colors (e.g. neutral's charcoal-toned border/text) assume a light page background, not an arbitrary track color -- it would clash or go near-invisible on a dark block. This chip always derives its colors from the SAME computed textColor as the rest of the block, so it stays readable against any track color automatically. */}
-                      <span
-                        className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                        style={{ backgroundColor: `color-mix(in srgb, ${textColor} 18%, transparent)`, color: textColor }}
-                      >
-                        {session.statusLabel}
-                      </span>
-                    </span>
-                    {/* No `truncate` -- the full title always shows, wrapping
-                        to multiple lines if needed, per explicit user
-                        feedback that a cut-off title is worse than a taller
-                        block (see agenda-time-grid.tsx's minHeightPx comment
-                        for the matching layout-side change). */}
-                    <span className="text-xs leading-snug">{session.titleEn}</span>
-                  </Link>
-                )}
-              />
-            </div>
-          ))}
-        </div>
+        <AgendaTimeGrid
+          minuteHeightPx={minuteHeightPx}
+          columns={activeDayGroup.rooms}
+          otherColumnLabel={otherColumnLabel}
+          sessions={activeDayGroup.sessions.map((s) => ({
+            id: s.id,
+            trackId: s.roomId,
+            blockColor: s.blockColor,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            sessionCode: s.sessionCode,
+            titleEn: s.titleEn,
+            statusLabel: s.statusLabel,
+            statusVariant: s.statusVariant,
+          }))}
+          renderBlock={(session, textColor) => (
+            <Link
+              href={`/agenda/sessions/${session.id}`}
+              className="flex h-full flex-col gap-1 p-1.5 text-start hover:brightness-95 focus-visible:outline-none focus-visible:ring-2"
+              style={{ color: textColor, outlineColor: textColor }}
+            >
+              <span className="flex flex-wrap items-center justify-between gap-1">
+                <span className="text-xs font-semibold">{session.sessionCode}</span>
+                {/* A small self-contained status chip instead of the shared Badge component: Badge's per-variant colors (e.g. neutral's charcoal-toned border/text) assume a light page background, not an arbitrary track color -- it would clash or go near-invisible on a dark block. This chip always derives its colors from the SAME computed textColor as the rest of the block, so it stays readable against any track color automatically. */}
+                <span
+                  className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{ backgroundColor: `color-mix(in srgb, ${textColor} 18%, transparent)`, color: textColor }}
+                >
+                  {session.statusLabel}
+                </span>
+              </span>
+              {/* No `truncate` -- the full title always shows, wrapping
+                  to multiple lines if needed, per explicit user
+                  feedback that a cut-off title is worse than a taller
+                  block (see agenda-time-grid.tsx's minHeightPx comment
+                  for the matching layout-side change). */}
+              <span className="text-xs leading-snug">{session.titleEn}</span>
+            </Link>
+          )}
+        />
       )}
     </div>
   );

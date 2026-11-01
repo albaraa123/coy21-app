@@ -11,7 +11,18 @@ import { SessionsGridClient, type DayGroupData } from './sessions-grid-client';
 import type { BadgeVariant } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 
-const PAGE_SIZE = 50;
+// No page-size/pagination here, deliberately: the previous PAGE_SIZE=50
+// server-side pagination split the agenda across arbitrary page
+// boundaries that didn't line up with conference days (e.g. Day One's 37
+// sessions + part of Day Two on page 1, the rest of Day Two + all of Day
+// Three on pages 2-3) -- real feedback was that this read as "most of
+// the agenda is missing" until noticing the small "Page 1 of 3" footer.
+// At 112 real sessions (and realistically capped well below any size
+// that would make a single JSON fetch heavy -- no images, no per-session
+// nested data beyond a few short strings), fetching every matching row
+// in one request and letting SessionsGridClient's day tabs (shared by
+// both Grid and Timeline view) be the only navigation unit is simpler
+// and removes the whole "did I just lose sessions" question entirely.
 
 // Groups by the session's real conference_day_id (added to the select above
 // specifically for this) rather than deriving a calendar date from
@@ -45,7 +56,7 @@ const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
 export default async function SessionsListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; day?: string; track?: string; room?: string; status?: string }>;
+  searchParams: Promise<{ day?: string; track?: string; room?: string; status?: string }>;
 }) {
   const locale = await getLocale();
   const supabase = await createClient();
@@ -62,7 +73,6 @@ export default async function SessionsListPage({
   }
 
   const params = await searchParams;
-  const requestedPage = Math.max(1, Number(params.page) || 1);
 
   // Session client is sufficient for every query on this page (both the
   // filter-dropdown lookups and the sessions list itself): `sessions_staff_all`
@@ -81,7 +91,6 @@ export default async function SessionsListPage({
     supabase.from('rooms').select('id, name_en').order('name_en', { ascending: true }),
   ]);
 
-  let countQuery = supabase.from('sessions').select('id', { count: 'exact', head: true });
   let dataQuery = supabase
     .from('sessions')
     .select(
@@ -95,44 +104,20 @@ export default async function SessionsListPage({
   // (src/app/[locale]/(admin)/applications/page.tsx) doesn't apply here —
   // there's no free-text search param on this page to sanitize.
   if (params.day) {
-    countQuery = countQuery.eq('conference_day_id', params.day);
     dataQuery = dataQuery.eq('conference_day_id', params.day);
   }
   if (params.track) {
-    countQuery = countQuery.eq('track_id', params.track);
     dataQuery = dataQuery.eq('track_id', params.track);
   }
   if (params.room) {
-    countQuery = countQuery.eq('room_id', params.room);
     dataQuery = dataQuery.eq('room_id', params.room);
   }
   if (params.status && (SESSION_STATUSES as readonly string[]).includes(params.status)) {
     const status = params.status as (typeof SESSION_STATUSES)[number];
-    countQuery = countQuery.eq('status', status);
     dataQuery = dataQuery.eq('status', status);
   }
 
-  // Count first (cheap, head:true) so `page` can be clamped to a range that
-  // actually exists before `.range()` runs — see Phase 2's applications list
-  // page for the PGRST103 "Requested range not satisfiable" failure mode this
-  // avoids.
-  const { count } = await countQuery;
-  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
-  const page = Math.min(requestedPage, totalPages);
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  const { data: sessions } = await dataQuery.range(from, to);
-
-  const filterQuery = (overrides: Record<string, string | undefined>) => {
-    const next = new URLSearchParams();
-    const merged = { day: params.day, track: params.track, room: params.room, status: params.status, ...overrides };
-    for (const [key, value] of Object.entries(merged)) {
-      if (value) next.set(key, value);
-    }
-    const qs = next.toString();
-    return qs ? `/agenda/sessions?${qs}` : '/agenda/sessions';
-  };
+  const { data: sessions } = await dataQuery;
 
   const t = await getTranslations({ locale, namespace: 'agenda.sessions' });
 
@@ -258,7 +243,6 @@ export default async function SessionsListPage({
             return (
               <SessionsGridClient
                 dayGroups={dayGroupData}
-                showDayHeading={dayGroups.length > 1}
                 otherColumnLabel={t('otherTrack')}
                 zoomOutLabel={t('zoomOut')}
                 zoomInLabel={t('zoomIn')}
@@ -274,19 +258,6 @@ export default async function SessionsListPage({
               />
             );
           })()}
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-charcoal/70 dark:text-gray-400">
-            <p>{t('pageOf', { page, totalPages })}</p>
-            {page > 1 && (
-              <Link href={filterQuery({ page: String(page - 1) })} className="font-medium text-turquoise hover:underline">
-                {t('previous')}
-              </Link>
-            )}
-            {page < totalPages && (
-              <Link href={filterQuery({ page: String(page + 1) })} className="font-medium text-turquoise hover:underline">
-                {t('next')}
-              </Link>
-            )}
-          </div>
         </MountReveal>
       )}
     </div>
