@@ -16,13 +16,11 @@ const DISABLE_CONFIRMATION_PHRASE = 'DISABLE';
 // for every other user/tab's cached view of this page (masked for the
 // person who just saved, since settings-form.tsx also calls
 // router.refresh() after every successful save, which re-fetches fresh
-// data independent of revalidatePath's own cache). The sibling files this
-// comment used to cite as "established convention"
-// (local-info-hub/actions.ts, content/local-info/actions.ts,
-// communications/local-info-actions.ts, reports/local-info/actions.ts) all
-// have the exact same bug -- confirmed live, /en/admin/local-info-hub is
-// also a 404, /en/local-info-hub is the real page. See pre-launch
-// checklist for the fuller fix tracking that applies to those 4 files too.
+// data independent of revalidatePath's own cache). content/local-info/
+// actions.ts and reports/local-info/actions.ts had the same bug, already
+// fixed (see pre-launch checklist). local-info-hub/actions.ts and
+// communications/local-info-actions.ts, which also had it, were deleted
+// outright (2026-11-01) -- both were dead code with no live caller.
 const SETTINGS_PATH = '/en/settings';
 
 type EmailSettingsPatch = Partial<
