@@ -79,6 +79,11 @@ export interface BrowseSessionBlockData {
       a visual-only early warning, checked server-side in page.tsx, before
       a click would be rejected by book_session's own identical check. */
   conflictsWithBooking: boolean;
+  /** True for a mandatory session (Registration, Plenary, Break, Culture --
+      session_types.is_mandatory). Every participant attends these; there is
+      nothing to "book", so neither view shows a Book/Waitlist control for
+      them -- only Side Event sessions are a real elective choice. */
+  isMandatory: boolean;
 }
 
 export interface BrowseDayData {
@@ -275,7 +280,7 @@ export function BrowseGridClient({
                   )}
                   {!isBreak && (
                     <div className="mt-auto">
-                      {s.alreadyBooked ? (
+                      {s.isMandatory ? null : s.alreadyBooked ? (
                         <span className="text-[10px] font-medium">✓ Booked</span>
                       ) : s.showWaitlistButton ? (
                         <WaitlistButton
@@ -313,6 +318,7 @@ export function BrowseGridClient({
             isFull: s.isFull,
             isPastDeadline: s.isPastDeadline,
             conflictsWithBooking: s.conflictsWithBooking,
+            isMandatory: s.isMandatory,
           }))}
           emptyState={
             <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">{emptyDayLabel}</Card>
@@ -339,7 +345,7 @@ export function BrowseGridClient({
                   matching layout-side change). */}
               <span className="text-xs font-semibold leading-snug">{s.title}</span>
               <div className="mt-auto">
-                {s.alreadyBooked ? (
+                {s.isMandatory ? null : s.alreadyBooked ? (
                   <span className="text-[10px] font-medium">✓ Booked</span>
                 ) : s.showWaitlistButton ? (
                   // `compact` here renders a small underlined-text control

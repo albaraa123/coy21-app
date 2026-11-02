@@ -40,6 +40,7 @@ export default async function BrowseSessionsPage() {
       end_time,
       booking_deadline,
       capacity,
+      is_mandatory,
       rooms ( name_en, name_ar ),
       tracks ( color, name_en, name_ar ),
       conference_days ( conference_date, label_en, label_ar, display_order ),
@@ -210,6 +211,7 @@ export default async function BrowseSessionsPage() {
                 isFull,
                 isPastDeadline,
                 conflictsWithBooking,
+                isMandatory: s.is_mandatory,
               };
             }),
           }));
