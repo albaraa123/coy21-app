@@ -251,11 +251,16 @@ function LegEditCard({ form, setForm, onSave, onCancel, isPending, error, field 
         </Select>
       </label>
       {field('Flight number', 'flight_number')}
-      <div className="grid grid-cols-2 gap-3">
+      {/* grid-cols-1 sm:grid-cols-2 -- was an unconditional grid-cols-2,
+          squeezing two inputs (including a wide native datetime-local
+          picker) into one row on a real phone (~375px), unlike every
+          other two-column form layout in this codebase, which already
+          collapses to one column below sm:. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {field('From (airport)', 'departure_airport')}
         {field('To (airport)', 'arrival_airport')}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {field('Departure date & time', 'departure_datetime', 'datetime-local')}
         {field('Arrival date & time', 'arrival_datetime', 'datetime-local')}
       </div>
