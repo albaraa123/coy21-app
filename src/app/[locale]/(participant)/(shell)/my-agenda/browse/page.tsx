@@ -41,7 +41,7 @@ export default async function BrowseSessionsPage() {
       booking_deadline,
       capacity,
       is_mandatory,
-      rooms ( name_en, name_ar ),
+      rooms ( code, name_en, name_ar ),
       tracks ( color, name_en, name_ar ),
       conference_days ( conference_date, label_en, label_ar, display_order ),
       session_types ( code, enable_waitlist ),
@@ -118,7 +118,7 @@ export default async function BrowseSessionsPage() {
   const now = new Date();
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 md:p-10">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-10">
       <div className="flex items-center gap-3">
         <Link
           href="/my-agenda"
@@ -256,16 +256,35 @@ function distinctTracksForLegend(
   return [...seen.values()];
 }
 
+// Room column order: real venue layout, not "whichever room's first
+// session happens to start earliest" (the previous behavior -- Map
+// insertion order from iterating sessions by start_time, so a room whose
+// earliest session was later in the day could sort before one whose
+// earliest session was earlier, producing a visibly random-looking column
+// order). Main Hall/Foyer/Cafeteria are the primary venue spaces, shown
+// first; then Room 1-12 in numeric order; Off-campus last, since it's not
+// part of the physical venue grid at all. Falls back to alphabetical by
+// code for any future room code not in this explicit list, rather than
+// crashing.
+const ROOM_CODE_ORDER = ['MH', 'FOY', 'CAF', 'R01', 'R02', 'R03', 'R04', 'R05', 'R06', 'R07', 'R08', 'R09', 'R10', 'R11', 'R12', 'OFF'];
+
 function distinctRoomsForGrid(
-  sessions: { room_id: string; rooms: { name_en: string; name_ar: string } | null }[],
+  sessions: { room_id: string; rooms: { code: string; name_en: string; name_ar: string } | null }[],
   locale: string
 ) {
-  const seen = new Map<string, { id: string; name: string }>();
+  const seen = new Map<string, { id: string; code: string; name: string }>();
   for (const s of sessions) {
     if (!s.rooms || seen.has(s.room_id)) continue;
-    seen.set(s.room_id, { id: s.room_id, name: locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en });
+    seen.set(s.room_id, { id: s.room_id, code: s.rooms.code, name: locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en });
   }
-  return [...seen.values()];
+  return [...seen.values()].sort((a, b) => {
+    const ai = ROOM_CODE_ORDER.indexOf(a.code);
+    const bi = ROOM_CODE_ORDER.indexOf(b.code);
+    if (ai === -1 && bi === -1) return a.code.localeCompare(b.code);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
