@@ -59,17 +59,61 @@ export function TravelForm({ initialLegs }: Props) {
 
   function handleSave() {
     setError(null);
+    const wasNew = editing === 'new';
     startTransition(async () => {
-      const result = await saveTravelLeg(editing === 'new' ? null : editing, form);
+      const result = await saveTravelLeg(wasNew ? null : editing, form);
       if (result.error) {
         setError(result.error);
         toast.error(result.error);
         return;
       }
-      // Refresh by reloading the page — simple, avoids stale closure issues.
-      // No success toast here: it would be wiped out by the reload before
-      // it's visible, and the reload itself already confirms the save.
-      window.location.reload();
+      // Update local state directly instead of window.location.reload() —
+      // same pattern handleDelete already uses below. A full reload was a
+      // jarring white-flash on a real mobile connection and discarded
+      // scroll position / any other in-progress edit on the page for what
+      // should be an instant inline update. saveTravelLeg only returns
+      // { id }, not the full row, but the saved row's displayed fields are
+      // exactly `form` plus that id -- no extra fetch needed.
+      setLegs((prev) => {
+        if (wasNew) {
+          // application_id/created_at/updated_at are never read anywhere
+          // in this file's display (only id/leg_type/flight_number/
+          // departure_*/arrival_*/notes are) -- placeholder values here
+          // are harmless and avoid a second round-trip just to fetch
+          // fields nothing on this page shows.
+          const newLeg: Leg = {
+            id: result.id!,
+            application_id: '',
+            leg_type: form.leg_type,
+            flight_number: form.flight_number || null,
+            departure_airport: form.departure_airport || null,
+            arrival_airport: form.arrival_airport || null,
+            departure_datetime: form.departure_datetime || null,
+            arrival_datetime: form.arrival_datetime || null,
+            notes: form.notes || null,
+            ticket_file_url: null,
+            created_at: '',
+            updated_at: '',
+          };
+          return [...prev, newLeg];
+        }
+        return prev.map((l) =>
+          l.id === editing
+            ? {
+                ...l,
+                leg_type: form.leg_type,
+                flight_number: form.flight_number || null,
+                departure_airport: form.departure_airport || null,
+                arrival_airport: form.arrival_airport || null,
+                departure_datetime: form.departure_datetime || null,
+                arrival_datetime: form.arrival_datetime || null,
+                notes: form.notes || null,
+              }
+            : l
+        );
+      });
+      setEditing(null);
+      toast.success(wasNew ? 'Flight leg added' : 'Flight leg updated');
     });
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,7 @@ const AVATAR_ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 export function IdentityForm({ initial, initialAvatarUrl }: { initial: Identity; initialAvatarUrl?: string }) {
+  const avatarInputId = useId();
   const [form, setForm] = useState({
     fullName: initial.full_name,
     email: initial.email,
@@ -133,13 +134,14 @@ export function IdentityForm({ initial, initialAvatarUrl }: { initial: Identity;
         <Field label="Email *" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" />
         <PhoneField label="Phone *" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">Profile Picture *</label>
+          <label htmlFor={avatarInputId} className="text-xs font-medium text-charcoal/70 dark:text-gray-400">Profile Picture *</label>
           <div className="flex items-center gap-3">
             {previewUrl && (
               // eslint-disable-next-line @next/next/no-img-element -- transient blob:/signed URL, not a static asset next/image can cache
               <img src={previewUrl} alt="" className="h-12 w-12 rounded-full object-cover" />
             )}
             <Input
+              id={avatarInputId}
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={handleAvatarChange}
@@ -184,6 +186,11 @@ export function EmergencyContactsForm({
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSave] = useTransition();
   const [isDeleting, startDelete] = useTransition();
+  // Inline confirm/abort step before removing -- matches the established
+  // destructive-action pattern elsewhere in the app (status-control.tsx's
+  // cancellation flow, invitation-controls.tsx's revoke flow) rather than
+  // a raw browser confirm() dialog.
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   function openNew() {
     setForm({ name: '', relationship: '', phone: '', email: '' });
@@ -223,7 +230,7 @@ export function EmergencyContactsForm({
   }
 
   function handleDelete(id: string) {
-    if (!confirm('Remove this emergency contact?')) return;
+    setConfirmingDeleteId(null);
     startDelete(async () => {
       const res = await deleteEmergencyContact(id, applicationId);
       if (res.error) {
@@ -243,16 +250,33 @@ export function EmergencyContactsForm({
           {editing === c.id ? (
             <ContactEditFields form={form} setForm={setForm} error={error} onSave={handleSave} onCancel={() => setEditing(null)} saving={isSaving} />
           ) : (
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-0.5">
-                <p className="text-sm font-medium text-charcoal dark:text-gray-100">{c.name}</p>
-                <p className="text-xs text-charcoal/60 dark:text-gray-400">{c.relationship} · {c.phone}</p>
-                {c.email && <p className="text-xs text-charcoal/50 dark:text-gray-500">{c.email}</p>}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-sm font-medium text-charcoal dark:text-gray-100">{c.name}</p>
+                  <p className="text-xs text-charcoal/60 dark:text-gray-400">{c.relationship} · {c.phone}</p>
+                  {c.email && <p className="text-xs text-charcoal/50 dark:text-gray-500">{c.email}</p>}
+                </div>
+                {confirmingDeleteId !== c.id && (
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => openEdit(c)} className="text-xs text-turquoise hover:underline">Edit</button>
+                    <button onClick={() => setConfirmingDeleteId(c.id)} disabled={isDeleting} className="text-xs text-red-500 hover:underline">Remove</button>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-2 shrink-0">
-                <button onClick={() => openEdit(c)} className="text-xs text-turquoise hover:underline">Edit</button>
-                <button onClick={() => handleDelete(c.id)} disabled={isDeleting} className="text-xs text-red-500 hover:underline">Remove</button>
-              </div>
+              {confirmingDeleteId === c.id && (
+                <div className="flex flex-col gap-2 rounded-md border border-red-700/40 bg-red-50 p-3 dark:border-red-400/40 dark:bg-red-950/20">
+                  <p className="text-xs text-red-700 dark:text-red-300">Remove this emergency contact?</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="destructive" disabled={isDeleting} onClick={() => handleDelete(c.id)}>
+                      {isDeleting ? 'Removing…' : 'Remove contact'}
+                    </Button>
+                    <Button size="sm" variant="secondary" disabled={isDeleting} onClick={() => setConfirmingDeleteId(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -376,10 +400,17 @@ function Field({
   placeholder?: string;
   type?: string;
 }) {
+  // label/input had no programmatic association before this (not even
+  // wrapping -- a sibling <label> + <Input>) -- clicking the label text
+  // didn't focus the input, and a screen reader announced the input with
+  // no accessible name at all. useId() keeps each Field instance's id
+  // unique across however many render on one page.
+  const id = useId();
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{label}</label>
+      <label htmlFor={id} className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{label}</label>
       <Input
+        id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -405,9 +436,14 @@ function PhoneField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  // Same label/input association gap as Field above -- numberInputProps
+  // is spread onto react-phone-number-input's actual underlying <input>
+  // (confirmed by its existing use for className here), so an id placed
+  // there is exactly what htmlFor below needs to target.
+  const id = useId();
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{label}</label>
+      <label htmlFor={id} className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{label}</label>
       <PhoneInput
         international
         countryCallingCodeEditable={false}
@@ -415,7 +451,7 @@ function PhoneField({
         value={value}
         onChange={(v) => onChange(v ?? '')}
         className="coy21-phone-input flex w-full items-center gap-2 rounded-md border border-charcoal/20 bg-transparent px-3 py-2 text-sm text-charcoal focus-within:border-turquoise focus-within:ring-1 focus-within:ring-turquoise dark:border-white/20 dark:text-gray-100"
-        numberInputProps={{ className: 'flex-1 bg-transparent outline-none' }}
+        numberInputProps={{ id, className: 'flex-1 bg-transparent outline-none' }}
       />
     </div>
   );
