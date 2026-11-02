@@ -49,14 +49,21 @@ export default async function BrowseSessionsPage() {
     .in('status', ['published', 'confirmed'])
     .order('start_time');
 
-  // Caller's active bookings — to show "Booked" state immediately
+  // Caller's active bookings — to show "Booked" state immediately, and
+  // (via their session start/end times) to flag OTHER sessions that
+  // would conflict with one of them before the participant clicks Book
+  // and gets rejected server-side by book_session's own conflict check.
   const { data: myBookings } = await supabase
     .from('session_bookings')
-    .select('session_id')
+    .select('session_id, sessions ( start_time, end_time )')
     .eq('application_id', application.id)
     .eq('status', 'active');
 
   const myBookedIds = new Set((myBookings ?? []).map((b) => b.session_id));
+  const myBookedTimeRanges = (myBookings ?? [])
+    .map((b) => b.sessions)
+    .filter((s): s is { start_time: string; end_time: string } => s !== null)
+    .map((s) => ({ start: new Date(s.start_time).getTime(), end: new Date(s.end_time).getTime() }));
 
   // Caller's own waitlist entries — to show "On waitlist" state immediately
   const { data: myWaitlistRows } = await supabase
@@ -169,6 +176,20 @@ export default async function BrowseSessionsPage() {
               // isWaitlisted escape hatch here.
               const showWaitlistButton = isFull && waitlistEnabled && (isWaitlisted || !isPastDeadline);
 
+              // Visual-only warning, checked BEFORE the participant clicks
+              // Book and gets rejected server-side by book_session's own
+              // identical overlap check (it also checks allocation_
+              // assignments, which this page has no participant-facing
+              // reason to read -- a flagged-clean session can still be
+              // rejected on that axis, same as before this change; this
+              // only ever reduces surprise, never replaces the real check).
+              // Never flagged on an already-booked session itself -- a
+              // session trivially "conflicts" with its own time range.
+              const sessionStart = new Date(s.start_time).getTime();
+              const sessionEnd = new Date(s.end_time).getTime();
+              const conflictsWithBooking =
+                !alreadyBooked && myBookedTimeRanges.some((r) => sessionStart < r.end && r.start < sessionEnd);
+
               return {
                 id: s.id,
                 roomId: s.room_id,
@@ -188,6 +209,7 @@ export default async function BrowseSessionsPage() {
                 isWaitlisted,
                 isFull,
                 isPastDeadline,
+                conflictsWithBooking,
               };
             }),
           }));

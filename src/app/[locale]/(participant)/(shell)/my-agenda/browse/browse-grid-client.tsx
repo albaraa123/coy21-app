@@ -74,6 +74,11 @@ export interface BrowseSessionBlockData {
   isWaitlisted: boolean;
   isFull: boolean;
   isPastDeadline: boolean;
+  /** True when this session's time range overlaps one of the participant's
+      own active bookings (and this session isn't itself already booked) --
+      a visual-only early warning, checked server-side in page.tsx, before
+      a click would be rejected by book_session's own identical check. */
+  conflictsWithBooking: boolean;
 }
 
 export interface BrowseDayData {
@@ -244,16 +249,24 @@ export function BrowseGridClient({
                   role={isBreak ? undefined : 'button'}
                   tabIndex={isBreak ? undefined : 0}
                   onClick={isBreak ? undefined : () => setExpandedId((cur) => (cur === s.id ? null : s.id))}
+                  title={s.conflictsWithBooking ? 'Conflicts with a session you already booked' : undefined}
                   className={
                     isBreak
                       ? 'flex-1 border-s-2 border-charcoal/20 py-1 ps-2 text-xs text-charcoal/50 dark:border-gray-700 dark:text-gray-500'
-                      : 'flex min-w-[220px] flex-1 cursor-pointer flex-col gap-1 rounded-md border border-charcoal/10 bg-warm-white p-2 dark:border-gray-700 dark:bg-gray-900'
+                      : `flex min-w-[220px] flex-1 cursor-pointer flex-col gap-1 rounded-md border p-2 ${
+                          s.conflictsWithBooking
+                            ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20'
+                            : 'border-charcoal/10 bg-warm-white dark:border-gray-700 dark:bg-gray-900'
+                        }`
                   }
                 >
                   {!isBreak && (
                     <span className="flex items-center gap-1.5 text-[10px] font-medium text-charcoal/60 dark:text-gray-400">
                       <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.blockColor }} />
                       {activeDay.legendItems.find((t) => t.id === s.trackId)?.name}
+                      {s.conflictsWithBooking && (
+                        <span className="text-amber-700 dark:text-amber-400">· Conflicts with a booking</span>
+                      )}
                     </span>
                   )}
                   <span className="text-sm font-semibold">{s.title}</span>
@@ -299,12 +312,26 @@ export function BrowseGridClient({
             isWaitlisted: s.isWaitlisted,
             isFull: s.isFull,
             isPastDeadline: s.isPastDeadline,
+            conflictsWithBooking: s.conflictsWithBooking,
           }))}
           emptyState={
             <Card className="py-10 text-center text-sm text-charcoal/50 dark:text-gray-400">{emptyDayLabel}</Card>
           }
           renderBlock={(s, textColor) => (
-            <div className="flex h-full flex-col gap-1 p-1.5" style={{ color: textColor }}>
+            // Dimmed (not hidden) when this session conflicts with an
+            // existing booking -- an opacity overlay inside renderBlock's
+            // own returned JSX rather than touching AgendaTimeGrid's shared
+            // backgroundColor styling, which this participant page and the
+            // admin Sessions page both depend on unchanged. title="..."
+            // gives a hover explanation; the block stays fully clickable
+            // (Book still works and gets the same named-conflict error
+            // from book_session -- this is an early visual warning, not a
+            // hard block, since the real check already lives server-side).
+            <div
+              className="flex h-full flex-col gap-1 p-1.5"
+              style={{ color: textColor, opacity: s.conflictsWithBooking ? 0.45 : 1 }}
+              title={s.conflictsWithBooking ? 'Conflicts with a session you already booked' : undefined}
+            >
               {/* No `truncate` -- the full title always shows, wrapping to
                   multiple lines if needed, per explicit user feedback that
                   a cut-off title is worse than a taller block (see
