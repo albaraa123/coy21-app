@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useRef } from 'react';
+import { useId, useState, useTransition, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,14 @@ export function LocalInfoManager({
   const [images, setImages] = useState(initialImages);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // IDs for the general (non-section-scoped) image upload form's two
+  // fields, which render once per component instance -- useId() is
+  // stable there. The per-section upload form below (inside
+  // sections.map()) instead derives its ids from section.id, since
+  // useId() gives only one stable id per component call, not one per
+  // map iteration.
+  const generalImageInputId = useId();
+  const generalCaptionInputId = useId();
 
   // Per-section expanded state
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -175,12 +183,15 @@ export function LocalInfoManager({
         </div>
         <form onSubmit={(e) => handleUploadImage(e, null)} className="flex flex-wrap gap-2 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-charcoal/60 dark:text-gray-400">Image (max 5 MB)</label>
-            <Input ref={fileRef} name="file" type="file" accept="image/*" required
+            <label htmlFor={generalImageInputId} className="text-xs text-charcoal/60 dark:text-gray-400">Image (max 5 MB)</label>
+            <Input ref={fileRef} id={generalImageInputId} name="file" type="file" accept="image/*" required
               className="text-sm file:mr-2 file:rounded file:border-0 file:bg-turquoise file:px-3 file:py-1 file:text-white file:text-xs" />
           </div>
-          <Input name="caption" placeholder="Caption (optional)"
-            className="flex-1 min-w-36 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
+          <div className="flex flex-col gap-1">
+            <label htmlFor={generalCaptionInputId} className="text-xs text-charcoal/60 dark:text-gray-400">Caption (optional)</label>
+            <Input id={generalCaptionInputId} name="caption" placeholder="Caption (optional)"
+              className="min-w-36 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
+          </div>
           <Button type="submit" disabled={isPending}>Upload</Button>
         </form>
       </Card>
@@ -283,10 +294,16 @@ export function LocalInfoManager({
                     </div>
                   )}
                   <form onSubmit={(e) => handleUploadImage(e, section.id)} className="flex flex-wrap gap-2 items-end">
-                    <Input name="file" type="file" accept="image/*" required
-                      className="text-sm file:mr-2 file:rounded file:border-0 file:bg-turquoise file:px-3 file:py-1 file:text-white file:text-xs" />
-                    <Input name="caption" placeholder="Caption (optional)"
-                      className="flex-1 min-w-36 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor={`${section.id}-image`} className="text-xs text-charcoal/60 dark:text-gray-400">Image (max 5 MB)</label>
+                      <Input id={`${section.id}-image`} name="file" type="file" accept="image/*" required
+                        className="text-sm file:mr-2 file:rounded file:border-0 file:bg-turquoise file:px-3 file:py-1 file:text-white file:text-xs" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor={`${section.id}-caption`} className="text-xs text-charcoal/60 dark:text-gray-400">Caption (optional)</label>
+                      <Input id={`${section.id}-caption`} name="caption" placeholder="Caption (optional)"
+                        className="min-w-36 rounded-md border border-charcoal/20 bg-white px-3 py-1.5 text-sm text-charcoal placeholder:text-charcoal/40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500" />
+                    </div>
                     <Button type="submit" disabled={isPending} variant="secondary">Upload</Button>
                   </form>
                 </div>

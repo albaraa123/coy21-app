@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,6 +30,8 @@ const AUDIENCES: { key: AudienceKey; label: string; description: string }[] = [
 ];
 
 export function ComposeForm() {
+  const subjectInputId = useId();
+  const bodyInputId = useId();
   const [audience, setAudience] = useState<AudienceKey>('all_accepted');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -133,10 +135,11 @@ export function ComposeForm() {
 
       {/* Subject */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-charcoal dark:text-gray-200">
+        <label htmlFor={subjectInputId} className="text-sm font-medium text-charcoal dark:text-gray-200">
           Subject
         </label>
         <Input
+          id={subjectInputId}
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
@@ -147,13 +150,14 @@ export function ComposeForm() {
 
       {/* Body */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-charcoal dark:text-gray-200">
+        <label htmlFor={bodyInputId} className="text-sm font-medium text-charcoal dark:text-gray-200">
           Message body
         </label>
         <p className="text-xs text-charcoal/50 dark:text-gray-500">
           Use <code className="font-mono">{'{{name}}'}</code> to insert the recipient&apos;s name.
         </p>
         <Textarea
+          id={bodyInputId}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={10}

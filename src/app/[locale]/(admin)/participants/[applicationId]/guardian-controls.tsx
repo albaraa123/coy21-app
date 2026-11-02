@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
@@ -19,6 +19,8 @@ export default function GuardianControls({
   guardianPhone: string | null;
 }) {
   const t = useTranslations('participants.guardian');
+  const nameInputId = useId();
+  const phoneInputId = useId();
   const [name, setName] = useState(guardianName ?? '');
   const [phone, setPhone] = useState(guardianPhone ?? '');
   const [busy, setBusy] = useState(false);
@@ -51,8 +53,9 @@ export default function GuardianControls({
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{t('name')}</label>
+            <label htmlFor={nameInputId} className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{t('name')}</label>
             <Input
+              id={nameInputId}
               className="rounded-md border border-charcoal/20 bg-transparent px-2 py-1.5 text-sm text-charcoal dark:border-gray-700 dark:text-gray-100"
               value={name}
               disabled={busy}
@@ -60,7 +63,7 @@ export default function GuardianControls({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{t('phone')}</label>
+            <label htmlFor={phoneInputId} className="text-xs font-medium text-charcoal/70 dark:text-gray-400">{t('phone')}</label>
             <PhoneInput
               international
               countryCallingCodeEditable={false}
@@ -69,6 +72,7 @@ export default function GuardianControls({
               disabled={busy}
               onChange={(v) => setPhone(v ?? '')}
               className="rounded-md border border-charcoal/20 bg-transparent px-2 py-1.5 text-sm text-charcoal dark:border-gray-700 dark:text-gray-100"
+              numberInputProps={{ id: phoneInputId }}
             />
           </div>
         </div>
