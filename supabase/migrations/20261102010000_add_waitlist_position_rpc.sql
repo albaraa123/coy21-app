@@ -20,7 +20,7 @@
 -- (already promoted, withdrawn, or never joined) -- the caller should
 -- treat an empty result as "nothing to show", not an error.
 create or replace function get_waitlist_position(p_application_id uuid, p_session_id uuid)
-returns table (position int, total_waiting int)
+returns table ("position" int, total_waiting int)
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_joined_at timestamptz;
