@@ -10,12 +10,17 @@
 --
 -- Fix: both conflict queries now select the conflicting session's
 -- title_en (English only, matching this function's existing
--- English-only notification convention from 20261031210000) into the
--- exception message. No change to when a conflict is raised, only what
--- the message says. Redefined from the latest prior definition
--- (20261031210000_english_only_notification_titles.sql) -- every other
--- line (locking, capacity/deadline checks, the notification insert)
--- unchanged.
+-- English-only notification convention from 20261031210000) and append
+-- it after a colon, keeping the original "Time conflict with an
+-- existing booking" / "Time conflict with an assigned session" prefix
+-- verbatim (not reworded to "your existing booking" etc.) --
+-- tests/agenda/booking-allocation-conflict-live.test.ts asserts on that
+-- exact prefix via toContain(), so the prefix must stay byte-for-byte
+-- identical; only the ": <title>" suffix is new. No change to when a
+-- conflict is raised, only what the message says. Redefined from the
+-- latest prior definition (20261031210000_english_only_notification_
+-- titles.sql) -- every other line (locking, capacity/deadline checks,
+-- the notification insert) unchanged.
 drop function if exists book_session(uuid, uuid);
 
 create or replace function book_session(p_application_id uuid, p_session_id uuid)
@@ -70,7 +75,7 @@ begin
   limit 1;
 
   if v_conflicting_title is not null then
-    raise exception 'Time conflict with your existing booking: %', v_conflicting_title;
+    raise exception 'Time conflict with an existing booking: %', v_conflicting_title;
   end if;
 
   select s.title_en into v_conflicting_title
@@ -83,7 +88,7 @@ begin
   limit 1;
 
   if v_conflicting_title is not null then
-    raise exception 'Time conflict with your assigned session: %', v_conflicting_title;
+    raise exception 'Time conflict with an assigned session: %', v_conflicting_title;
   end if;
 
   insert into session_bookings (application_id, session_id)
