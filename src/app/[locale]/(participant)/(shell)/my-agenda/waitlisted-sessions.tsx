@@ -21,8 +21,21 @@ type WaitlistEntry = {
   sessions: Session | null;
 };
 
+type WaitlistPosition = {
+  entryId: string;
+  position: number | null;
+  totalWaiting: number | null;
+};
+
 type Props = {
   entries: WaitlistEntry[];
+  // One entry per waitlisted session, from get_waitlist_position (see its
+  // own migration comment) -- null position/totalWaiting means the RPC
+  // call failed or returned no row (should be rare: the entry came from
+  // the same 'waiting' query the position lookup re-checks), in which
+  // case the badge below falls back to the plain "Waitlisted" label
+  // rather than showing a misleading number.
+  positions: WaitlistPosition[];
   locale: string;
 };
 
@@ -30,10 +43,11 @@ type Props = {
 // successful "Leave waitlist" removes the row immediately instead of
 // WaitlistButton locally flipping to its "Join waitlist" branch under a
 // now-stale "Waitlisted" badge -- see the onLeft prop on WaitlistButton.
-export function WaitlistedSessions({ entries, locale }: Props) {
+export function WaitlistedSessions({ entries, positions, locale }: Props) {
   const [left, setLeft] = useState<Set<string>>(new Set());
 
   const visible = entries.filter((e) => !left.has(e.id));
+  const positionByEntryId = new Map(positions.map((p) => [p.entryId, p]));
 
   if (visible.length === 0) return null;
 
@@ -50,6 +64,9 @@ export function WaitlistedSessions({ entries, locale }: Props) {
         const room = s.rooms ? (locale === 'ar' ? s.rooms.name_ar : s.rooms.name_en) : '';
         const start = formatConferenceTime(s.start_time, locale === 'ar' ? 'ar' : 'en');
         const end = formatConferenceTime(s.end_time, locale === 'ar' ? 'ar' : 'en');
+        const pos = positionByEntryId.get(entry.id);
+        const positionLabel =
+          pos?.position != null && pos.totalWaiting != null ? `Waitlisted — #${pos.position} of ${pos.totalWaiting}` : 'Waitlisted';
 
         return (
           <Card key={entry.id} className="flex flex-row items-start gap-3 py-3">
@@ -61,7 +78,7 @@ export function WaitlistedSessions({ entries, locale }: Props) {
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
-              <Badge variant="waitlisted">Waitlisted</Badge>
+              <Badge variant="waitlisted">{positionLabel}</Badge>
               <WaitlistButton
                 sessionId={s.id}
                 isWaitlisted={true}

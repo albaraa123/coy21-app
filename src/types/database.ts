@@ -4138,6 +4138,13 @@ export type Database = {
           title: string
         }[]
       }
+      get_waitlist_position: {
+        Args: { p_application_id: string; p_session_id: string }
+        Returns: {
+          position: number
+          total_waiting: number
+        }[]
+      }
       is_encryption_key_version_active: {
         Args: { p_key_version: number }
         Returns: boolean

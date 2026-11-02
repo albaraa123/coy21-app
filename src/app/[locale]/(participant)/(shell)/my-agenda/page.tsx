@@ -75,6 +75,26 @@ export default async function MyAgendaPage() {
     .eq('status', 'waiting')
     .order('joined_at');
 
+  // Queue position for each waitlist entry -- "am I wasting my time?" had
+  // no answer in the UI before this (see get_waitlist_position's own
+  // migration comment). One RPC call per entry rather than a single
+  // batched query: get_waitlist_position is SECURITY DEFINER and scoped
+  // to exactly one (application_id, session_id) pair by design (RLS on
+  // session_waitlist itself only ever lets a participant read their OWN
+  // row -- this function is the one narrow, audited exception that counts
+  // other participants' rows without exposing them), and a participant
+  // realistically has at most a handful of active waitlist entries, so
+  // the fan-out cost here is negligible.
+  const waitlistPositions = await Promise.all(
+    (waitlistRows ?? []).map(async (entry) => {
+      const { data } = await supabase.rpc('get_waitlist_position', {
+        p_application_id: application.id,
+        p_session_id: entry.session_id,
+      });
+      return { entryId: entry.id, position: data?.[0]?.position ?? null, totalWaiting: data?.[0]?.total_waiting ?? null };
+    })
+  );
+
   // Global booking-closing deadline (a singleton row) -- mirrors
   // session_effective_deadline()'s own least(global, per-session) logic
   // client-side, so AgendaDay's "Cancel" button reflects the same hard
@@ -99,7 +119,7 @@ export default async function MyAgendaPage() {
       </div>
 
       <MountReveal delayMs={0}>
-        <WaitlistedSessions entries={waitlistRows ?? []} locale={locale} />
+        <WaitlistedSessions entries={waitlistRows ?? []} positions={waitlistPositions} locale={locale} />
       </MountReveal>
 
       {sessionsByDay.length === 0 ? (
