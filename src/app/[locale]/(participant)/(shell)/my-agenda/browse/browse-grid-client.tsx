@@ -334,16 +334,18 @@ export function BrowseGridClient({
             // from book_session -- this is an early visual warning, not a
             // hard block, since the real check already lives server-side).
             <div
-              className="flex h-full flex-col gap-1 p-1.5"
+              className="flex h-full flex-col gap-1 overflow-hidden p-1.5"
               style={{ color: textColor, opacity: s.conflictsWithBooking ? 0.45 : 1 }}
-              title={s.conflictsWithBooking ? 'Conflicts with a session you already booked' : undefined}
+              title={s.conflictsWithBooking ? `Conflicts with a session you already booked\n${s.title}` : s.title}
             >
-              {/* No `truncate` -- the full title always shows, wrapping to
-                  multiple lines if needed, per explicit user feedback that
-                  a cut-off title is worse than a taller block (see
-                  agenda-time-grid.tsx's minHeightPx comment for the
-                  matching layout-side change). */}
-              <span className="text-xs font-semibold leading-snug">{s.title}</span>
+              {/* Clamped to 3 lines -- a reversal of this block's earlier
+                  "never truncate" stance: unclamped titles on short (e.g.
+                  15-min) time slots grew taller than their actual slot and
+                  visually overlapped the next session below them, since
+                  blocks are position:absolute and don't push siblings.
+                  Full title is always available via the div's title=
+                  tooltip above. */}
+              <span className="line-clamp-3 text-xs font-semibold leading-snug">{s.title}</span>
               <div className="mt-auto">
                 {s.isMandatory ? null : s.alreadyBooked ? (
                   <span className="text-[10px] font-medium">✓ Booked</span>

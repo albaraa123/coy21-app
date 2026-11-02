@@ -52,6 +52,14 @@ export interface AgendaTimeGridSession extends GridInputSession {
 const MINUTE_HEIGHT_PX = 1.6;
 const HEADER_HEIGHT_PX = 44;
 const HOUR_LABEL_WIDTH_PX = 56;
+// A hour mark exactly at rangeStartMinutes (the grid's very first session
+// start) sits at top: 0 with -translate-y-1/2, pushing half its text above
+// the grid's own top edge where it gets clipped by the body's own
+// overflow. 12px of top padding, applied to both the hour-label column and
+// every room column (and subtracted back out of nothing -- gridHeightPx
+// grows by the same amount so blocks still have room), gives that first
+// label space to render without clipping.
+const TOP_PADDING_PX = 12;
 
 // Default hour-label formatter: hardcoded English AM/PM. This component has
 // no 'use client' and no next-intl dependency (next-intl's getTranslations
@@ -133,7 +141,7 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
   const originalSessionById = new Map(sessions.map((s) => [s.id, s]));
 
   const totalMinutes = Math.max(layout.rangeEndMinutes - layout.rangeStartMinutes, 60);
-  const gridHeightPx = totalMinutes * minuteHeightPx;
+  const gridHeightPx = totalMinutes * minuteHeightPx + TOP_PADDING_PX;
 
   // Hour marks at the top of every hour within range, plus the exact start.
   const hourMarks: number[] = [];
@@ -167,7 +175,7 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
             <div
               key={m}
               className="absolute start-0 w-full -translate-y-1/2 pe-2 text-end text-xs text-charcoal/50 dark:text-gray-500"
-              style={{ top: (m - layout.rangeStartMinutes) * minuteHeightPx }}
+              style={{ top: (m - layout.rangeStartMinutes) * minuteHeightPx + TOP_PADDING_PX }}
             >
               {formatHourLabel(m)}
             </div>
@@ -183,7 +191,7 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
                 key={m}
                 aria-hidden="true"
                 className="absolute start-0 w-full border-t border-charcoal/5 dark:border-gray-800"
-                style={{ top: (m - layout.rangeStartMinutes) * minuteHeightPx }}
+                style={{ top: (m - layout.rangeStartMinutes) * minuteHeightPx + TOP_PADDING_PX }}
               />
             ))}
 
@@ -192,7 +200,7 @@ export function AgendaTimeGrid<TSession extends AgendaTimeGridSession>({
               .map((s) => {
                 const block = blockById.get(s.id);
                 if (!block) return null;
-                const topPx = (block.startMinutes - layout.rangeStartMinutes) * minuteHeightPx;
+                const topPx = (block.startMinutes - layout.rangeStartMinutes) * minuteHeightPx + TOP_PADDING_PX;
                 // minHeightPx (not a fixed height) + no overflow-hidden,
                 // per explicit user feedback: a short time slot's block
                 // must still show its FULL title even if that means
