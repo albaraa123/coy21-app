@@ -118,7 +118,7 @@ export default async function BrowseSessionsPage() {
   const now = new Date();
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-10">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-6 md:p-10">
       <div className="flex items-center gap-3">
         <Link
           href="/my-agenda"
