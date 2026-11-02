@@ -44,6 +44,7 @@
 // sign-in step above already uses.
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -115,9 +116,14 @@ export default function LogInPage() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-charcoal dark:text-gray-200">
-            {t('passwordLabel')}
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="text-sm font-medium text-charcoal dark:text-gray-200">
+              {t('passwordLabel')}
+            </label>
+            <Link href="/forgot-password" className="text-xs font-medium text-turquoise hover:underline">
+              {t('forgotPasswordLink')}
+            </Link>
+          </div>
           <Input
             id="password"
             value={password}
