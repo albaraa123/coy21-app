@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { completeOnboarding } from './actions';
+import { SLIDE_ILLUSTRATIONS } from './slide-illustrations';
 
 const SLIDE_KEYS = ['slide1', 'slide2', 'slide3', 'slide4', 'slide5', 'slide6', 'slide7', 'slide8'] as const;
 
@@ -27,6 +28,7 @@ export function WelcomeWalkthrough() {
 
   const isLast = index === SLIDE_KEYS.length - 1;
   const slideKey = SLIDE_KEYS[index];
+  const Illustration = SLIDE_ILLUSTRATIONS[index];
 
   async function handleAdvance() {
     if (!isLast) {
@@ -63,12 +65,15 @@ export function WelcomeWalkthrough() {
         </span>
       </div>
 
-      <div key={slideKey} className="flex flex-col gap-4">
-        <span className="text-xs font-semibold uppercase tracking-wide text-turquoise">{t(`${slideKey}.eyebrow`)}</span>
-        <h1 className="font-serif text-2xl font-semibold leading-tight text-charcoal dark:text-gray-100 sm:text-3xl">
-          {t(`${slideKey}.title`)}
-        </h1>
-        <p className="text-base leading-relaxed text-charcoal/70 dark:text-gray-400">{t(`${slideKey}.body`)}</p>
+      <div key={slideKey} className="flex flex-col gap-5">
+        <Illustration />
+        <div className="flex flex-col gap-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-turquoise">{t(`${slideKey}.eyebrow`)}</span>
+          <h1 className="font-serif text-2xl font-semibold leading-tight text-charcoal dark:text-gray-100 sm:text-3xl">
+            {t(`${slideKey}.title`)}
+          </h1>
+          <p className="text-base leading-relaxed text-charcoal/70 dark:text-gray-400">{t(`${slideKey}.body`)}</p>
+        </div>
       </div>
 
       {error && (

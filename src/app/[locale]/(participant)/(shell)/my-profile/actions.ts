@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 
 // ---------------------------------------------------------------------------
 // Emergency contacts
@@ -102,6 +102,22 @@ export async function saveIdentity(input: IdentityInput): Promise<{ error?: stri
     .update({ full_name: input.fullName, avatar_path: input.avatarPath, phone: input.phone })
     .eq('id', user.id);
   if (profileError) return { error: profileError.message };
+
+  // Mirror the name onto applications.full_name too -- a SEPARATE column
+  // with no trigger or other sync keeping it aligned with profiles.full_name
+  // (confirmed: no sync migration touches both, and applications_update_own_draft's
+  // RLS policy only lets a participant write to their OWN application while
+  // it's still status='draft' -- by the time someone is on My Profile their
+  // application is normally already accepted, so the regular `supabase`
+  // client above cannot write here; must use service-role). Several surfaces
+  // read applications.full_name directly instead of profiles.full_name (QR
+  // display, admission lookup, funding, travel ops, notification emails),
+  // so without this mirror a name correction on My Profile would silently
+  // never reach any of them. Best-effort: a participant with no submitted
+  // application yet (no matching row) is not an error -- there's nothing to
+  // sync to.
+  const service = createServiceRoleClient();
+  await service.from('applications').update({ full_name: input.fullName }).eq('applicant_id', user.id);
 
   // email is NOT written to profiles directly (the grant no longer
   // allows it -- see 20261025000200_narrow_profiles_email_grant.sql).
