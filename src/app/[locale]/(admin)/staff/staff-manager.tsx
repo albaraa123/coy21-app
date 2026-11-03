@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { createStaffAccount, updateStaffRole, deleteStaffAccount } from './actions';
+import BulkImportForm from './bulk-import-form';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,7 @@ const EMPTY_FORM = { fullName: '', email: '', role: 'staff' as string, password:
 export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editRole, setEditRole] = useState('');
@@ -39,13 +41,22 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
   function startCreate() {
     setError(null);
     setCreating(true);
+    setBulkImporting(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
+  }
+
+  function startBulkImport() {
+    setError(null);
+    setBulkImporting(true);
+    setCreating(false);
+    setEditingId(null);
   }
 
   function cancel() {
     setError(null);
     setCreating(false);
+    setBulkImporting(false);
     setEditingId(null);
     setConfirmDelete(null);
   }
@@ -176,11 +187,14 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
       </div>
 
       {/* Add staff button */}
-      {!creating && (
-        <div>
+      {!creating && !bulkImporting && (
+        <div className="flex gap-2">
           <Button onClick={startCreate}>Add Staff Member</Button>
+          <Button variant="secondary" onClick={startBulkImport}>Bulk Import from Excel</Button>
         </div>
       )}
+
+      {bulkImporting && <BulkImportForm onClose={cancel} />}
 
       {/* Create form */}
       {creating && (
