@@ -72,7 +72,7 @@ export default async function ParticipantShellLayout({ children }: { children: R
   const service = createServiceRoleClient();
   const { data: profile } = await service
     .from('profiles')
-    .select('role, full_name, must_change_password, avatar_path')
+    .select('role, full_name, must_change_password, has_completed_onboarding, avatar_path')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -98,6 +98,20 @@ export default async function ParticipantShellLayout({ children }: { children: R
   // regardless of this flag — no special-casing needed.
   if (profile?.must_change_password) {
     redirect({ href: '/change-password', locale });
+    return;
+  }
+
+  // First-login walkthrough gate (same shape as must_change_password
+  // above, checked second so a participant who still owes BOTH a password
+  // change and the walkthrough always sees the password change first --
+  // the walkthrough references real platform UI, which is more confusing
+  // to see before finishing account setup). has_completed_onboarding
+  // defaults false for every participant, including ones who claimed
+  // their account before this gate existed, so everyone sees /welcome
+  // exactly once. See welcome/actions.ts's completeOnboarding() for where
+  // this flips to true.
+  if (!profile?.has_completed_onboarding) {
+    redirect({ href: '/welcome', locale });
     return;
   }
 

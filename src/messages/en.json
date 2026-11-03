@@ -269,6 +269,52 @@
     "sameAsTemporaryError": "Please choose a different password than the temporary one",
     "success": "Password changed"
   },
+  "welcome": {
+    "progressLabel": "Step {current} of {total}",
+    "next": "Next",
+    "finish": "Go to my dashboard",
+    "finishing": "Finishing…",
+    "slide1": {
+      "eyebrow": "Welcome",
+      "title": "Welcome to COY21 Türkiye 2026",
+      "body": "You're in. This quick walkthrough covers everything you need to know before November — it takes about two minutes."
+    },
+    "slide2": {
+      "eyebrow": "The menu",
+      "title": "My Program is where you'll live",
+      "body": "Your sidebar has nine items. My Program is your real schedule — what you're booked into, and where you browse to add more. Conference Program, despite the similar name, is a separate, older page that stays empty for everyone. If you ever land there and see nothing, that's expected — head back to My Program."
+    },
+    "slide3": {
+      "eyebrow": "Booking",
+      "title": "Most of your schedule is already set",
+      "body": "112 sessions run across three days. Registration, Plenaries, Breaks, and Culture — 23 sessions — happen automatically; there's nothing to book. Side Events — 89 sessions — are yours to choose. Open My Program → Browse Sessions, pick what interests you, and tap Book."
+    },
+    "slide4": {
+      "eyebrow": "Check-in",
+      "title": "One QR code, every day",
+      "body": "My QR Code is your personal check-in pass. Staff scan it at the venue entrance and at each session to confirm your attendance. Save a screenshot to your phone before you fly — it works even without wifi."
+    },
+    "slide5": {
+      "eyebrow": "Before you travel",
+      "title": "Two things to finish before you fly",
+      "body": "Submit your flight details under My Travel as soon as you've booked them — it's how the team plans your arrival. And double-check your photo, phone number, and emergency contacts are current under My Profile."
+    },
+    "slide6": {
+      "eyebrow": "On the ground",
+      "title": "Antalya essentials, bookmarked",
+      "body": "Venue Map has every room pinned with walking directions. Local Info covers transport, what to bring, and emergency numbers — the general line for police, ambulance, and fire is 112."
+    },
+    "slide7": {
+      "eyebrow": "Day of",
+      "title": "Your morning checklist",
+      "body": "Before you leave for the venue: QR code saved and reachable offline, badge on you, today's Side Events confirmed in My Program, water and comfortable shoes — most of the day is on your feet."
+    },
+    "slide8": {
+      "eyebrow": "That's it",
+      "title": "You're ready",
+      "body": "Everything here is reachable again anytime from the menu. See you in Antalya."
+    }
+  },
   "participants": {
     "overview": {
       "title": "Participants",
