@@ -17,6 +17,7 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { requireSuperAdmin } from '@/lib/auth/require-super-admin';
 import { loadWorkbook } from '@/lib/import/workbook-parser';
+import { sendRoleWelcomeEmail, type RoleWelcomeEmailRole } from '@/lib/email/resend';
 
 const XLSX_MAGIC_BYTES = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // ZIP local-file-header signature -- .xlsx is a ZIP container
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB -- generous for a ~40-row, 2-column sheet
@@ -180,4 +181,70 @@ export async function bulkCreateStaffAccounts(
   }
 
   return { results, createdCount, failedCount };
+}
+
+export type WelcomeEmailSendResult =
+  | { email: string; status: 'sent' }
+  | { email: string; status: 'failed'; error: string };
+
+// Sends the role-aware welcome email (sendRoleWelcomeEmail) to each
+// just-created account from a bulkCreateStaffAccounts batch. Deliberately
+// NOT auto-triggered by bulkCreateStaffAccounts itself -- the admin
+// reviews the created-accounts table first and clicks a separate "Send
+// Welcome Emails" button, same explicit-confirmation requirement as every
+// other outbound email batch in this codebase (sandbox mode, confirmation
+// phrases, etc.).
+const sendWelcomeEmailsRowSchema = z.object({
+  fullName: z.string().trim().min(2),
+  email: z.string().trim().toLowerCase().email(),
+});
+
+export async function sendWelcomeEmailsForBatch(
+  rows: { fullName: string; email: string }[],
+  role: (typeof STAFF_ROLES)[number],
+  temporaryPassword: string
+): Promise<{ results: WelcomeEmailSendResult[]; sentCount: number; failedCount: number }> {
+  await requireSuperAdmin();
+
+  if (temporaryPassword.length < 8) throw new Error('Password must be at least 8 characters');
+
+  // scanner_device accounts use sendLoginDetailsEmail's existing flow
+  // (wired up separately), not this richer role-aware template -- the
+  // role types diverge deliberately (RoleWelcomeEmailRole has no
+  // scanner_device variant).
+  if (role === 'scanner_device') {
+    throw new Error('Use the existing login-details email flow for scanner_device accounts');
+  }
+  const welcomeRole = role as RoleWelcomeEmailRole;
+
+  const results: WelcomeEmailSendResult[] = [];
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (const row of rows) {
+    const parsed = sendWelcomeEmailsRowSchema.safeParse(row);
+    if (!parsed.success) {
+      results.push({ email: row.email, status: 'failed', error: parsed.error.issues[0]?.message ?? 'Invalid row' });
+      failedCount++;
+      continue;
+    }
+
+    const { error } = await sendRoleWelcomeEmail({
+      to: parsed.data.email,
+      fullName: parsed.data.fullName,
+      temporaryPassword,
+      role: welcomeRole,
+    });
+
+    if (error) {
+      results.push({ email: parsed.data.email, status: 'failed', error });
+      failedCount++;
+      continue;
+    }
+
+    results.push({ email: parsed.data.email, status: 'sent' });
+    sentCount++;
+  }
+
+  return { results, sentCount, failedCount };
 }

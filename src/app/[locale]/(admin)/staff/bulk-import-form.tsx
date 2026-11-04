@@ -8,7 +8,12 @@
 // overlap with the single-account create/edit form already there.
 import { useState } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { bulkCreateStaffAccounts, type BulkImportRowResult } from './bulk-import-actions';
+import {
+  bulkCreateStaffAccounts,
+  sendWelcomeEmailsForBatch,
+  type BulkImportRowResult,
+  type WelcomeEmailSendResult,
+} from './bulk-import-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -27,6 +32,11 @@ export default function BulkImportForm({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<{ results: BulkImportRowResult[]; createdCount: number; failedCount: number } | null>(null);
+  const [sendingEmails, setSendingEmails] = useState(false);
+  const [emailResults, setEmailResults] = useState<{ results: WelcomeEmailSendResult[]; sentCount: number; failedCount: number } | null>(
+    null
+  );
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +59,25 @@ export default function BulkImportForm({ onClose }: { onClose: () => void }) {
       setError(err instanceof Error ? err.message : 'Bulk import failed');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSendWelcomeEmails() {
+    if (!results) return;
+    const createdRows = results.results
+      .filter((r): r is Extract<BulkImportRowResult, { status: 'created' }> => r.status === 'created')
+      .map((r) => ({ fullName: r.fullName, email: r.email }));
+    if (createdRows.length === 0) return;
+
+    setEmailError(null);
+    setSendingEmails(true);
+    try {
+      const outcome = await sendWelcomeEmailsForBatch(createdRows, role as 'staff' | 'super_admin' | 'scanner_device', password);
+      setEmailResults(outcome);
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to send welcome emails');
+    } finally {
+      setSendingEmails(false);
     }
   }
 
@@ -153,6 +182,59 @@ export default function BulkImportForm({ onClose }: { onClose: () => void }) {
               </tbody>
             </table>
           </div>
+          {results.createdCount > 0 && (role === 'staff' || role === 'super_admin') && !emailResults && (
+            <div className="flex flex-col gap-2 rounded-md border border-charcoal/10 bg-white p-3">
+              <p className="text-xs text-charcoal/70">
+                Send each newly-created account a welcome email with their login details and the same password set above.
+              </p>
+              {emailError && (
+                <p role="alert" className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {emailError}
+                </p>
+              )}
+              <div>
+                <Button type="button" onClick={handleSendWelcomeEmails} disabled={sendingEmails}>
+                  {sendingEmails ? 'Sending…' : `Send Welcome Emails (${results.createdCount})`}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {emailResults && (
+            <div className="flex flex-col gap-2 rounded-md border border-charcoal/10 bg-white p-3">
+              <p className="text-sm font-medium text-charcoal">
+                {emailResults.sentCount} email{emailResults.sentCount === 1 ? '' : 's'} sent
+                {emailResults.failedCount > 0 && `, ${emailResults.failedCount} failed`}.
+              </p>
+              <div className="max-h-60 overflow-y-auto rounded-md border border-charcoal/10">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-charcoal/10 bg-white text-charcoal/60">
+                      <th scope="col" className="px-3 py-2 text-start font-semibold">Email</th>
+                      <th scope="col" className="px-3 py-2 text-start font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-charcoal/10">
+                    {emailResults.results.map((r) => (
+                      <tr key={r.email}>
+                        <td className="px-3 py-2 text-charcoal/70">{r.email}</td>
+                        <td className="px-3 py-2">
+                          {r.status === 'sent' ? (
+                            <span className="text-green-700">Sent</span>
+                          ) : (
+                            <span className="text-red-700" title={r.error}>
+                              Failed: {r.error}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div>
             <Button type="button" onClick={onClose}>
               Done
