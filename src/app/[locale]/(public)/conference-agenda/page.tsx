@@ -45,6 +45,8 @@ type PublicSession = {
   session_code: string;
   title_ar: string;
   title_en: string;
+  description_ar: string | null;
+  description_en: string | null;
   start_time: string;
   end_time: string;
   language: string;
@@ -60,7 +62,7 @@ export default async function AgendaPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, session_code, title_ar, title_en, start_time, end_time, language, rooms(name_ar, name_en), tracks(name_ar, name_en), session_types(code, name_ar, name_en)')
+    .select('id, session_code, title_ar, title_en, description_ar, description_en, start_time, end_time, language, rooms(name_ar, name_en), tracks(name_ar, name_en), session_types(code, name_ar, name_en)')
     .eq('is_public', true)
     .order('start_time', { ascending: true });
 

@@ -32,6 +32,8 @@ type PublicSession = {
   session_code: string;
   title_ar: string;
   title_en: string;
+  description_ar: string | null;
+  description_en: string | null;
   start_time: string;
   end_time: string;
   language: string;
@@ -101,6 +103,7 @@ export function AgendaSchedule({
           <div className="mt-4 flex flex-col gap-3">
             {daySessions.map((session) => {
               const title = locale === 'ar' ? session.title_ar : session.title_en;
+              const description = locale === 'ar' ? session.description_ar : session.description_en;
               const roomName = session.rooms ? (locale === 'ar' ? session.rooms.name_ar : session.rooms.name_en) : null;
               const trackName = session.tracks ? (locale === 'ar' ? session.tracks.name_ar : session.tracks.name_en) : null;
               const accent = (session.session_types && SESSION_TYPE_COLORS[session.session_types.code]) || DEFAULT_SESSION_TYPE_COLOR;
@@ -114,6 +117,7 @@ export function AgendaSchedule({
                     {formatTime(session.start_time)} – {formatTime(session.end_time)} · {timezoneLabel}
                   </div>
                   <p className="mt-1 text-base font-semibold text-charcoal">{title}</p>
+                  {description && <p className="mt-0.5 text-sm text-charcoal/60">{description}</p>}
                   <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-charcoal/70">
                     {roomName && <span>{roomName}</span>}
                     {trackName && <span>{trackName}</span>}
