@@ -9,7 +9,7 @@
 import { requireAdmissionStaffCaller } from '@/lib/admission/server-helpers';
 import { writeAuditLog } from '@/lib/agenda/server-helpers';
 import { provisionParticipantAccount, resetToTemporaryPassword, APPROVED_TEMP_PASSWORD } from '@/lib/auth/provision-participant-account';
-import { sendLoginDetailsEmail } from '@/lib/email/resend';
+import { sendRoleWelcomeEmail } from '@/lib/email/resend';
 import { reclassifyApplication } from '@/lib/participants/reclassify';
 import { CHUNK_SIZE } from '@/lib/validation/import';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -139,10 +139,11 @@ export async function sendLoginDetailsForCaller(
       .update({ email_status: 'sending', last_send_attempt_at: new Date().toISOString(), updated_by: userId })
       .eq('application_id', applicationId);
 
-    const { id: resendEmailId, error: sendError } = await sendLoginDetailsEmail({
+    const { id: resendEmailId, error: sendError } = await sendRoleWelcomeEmail({
       to: row.normalized_email,
       fullName: application?.full_name || row.normalized_email,
       temporaryPassword: APPROVED_TEMP_PASSWORD,
+      role: 'delegate',
     });
 
     if (sendError) {
