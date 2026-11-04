@@ -202,7 +202,7 @@ export async function sendRoleWelcomeEmail(params: {
 
   const html = buildBrandedEmailHtml({
     locale: 'en',
-    heading: 'Welcome — your account is ready',
+    heading: 'Welcome, Your account is ready!',
     paragraphs: [
       `Hello ${params.fullName},`,
       content.intro,
