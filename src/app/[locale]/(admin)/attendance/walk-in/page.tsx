@@ -13,7 +13,7 @@
 // /api/admit-walk-in Route Handler, since this page has exactly one
 // action to perform.
 import { getLocale, getTranslations } from 'next-intl/server';
-import { redirect } from '@/i18n/routing';
+import { redirect, Link } from '@/i18n/routing';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import WalkInAdmissionForm from './walk-in-admission-form';
@@ -49,6 +49,17 @@ export default async function WalkInAdmissionPage() {
     <div className="p-4 md:p-6">
       <h1 className="mb-2 text-lg font-semibold text-charcoal dark:text-gray-100">{t('title')}</h1>
       <p className="mb-4 text-sm text-charcoal/70 dark:text-gray-400 md:mb-6">{t('description')}</p>
+      {profile?.role === 'staff' && (
+        <div className="mb-6 flex flex-col gap-2 rounded-lg border border-charcoal/10 bg-warm-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-charcoal/70 dark:text-gray-400">{t('scanSessionsHint')}</p>
+          <Link
+            href="/scanner"
+            className="inline-flex shrink-0 items-center justify-center rounded-md bg-turquoise px-4 py-2 text-sm font-medium text-white hover:bg-turquoise/90"
+          >
+            {t('scanSessionsLink')}
+          </Link>
+        </div>
+      )}
       <MountReveal delayMs={0}>
         <WalkInAdmissionForm sessions={sessions ?? []} />
       </MountReveal>

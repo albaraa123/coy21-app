@@ -1827,6 +1827,8 @@
   "walkInAdmission": {
     "title": "Walk-In Admission",
     "description": "Admit an accepted participant who did not book this session in advance, directly at the door.",
+    "scanSessionsLink": "Scan Sessions",
+    "scanSessionsHint": "Been assigned to scan a session or venue entry point? Open the scanning screen here.",
     "session": "Session",
     "selectSession": "Select a session",
     "identifierLabel": "Application number or applicant name",
