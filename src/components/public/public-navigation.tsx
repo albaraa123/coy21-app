@@ -21,17 +21,31 @@ export function PublicNavigation({ className = '', onNavigate }: { className?: s
   return (
     <nav className={className} aria-label={t('mainNavigation')}>
       <ul className="flex flex-col gap-1 md:flex-row md:items-center md:gap-6">
-        {PUBLIC_NAV_LINKS.map((link) => (
-          <li key={link.href}>
-            <Link
-              href={link.href}
-              onClick={onNavigate}
-              className="block rounded-md px-2 py-2 text-sm font-medium text-charcoal/80 transition-colors hover:text-charcoal md:px-0 md:py-0"
-            >
-              {t(link.labelKey)}
-            </Link>
-          </li>
-        ))}
+        {PUBLIC_NAV_LINKS.map((link) =>
+          link.external ? (
+            <li key={link.href}>
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onNavigate}
+                className="block rounded-md px-2 py-2 text-sm font-medium text-charcoal/80 transition-colors hover:text-charcoal md:px-0 md:py-0"
+              >
+                {t(link.labelKey)}
+              </a>
+            </li>
+          ) : (
+            <li key={link.href}>
+              <Link
+                href={link.href}
+                onClick={onNavigate}
+                className="block rounded-md px-2 py-2 text-sm font-medium text-charcoal/80 transition-colors hover:text-charcoal md:px-0 md:py-0"
+              >
+                {t(link.labelKey)}
+              </Link>
+            </li>
+          )
+        )}
       </ul>
     </nav>
   );

@@ -19,6 +19,8 @@
 export interface PublicNavLink {
   labelKey: string;
   href: string;
+  /** External file (e.g. a downloadable PDF) rather than an internal route — rendered as a plain <a>, not next-intl's locale-aware Link. */
+  external?: boolean;
 }
 
 /** Primary public navigation, in display order. */
@@ -42,6 +44,7 @@ export const PUBLIC_NAV_LINKS: PublicNavLink[] = [
   { labelKey: 'partners', href: '/partners' },
   { labelKey: 'contact', href: '/contact' },
   { labelKey: 'accessibility', href: '/accessibility' },
+  { labelKey: 'safeguardingPolicy', href: '/documents/COY21-Safeguarding-Policy.pdf', external: true },
 ];
 
 /** Footer legal/utility links (in addition to a subset of the nav above). */
