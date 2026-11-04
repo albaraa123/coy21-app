@@ -904,7 +904,10 @@
     "footer": {
       "tagline": "COY21 Turkiye 2026, the global youth climate conference co-organised by YOUNGO.",
       "linksHeading": "Links",
-      "rights": "All rights reserved."
+      "rights": "All rights reserved.",
+      "incidentReportHeading": "Need help or support?",
+      "incidentReportDescription": "If you need to report an incident, a safeguarding concern, or request help or support during the conference, scan the QR code or use the link below. Reports are confidential.",
+      "incidentReportLinkLabel": "Open the incident & support request form"
     },
     "comingSoon": {
       "title": "Content will be published soon",
