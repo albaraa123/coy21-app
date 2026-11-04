@@ -162,6 +162,7 @@ const ROLE_WELCOME_CONTENT: Record<
       "The first time you log in, you'll go through a short welcome walkthrough that shows you around the platform — your profile, the session agenda, and your personal QR code.",
       'Your QR code (under "My QR Code" once logged in) is what you use to check into sessions and the venue — keep it accessible on your phone during the conference.',
       'Under "My Agenda" you can browse all sessions and book the ones you want to attend, alongside the mandatory sessions already on your schedule.',
+      "Choose the sessions you want for each time slot and click Book. The plenaries, breaks and evening programme are open to everyone and don't need booking.",
     ],
     closing: 'If you run into any issue logging in or anything looks incorrect on your profile, reach out on the support address below.',
   },
