@@ -130,7 +130,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       triggerAriaLabel={t('triggerAriaLabel')}
       navTranslations={navTranslations}
       sandboxBanner={
-        emailSettings.sandboxEnabled ? (
+        emailSettings.sandboxEnabled && profile?.role === 'super_admin' ? (
           <SandboxBanner locale={locale} recipientEmail={emailSettings.sandboxRecipientEmail} />
         ) : null
       }
