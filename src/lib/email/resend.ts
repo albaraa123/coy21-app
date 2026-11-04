@@ -123,7 +123,7 @@ export async function sendLoginDetailsEmail(params: {
 // or allocation-answer data -- only name, username, temporary password,
 // login URL, and support contact, same privacy boundary as every other
 // credential email in this file.
-export type RoleWelcomeEmailRole = 'staff' | 'super_admin' | 'delegate';
+export type RoleWelcomeEmailRole = 'staff' | 'super_admin' | 'delegate' | 'scanner_device';
 
 const ROLE_WELCOME_CONTENT: Record<
   RoleWelcomeEmailRole,
@@ -164,6 +164,19 @@ const ROLE_WELCOME_CONTENT: Record<
       'Under "My Agenda" you can browse all sessions and book the ones you want to attend, alongside the mandatory sessions already on your schedule.',
     ],
     closing: 'If you run into any issue logging in or anything looks incorrect on your profile, reach out on the support address below.',
+  },
+  scanner_device: {
+    subject: 'Welcome to the COY21 Türkiye 2026 volunteer team — your account is ready',
+    intro:
+      "Thank you for joining the COY21 Türkiye 2026 volunteer team. Your platform account has been created, and you'll be using it throughout the conference (5–7 November, Antalya) to scan participants into their assigned sessions and venue entry points.",
+    whatYouCanDo: [
+      "Log in with the username and temporary password below. You'll be asked to set your own password on first login — this is required before you can do anything else.",
+      "Once logged in, you'll land directly on your scanning screen, showing the session(s) or entry point you're assigned to for right now. Your coordinator will confirm your specific assignment (which sessions, which gate, which day) closer to the event.",
+      'Use your phone to scan the QR code on each participant\'s badge — a green confirmation means they are cleared, a red one means they are not and should be referred to the help desk.',
+      'If a participant has an issue (lost badge, scan error, access question), do not try to resolve it yourself — send them to the registration/help desk.',
+    ],
+    closing:
+      "If you have any trouble logging in or using the scanning screen, contact the support address below before the conference starts so we can sort it out in advance.",
   },
 };
 

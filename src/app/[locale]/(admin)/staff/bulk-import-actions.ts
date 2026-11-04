@@ -208,13 +208,6 @@ export async function sendWelcomeEmailsForBatch(
 
   if (temporaryPassword.length < 8) throw new Error('Password must be at least 8 characters');
 
-  // scanner_device accounts use sendLoginDetailsEmail's existing flow
-  // (wired up separately), not this richer role-aware template -- the
-  // role types diverge deliberately (RoleWelcomeEmailRole has no
-  // scanner_device variant).
-  if (role === 'scanner_device') {
-    throw new Error('Use the existing login-details email flow for scanner_device accounts');
-  }
   const welcomeRole = role as RoleWelcomeEmailRole;
 
   const results: WelcomeEmailSendResult[] = [];

@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { requireSuperAdmin } from '@/lib/auth/require-super-admin';
+import { sendRoleWelcomeEmail, type RoleWelcomeEmailRole } from '@/lib/email/resend';
 
 // As of the 2026-09-29 staff role consolidation (see
 // docs/superpowers/specs/2026-09-29-staff-role-consolidation-design.md),
@@ -79,4 +80,75 @@ export async function deleteStaffAccount(staffId: string) {
 
   const { error } = await service.auth.admin.deleteUser(staffId);
   if (error) throw new Error(error.message);
+}
+
+export type ExistingStaffWelcomeEmailResult =
+  | { id: string; email: string; status: 'sent' }
+  | { id: string; email: string; status: 'failed'; error: string };
+
+const sendExistingStaffWelcomeEmailsSchema = z.object({
+  staffIds: z.array(z.string().uuid()).min(1),
+  temporaryPassword: z.string().min(8),
+});
+
+// Sends sendRoleWelcomeEmail to a selection of already-existing staff/
+// super_admin/scanner_device accounts, picked from the Staff Management
+// table (not a fresh bulk-import batch -- see bulk-import-actions.ts's
+// sendWelcomeEmailsForBatch for that case). Needed because the real COY21
+// volunteer cohort includes 42 scanner_device accounts created earlier in
+// a prior session, before this welcome-email flow existed -- there is no
+// "batch" to hand this one, only a set of existing profile rows to pick
+// from the table. The caller supplies ONE password for the whole
+// selection (matching the shared-password pattern every other bulk
+// account action in this file uses) since Supabase never exposes a
+// user's actual password hash back out -- this codebase has no way to
+// recover what password an existing account was created with, so the
+// admin must know and re-enter it themselves.
+export async function sendExistingStaffWelcomeEmails(
+  input: z.infer<typeof sendExistingStaffWelcomeEmailsSchema>
+): Promise<{ results: ExistingStaffWelcomeEmailResult[]; sentCount: number; failedCount: number }> {
+  const { service } = await requireSuperAdmin();
+  const parsed = sendExistingStaffWelcomeEmailsSchema.parse(input);
+
+  const { data: rows, error: fetchError } = await service
+    .from('profiles')
+    .select('id, full_name, email, role')
+    .in('id', parsed.staffIds);
+  if (fetchError) throw new Error(fetchError.message);
+
+  const results: ExistingStaffWelcomeEmailResult[] = [];
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (const id of parsed.staffIds) {
+    const row = rows?.find((r) => r.id === id);
+    if (!row || !row.email) {
+      results.push({ id, email: row?.email ?? '', status: 'failed', error: 'Account not found or has no email' });
+      failedCount++;
+      continue;
+    }
+    if (!STAFF_ROLES.includes(row.role as StaffRole)) {
+      results.push({ id, email: row.email, status: 'failed', error: `Unsupported role: ${row.role}` });
+      failedCount++;
+      continue;
+    }
+
+    const { error } = await sendRoleWelcomeEmail({
+      to: row.email,
+      fullName: row.full_name || row.email,
+      temporaryPassword: parsed.temporaryPassword,
+      role: row.role as RoleWelcomeEmailRole,
+    });
+
+    if (error) {
+      results.push({ id, email: row.email, status: 'failed', error });
+      failedCount++;
+      continue;
+    }
+
+    results.push({ id, email: row.email, status: 'sent' });
+    sentCount++;
+  }
+
+  return { results, sentCount, failedCount };
 }

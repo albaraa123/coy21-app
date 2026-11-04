@@ -2,7 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { createStaffAccount, updateStaffRole, deleteStaffAccount } from './actions';
+import {
+  createStaffAccount,
+  updateStaffRole,
+  deleteStaffAccount,
+  sendExistingStaffWelcomeEmails,
+  type ExistingStaffWelcomeEmailResult,
+} from './actions';
 import BulkImportForm from './bulk-import-form';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +43,45 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sendingEmails, setSendingEmails] = useState(false);
+  const [welcomeEmailPassword, setWelcomeEmailPassword] = useState('');
+  const [emailResults, setEmailResults] = useState<{
+    results: ExistingStaffWelcomeEmailResult[];
+    sentCount: number;
+    failedCount: number;
+  } | null>(null);
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => (prev.size === staff.length ? new Set() : new Set(staff.map((m) => m.id))));
+  }
+
+  async function handleSendWelcomeEmails() {
+    if (selectedIds.size === 0) return;
+    setError(null);
+    setEmailResults(null);
+    setSendingEmails(true);
+    try {
+      const outcome = await sendExistingStaffWelcomeEmails({
+        staffIds: Array.from(selectedIds),
+        temporaryPassword: welcomeEmailPassword,
+      });
+      setEmailResults(outcome);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send welcome emails');
+    } finally {
+      setSendingEmails(false);
+    }
+  }
 
   function startCreate() {
     setError(null);
@@ -132,6 +177,14 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-charcoal/10 bg-warm-white text-xs text-charcoal/60">
+                <th scope="col" className="px-4 py-3 text-start font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={staff.length > 0 && selectedIds.size === staff.length}
+                    onChange={toggleSelectAll}
+                    aria-label="Select all staff accounts"
+                  />
+                </th>
                 <th scope="col" className="px-4 py-3 text-start font-semibold">Name</th>
                 <th scope="col" className="px-4 py-3 text-start font-semibold">Email</th>
                 <th scope="col" className="px-4 py-3 text-start font-semibold">Role</th>
@@ -141,6 +194,14 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
             <tbody className="divide-y divide-charcoal/10">
               {staff.map((member) => (
                 <tr key={member.id}>
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(member.id)}
+                      onChange={() => toggleSelected(member.id)}
+                      aria-label={`Select ${member.full_name || member.email}`}
+                    />
+                  </td>
                   <td className="px-4 py-3 font-medium text-charcoal">{member.full_name || '—'}</td>
                   <td className="px-4 py-3 text-charcoal/70">{member.email}</td>
                   <td className="px-4 py-3">
@@ -185,6 +246,74 @@ export default function StaffManager({ staff }: { staff: StaffProfile[] }) {
           </table>
         )}
       </div>
+
+      {/* Bulk welcome email for selected existing accounts */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-col gap-3 rounded-lg border border-charcoal/10 bg-warm-white p-5">
+          <h2 className="text-sm font-semibold text-charcoal">
+            Send Welcome Emails to {selectedIds.size} selected account{selectedIds.size === 1 ? '' : 's'}
+          </h2>
+          <p className="text-xs text-charcoal/60">
+            Enter the password these accounts already use to log in — this is only to include it in the email, it does not
+            change anything.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className={labelClass}>
+              Password
+              <Input
+                type="password"
+                value={welcomeEmailPassword}
+                onChange={(e) => setWelcomeEmailPassword(e.target.value)}
+                minLength={8}
+                placeholder="Min. 8 characters"
+                className={inputClass}
+              />
+            </label>
+            <Button
+              type="button"
+              onClick={handleSendWelcomeEmails}
+              disabled={sendingEmails || welcomeEmailPassword.length < 8}
+            >
+              {sendingEmails ? 'Sending…' : `Send Welcome Emails (${selectedIds.size})`}
+            </Button>
+          </div>
+
+          {emailResults && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-charcoal">
+                {emailResults.sentCount} email{emailResults.sentCount === 1 ? '' : 's'} sent
+                {emailResults.failedCount > 0 && `, ${emailResults.failedCount} failed`}.
+              </p>
+              <div className="max-h-60 overflow-y-auto rounded-md border border-charcoal/10">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-charcoal/10 bg-white text-charcoal/60">
+                      <th scope="col" className="px-3 py-2 text-start font-semibold">Email</th>
+                      <th scope="col" className="px-3 py-2 text-start font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-charcoal/10">
+                    {emailResults.results.map((r) => (
+                      <tr key={r.id}>
+                        <td className="px-3 py-2 text-charcoal/70">{r.email}</td>
+                        <td className="px-3 py-2">
+                          {r.status === 'sent' ? (
+                            <span className="text-green-700">Sent</span>
+                          ) : (
+                            <span className="text-red-700" title={r.error}>
+                              Failed: {r.error}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add staff button */}
       {!creating && !bulkImporting && (
