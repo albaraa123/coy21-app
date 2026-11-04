@@ -1,0 +1,129 @@
+{
+  "_note": "Backup/documentation of the 9 sessions deleted from the COY21 sessions table during the Nov 2026 D1/D2/D3 agenda final-sync work. Reconstructed from data observed during the pre-delete verification queries run in this session (bookings confirmed at 0 for all 9 before deletion), not a live database export, since the deletion was already executed before the user's explicit backup instruction arrived.",
+  "deleted_at": "2026-11-04",
+  "project_ref": "vfwcbkjvinbtcntwjrzq",
+  "sessions": [
+    {
+      "session_code": "D1-10",
+      "title_en": "Burning Compost: Participatory Art for Climate Wellbeing",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T10:00:00+00:00",
+      "end_time": "2026-11-05T10:45:00+00:00",
+      "room_code": "R06",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-11",
+      "title_en": "Ancient Water Wisdom for a Changing Climate: What Oasis Communities Can Teach Future Climate Leaders",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T10:00:00+00:00",
+      "end_time": "2026-11-05T10:45:00+00:00",
+      "room_code": "R08",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-12",
+      "title_en": "From Community Dialogues to COP31: Building National Youth Climate Statements Through Inclusive Local Consultations",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T10:00:00+00:00",
+      "end_time": "2026-11-05T10:45:00+00:00",
+      "room_code": "R09",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-15",
+      "title_en": "UNFCCC Reform: Why It Matters Now",
+      "status_before_delete": "confirmed",
+      "deletion_reason": "Moved to D2 in the final agenda (re-added there as D2-58)",
+      "start_time": "2026-11-05T11:00:00+00:00",
+      "end_time": "2026-11-05T11:45:00+00:00",
+      "room_code": "R05",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-20",
+      "title_en": "Ocean Guardians: Indigenous Pacific Voices",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T12:00:00+00:00",
+      "end_time": "2026-11-05T12:45:00+00:00",
+      "room_code": "R05",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-22",
+      "title_en": "Different Contexts, Common Aspiration — Lake Victoria Voices",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T12:00:00+00:00",
+      "end_time": "2026-11-05T12:45:00+00:00",
+      "room_code": "R07",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-23",
+      "title_en": "Youth, AI and the Future of Climate Action",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T12:00:00+00:00",
+      "end_time": "2026-11-05T12:45:00+00:00",
+      "room_code": "R08",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-25",
+      "title_en": "Beyond the Pledge: Turning Climate Targets into Real Projects",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T13:00:00+00:00",
+      "end_time": "2026-11-05T13:45:00+00:00",
+      "room_code": "R02",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-30",
+      "title_en": "From Seed to Cycle: Ecological Production and Sustainability Workshop",
+      "status_before_delete": "confirmed",
+      "deletion_reason": "Moved to D2 in the final agenda (re-added there as D2-57)",
+      "start_time": "2026-11-05T11:00:00+00:00",
+      "end_time": "2026-11-05T12:30:00+00:00",
+      "room_code": "R10",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D1-32",
+      "title_en": "One Plant, Many Stories",
+      "status_before_delete": "cancelled",
+      "cancellation_reason": "Removed from the final confirmed D1 agenda",
+      "start_time": "2026-11-05T11:00:00+00:00",
+      "end_time": "2026-11-05T12:30:00+00:00",
+      "room_code": "R09",
+      "session_type": "SDE",
+      "bookings_at_delete_time": 0
+    },
+    {
+      "session_code": "D3-28",
+      "title_en": "Lunch + Youth Talent Showcase",
+      "status_before_delete": "confirmed",
+      "deletion_reason": "Not part of the final confirmed D3 agenda",
+      "start_time": "2026-11-07T13:00:00+00:00",
+      "end_time": "2026-11-07T14:00:00+00:00",
+      "room_code": "CAF",
+      "session_type": "BRK",
+      "bookings_at_delete_time": 0
+    }
+  ],
+  "note_on_d3_18_19": "D3-18 and D3-19 were already absent from the database before this cleanup work began -- they are not included above since there was nothing to delete or back up."
+}
