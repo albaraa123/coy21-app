@@ -114,6 +114,121 @@ export async function sendLoginDetailsEmail(params: {
   });
 }
 
+// Richer, role-aware welcome email for bulk-provisioned staff/super_admin
+// accounts (COY21 YOUNGO volunteer cohort, Nov 2026). Distinct from
+// sendLoginDetailsEmail above (kept as-is for its existing callers) --
+// this one explains what the account can actually do day-to-day instead of
+// just handing over credentials, per explicit product request. English-only,
+// same reasoning as sendLoginDetailsEmail. Never includes passport, medical,
+// or allocation-answer data -- only name, username, temporary password,
+// login URL, and support contact, same privacy boundary as every other
+// credential email in this file.
+export type RoleWelcomeEmailRole = 'staff' | 'super_admin' | 'delegate';
+
+const ROLE_WELCOME_CONTENT: Record<
+  RoleWelcomeEmailRole,
+  { subject: string; intro: string; whatYouCanDo: string[]; closing: string }
+> = {
+  staff: {
+    subject: 'Welcome to the COY21 Türkiye 2026 volunteer team — your account is ready',
+    intro:
+      "Thank you for joining the COY21 Türkiye 2026 volunteer team. Your platform account has been created, and you'll be using it throughout the conference (5–7 November, Antalya) to help check participants into sessions and venue entry points.",
+    whatYouCanDo: [
+      "Log in with the username and temporary password below. You'll be asked to set your own password on first login — this is required before you can do anything else.",
+      "Once logged in, you'll see your assigned sessions and/or entry points for each conference day. Your coordinator will confirm your specific assignment (which sessions, which gate, which day) closer to the event.",
+      'At the venue, use the scanning screen on your phone to check in participants by scanning the QR code on their badge — a green confirmation means they are cleared, a red one means they are not and should be referred to the help desk.',
+      'If a participant has an issue (lost badge, scan error, access question), do not try to resolve it yourself — send them to the registration/help desk.',
+    ],
+    closing:
+      "If you have any trouble logging in or using the scanning screen, contact the support address below before the conference starts so we can sort it out in advance.",
+  },
+  super_admin: {
+    subject: 'Welcome to the COY21 Türkiye 2026 organizing team — your account is ready',
+    intro:
+      "Your COY21 Türkiye 2026 platform account has been created with full administrative access, ahead of the conference (5–7 November, Antalya).",
+    whatYouCanDo: [
+      "Log in with the username and temporary password below. You'll be asked to set your own password on first login — this is required before you can access anything else.",
+      'With this account you can manage participant applications, staff accounts, session assignments, attendance, and the other administrative areas of the platform.',
+      'Please treat this access as sensitive — it reaches participant data and can change how check-in and scheduling work live during the conference.',
+    ],
+    closing: 'If anything looks wrong or you need a walkthrough of any admin area, reach out on the support address below.',
+  },
+  delegate: {
+    subject: 'Welcome to COY21 Türkiye 2026 — your account is ready',
+    intro:
+      "Your registration for COY21 Türkiye 2026 (5–7 November, Antalya) has been confirmed, and your participant account is ready.",
+    whatYouCanDo: [
+      "Log in with the username and temporary password below. You'll be asked to set your own password on first login.",
+      "The first time you log in, you'll go through a short welcome walkthrough that shows you around the platform — your profile, the session agenda, and your personal QR code.",
+      'Your QR code (under "My QR Code" once logged in) is what you use to check into sessions and the venue — keep it accessible on your phone during the conference.',
+      'Under "My Agenda" you can browse all sessions and book the ones you want to attend, alongside the mandatory sessions already on your schedule.',
+    ],
+    closing: 'If you run into any issue logging in or anything looks incorrect on your profile, reach out on the support address below.',
+  },
+};
+
+export async function sendRoleWelcomeEmail(params: {
+  to: string;
+  fullName: string;
+  temporaryPassword: string;
+  role: RoleWelcomeEmailRole;
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+  const content = ROLE_WELCOME_CONTENT[params.role];
+
+  const loginUrl = `${config.appUrl}/log-in`;
+  const subject = content.subject;
+
+  const credentialsBlock = `Username: ${params.to}\nTemporary password: ${params.temporaryPassword}\nLogin: ${loginUrl}`;
+  const whatYouCanDoText = content.whatYouCanDo.map((line, i) => `${i + 1}. ${line}`).join('\n');
+
+  const text = [
+    `Hello ${params.fullName},`,
+    '',
+    content.intro,
+    '',
+    credentialsBlock,
+    '',
+    whatYouCanDoText,
+    '',
+    content.closing,
+    '',
+    `Support: ${config.supportEmail}`,
+  ].join('\n');
+
+  const html = buildBrandedEmailHtml({
+    locale: 'en',
+    heading: 'Welcome — your account is ready',
+    paragraphs: [
+      `Hello ${params.fullName},`,
+      content.intro,
+      credentialsBlock,
+      whatYouCanDoText,
+      content.closing,
+      `Support: ${config.supportEmail}`,
+    ],
+    cta: { label: 'Log in', url: loginUrl },
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject,
+    text,
+    html,
+    originalRecipientDescription: `${params.fullName} <${params.to}>`,
+  });
+}
+
 export async function sendClassificationChangeNotificationEmail(params: {
   to: string;
   fullName: string;
