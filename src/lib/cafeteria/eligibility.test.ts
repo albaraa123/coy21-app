@@ -15,11 +15,11 @@ describe('isLunchEligible', () => {
   it('volunteer accepted+confirmed is eligible', () => {
     expect(isLunchEligible({ ...baseApp, participant_type: 'volunteer' }, null)).toBe(true);
   });
-  it('delegate not confirmed is NOT eligible', () => {
-    expect(isLunchEligible({ ...baseApp, participant_type: 'delegate', attendance_confirmation: 'not_confirmed' }, null)).toBe(false);
+  it('delegate not confirmed IS eligible (no confirmation requirement)', () => {
+    expect(isLunchEligible({ ...baseApp, participant_type: 'delegate', attendance_confirmation: 'not_confirmed' }, null)).toBe(true);
   });
-  it('delegate not accepted is NOT eligible', () => {
-    expect(isLunchEligible({ ...baseApp, participant_type: 'delegate', status: 'waitlisted' }, null)).toBe(false);
+  it('delegate not accepted IS eligible (no acceptance requirement)', () => {
+    expect(isLunchEligible({ ...baseApp, participant_type: 'delegate', status: 'waitlisted' }, null)).toBe(true);
   });
   it('knowledge_partner is NOT eligible regardless of status', () => {
     expect(isLunchEligible({ ...baseApp, participant_type: 'knowledge_partner' }, null)).toBe(false);

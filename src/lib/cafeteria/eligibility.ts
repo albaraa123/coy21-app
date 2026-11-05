@@ -1,7 +1,7 @@
 //
-// Single source of truth for lunch eligibility (design spec: delegates/
-// volunteers who are accepted+confirmed, or any staff/super_admin
-// account). Used identically at credential issuance, My QR Code card
+// Single source of truth for lunch eligibility: every delegate and
+// volunteer (no acceptance/confirmation requirement), or any staff/
+// super_admin account. Used identically at credential issuance, My QR Code card
 // visibility, and scan-time re-check — never re-derived elsewhere.
 import { isStaffRole } from '@/lib/auth/is-staff-role';
 import type { Database } from '@/types/database';
@@ -20,9 +20,7 @@ export function isLunchEligible(
   if (
     application &&
     application.participant_type != null &&
-    (ELIGIBLE_PARTICIPANT_TYPES as readonly string[]).includes(application.participant_type) &&
-    application.status === 'accepted' &&
-    application.attendance_confirmation === 'confirmed'
+    (ELIGIBLE_PARTICIPANT_TYPES as readonly string[]).includes(application.participant_type)
   ) {
     return true;
   }
