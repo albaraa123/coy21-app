@@ -21,7 +21,9 @@ import type { Database } from '@/types/database';
 import { parseCanonicalQrPayload, hashQrToken } from './qr-token-crypto';
 import { getScannerParticipantSummary, type ScannerParticipantSummary } from './participant-summary';
 import { isTransportShapedError, isLockContentionError } from '@/lib/supabase/upstream-error';
-import { toByteaHexOrNull } from '@/lib/supabase/bytea-hex';
+import { toByteaHexOrNull, toByteaHex } from '@/lib/supabase/bytea-hex';
+import { parseCanonicalCafeteriaPayload, hashCafeteriaToken } from '@/lib/cafeteria/token';
+import { computeTimeSlotGroupKeyForSession } from './time-slot-lookup';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -104,10 +106,37 @@ export async function scanQrAttemptConfirmForCaller(
   const scope = await verifyScannerScope(service, userId, params.sessionId);
   if (!scope.ok) return scope.outcome;
 
+  // A participant may present their cafeteria QR ("cafe:v1:...") instead of
+  // their conference QR. Resolve it to the same application and run the
+  // exact same admission decision (scan_attempt_transactional), so this one
+  // scanner accepts both codes. Unknown/staff-only cafeteria codes fall
+  // through to the normal path and are rejected as invalid_qr as before.
+  let cafeApplicationId: string | null = null;
+  const cafe = parseCanonicalCafeteriaPayload(params.qrPayload);
+  if (cafe.ok) {
+    const { data: cafeCred } = await service
+      .from('cafeteria_credentials')
+      .select('application_id')
+      .eq('token_hash', toByteaHex(hashCafeteriaToken(cafe.rawToken)))
+      .maybeSingle();
+    cafeApplicationId = cafeCred?.application_id ?? null;
+  }
+
   const parsed = parseCanonicalQrPayload(params.qrPayload);
   const tokenHash = parsed.ok ? hashQrToken(parsed.rawToken) : null;
 
-  const { data, error } = await service.rpc('scan_qr_attempt_transactional', {
+  const { data, error } = cafeApplicationId
+    ? await service.rpc('scan_attempt_transactional', {
+        p_application_id: cafeApplicationId,
+        p_session_id: params.sessionId,
+        p_scanned_by: userId,
+        p_device_identifier: params.deviceIdentifier as string,
+        p_time_slot_group_key: await computeTimeSlotGroupKeyForSession(service, params.sessionId),
+        p_is_override_caller: false,
+        p_scanner_user_id: userId,
+        p_idempotency_key: idempotencyKey,
+      })
+    : await service.rpc('scan_qr_attempt_transactional', {
     // Same known Supabase CLI type-gen gap as p_device_identifier below —
     // the SQL parameter genuinely accepts null (see toByteaHexOrNull above).
     p_token_hash: toByteaHexOrNull(tokenHash) as string,
