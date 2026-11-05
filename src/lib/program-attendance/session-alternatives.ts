@@ -332,7 +332,13 @@ export async function getAlternativesForTimeslotForCaller(
     .eq('application_id', applicationId)
     .in('session_id', candidateIds)
     .in('status', ['proposed', 'confirmed']);
-  const recommendedSessionIds = new Set((recommendedRows ?? []).map((r) => r.session_id));
+  const { data: bookedRows } = await service
+    .from('session_bookings')
+    .select('session_id')
+    .eq('application_id', applicationId)
+    .in('session_id', candidateIds)
+    .eq('status', 'active');
+  const recommendedSessionIds = new Set([...(recommendedRows ?? []), ...(bookedRows ?? [])].map((r) => r.session_id));
 
   const { data: thisSlotAttendance } = await service
     .from('attendance_records')

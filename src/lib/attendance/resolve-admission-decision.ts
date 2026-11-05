@@ -112,7 +112,9 @@ export function resolveAdmissionDecision(input: AdmissionDecisionInput): Admissi
       if (sessionCounts.totalAdmitted < session.capacity && sessionCounts.admittedFlexibleCount < flexiblePool) {
         return { result: 'flexible_admitted', entryType: 'flexible' };
       }
-      return { result: 'priority_hold', entryType: null };
+      // Not booked and seats not released: booking required (mirrors
+      // 20261105000100_scan_requires_active_booking.sql).
+      return { result: 'restricted_denied', entryType: null };
     }
   }
 }

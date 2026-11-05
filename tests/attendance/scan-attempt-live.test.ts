@@ -544,7 +544,7 @@ describe('scanAttemptConfirmForCaller / scanAttemptPreviewForCaller — live RPC
       const { applicationId } = await createApplicant('release-1');
 
       const before = await scanAttemptConfirmForCaller({ applicationId, sessionId, deviceIdentifier: null }, caller());
-      expect(before.result).toBe('priority_hold');
+      expect(before.result).toBe('restricted_denied');
       const { data: recordsBefore } = await admin.from('attendance_records').select('*').eq('application_id', applicationId).eq('session_id', sessionId);
       expect(recordsBefore).toHaveLength(0);
 

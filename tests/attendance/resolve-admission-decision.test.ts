@@ -105,7 +105,7 @@ describe('resolveAdmissionDecision', () => {
       // capacity=10, prioritySeats=6 -> flexible pool pre-release = 10-6 = 4.
       // 4 flexible already admitted -> pool exhausted -> hold, even pre-release.
       const sessionCounts = { ...baseCounts, totalAdmitted: 4, admittedFlexibleCount: 4 };
-      expect(resolveAdmissionDecision(input({ isRecommended: false, sessionCounts })).result).toBe('priority_hold');
+      expect(resolveAdmissionDecision(input({ isRecommended: false, sessionCounts })).result).toBe('restricted_denied');
     });
 
     it('flexibly admits a non-recommended participant before release timing while the flexible pool has room', () => {
@@ -117,7 +117,7 @@ describe('resolveAdmissionDecision', () => {
 
     it('holds a non-recommended participant when the flexible pool is exhausted and priority seats are not yet released', () => {
       const sessionCounts = { ...baseCounts, totalAdmitted: 4, admittedFlexibleCount: 4, admittedPriorityCount: 0 };
-      expect(resolveAdmissionDecision(input({ isRecommended: false, sessionCounts })).result).toBe('priority_hold');
+      expect(resolveAdmissionDecision(input({ isRecommended: false, sessionCounts })).result).toBe('restricted_denied');
     });
 
     it('flexibly admits a non-recommended participant into a released-but-unused priority seat after release timing', () => {
@@ -138,13 +138,13 @@ describe('resolveAdmissionDecision', () => {
     it('manual override (flexibleEntryManualOverride=false) keeps flexible entry closed even after the automatic release time', () => {
       const session = { ...baseSession, priorityReleaseAt: '2026-09-19T08:50:00Z', flexibleEntryManualOverride: false };
       const sessionCounts = { ...baseCounts, totalAdmitted: 4, admittedFlexibleCount: 4, admittedPriorityCount: 0 };
-      expect(resolveAdmissionDecision(input({ session, isRecommended: false, sessionCounts })).result).toBe('priority_hold');
+      expect(resolveAdmissionDecision(input({ session, isRecommended: false, sessionCounts })).result).toBe('restricted_denied');
     });
 
     it('treats a null priority_seats as "all seats are priority" (effective_priority_pool = capacity)', () => {
       const session = { ...baseSession, prioritySeats: null };
       // flexible pool pre-release = capacity - capacity = 0 -> immediate hold for non-recommended.
-      expect(resolveAdmissionDecision(input({ session, isRecommended: false })).result).toBe('priority_hold');
+      expect(resolveAdmissionDecision(input({ session, isRecommended: false })).result).toBe('restricted_denied');
     });
   });
 });

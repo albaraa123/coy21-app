@@ -279,8 +279,8 @@ describe('scan_attempt_transactional finalized_at regression — every terminal 
     const { applicationId } = await createApplicant('hold');
 
     const result = await scanAttemptConfirmForCaller({ applicationId, sessionId, deviceIdentifier: null }, caller());
-    expect(result.result).toBe('priority_hold');
-    await assertFinalizationCompliant(result.id, 'priority_hold');
+    expect(result.result).toBe('restricted_denied');
+    await assertFinalizationCompliant(result.id, 'restricted_denied');
 
     const { data: records } = await admin.from('attendance_records').select('*').eq('application_id', applicationId).eq('session_id', sessionId);
     expect(records).toHaveLength(0);

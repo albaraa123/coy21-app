@@ -68,7 +68,7 @@ export async function scanAttemptPreviewForCaller(
   // parallelizing these introduces no new correctness risk; it only cuts
   // the sequential round-trip count that otherwise adds up on a
   // live-scanning UI's per-badge latency.
-  const [session, sessionCounts, timeSlotGroupKey, hasThisSessionResult, isRecommendedCountResult] = await Promise.all([
+  const [session, sessionCounts, timeSlotGroupKey, hasThisSessionResult, isRecommendedCountResult, activeBookingCountResult] = await Promise.all([
     loadSessionForAdmission(service, params.sessionId),
     loadSessionCounts(service, params.sessionId),
     computeTimeSlotGroupKeyForSession(service, params.sessionId),
@@ -84,6 +84,12 @@ export async function scanAttemptPreviewForCaller(
       .eq('application_id', params.applicationId)
       .eq('session_id', params.sessionId)
       .in('status', ['proposed', 'confirmed']),
+    service
+      .from('session_bookings')
+      .select('*', { count: 'exact', head: true })
+      .eq('application_id', params.applicationId)
+      .eq('session_id', params.sessionId)
+      .eq('status', 'active'),
   ]);
   const hasThisSession = hasThisSessionResult.count;
   const isRecommendedCount = isRecommendedCountResult.count;
@@ -99,7 +105,7 @@ export async function scanAttemptPreviewForCaller(
   const decision = resolveAdmissionDecision({
     now: new Date(),
     session,
-    isRecommended: (isRecommendedCount ?? 0) > 0,
+    isRecommended: (isRecommendedCount ?? 0) > 0 || (activeBookingCountResult.count ?? 0) > 0,
     hasActiveAttendanceForThisSession: (hasThisSession ?? 0) > 0,
     hasActiveAttendanceForConflictingSession: (hasConflicting ?? 0) > 0,
     sessionCounts,
