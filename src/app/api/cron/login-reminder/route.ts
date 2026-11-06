@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       body:
         `Registration starts at 8:30 AM today (Day 3, 7 November), and your personal QR code is how you check in. ` +
         `You have not logged in to the platform yet, so your QR is not on your phone.\n\n` +
-        `Please log in now at https://register.climatecoy.com with:\n\n` +
+        `Please log in now at https://register.climatecoy.com/en/log-in with:\n\n` +
         `Username: ${neverSignedIn.get(r.auth_user_id!)}\nPassword: password@123\n\n` +
         `(You will be asked to set a new password the first time you log in.)\n\n` +
         `Then open "My QR" and keep it ready to show at the registration desk.`,
