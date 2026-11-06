@@ -369,6 +369,12 @@ export async function GET(req: NextRequest) {
         case 'travel_reminder':
           result = await sendTravelReminderEmail({ to: profile.email, fullName: profile.full_name ?? '', title: r.title, body: r.body, locale });
           break;
+        // A PERSONAL (non-broadcast) announcement addressed to one
+        // application, e.g. "the agenda changed, please re-book". The
+        // broadcast fan-out above only handles is_broadcast rows.
+        case 'announcement':
+          result = await sendAnnouncementEmail({ to: profile.email, fullName: profile.full_name ?? '', title: r.title, body: r.body, locale });
+          break;
         // Any other channel value reaching here is a genuine gap (a new
         // notification_channel enum value added without a matching case) --
         // surfaced immediately as a visible 'failed' row with a clear error
