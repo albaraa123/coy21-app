@@ -716,3 +716,38 @@ export async function sendAnnouncementEmail(params: {
 }
 
 
+
+/**
+ * One-off personal thank-you email to the COY21 team (staff, liaisons, team
+ * leaders and volunteers). Free-form: the caller supplies the subject and the
+ * paragraphs, so it does not add the "Announcement from COY21" framing.
+ */
+export async function sendTeamThankYouEmail(params: {
+  to: string;
+  subject: string;
+  paragraphs: string[];
+}): Promise<{ id: string | null; error: string | null }> {
+  const configResult = getResendConfig();
+  if (!configResult.ok) {
+    return { id: null, error: `Resend not configured: missing ${configResult.missing.join(', ')}` };
+  }
+  const { config } = configResult;
+  const html = buildBrandedEmailHtml({
+    locale: 'en',
+    heading: params.subject,
+    paragraphs: params.paragraphs,
+    logoUrl: `${config.appUrl}/brand/logo/logo-horizontal-white.png`,
+  });
+  const settings = await fetchEmailSettings();
+  return sendEmailGuarded({
+    settings,
+    apiKey: config.apiKey,
+    from: config.fromEmail,
+    replyTo: config.replyToEmail,
+    to: params.to,
+    subject: params.subject,
+    text: params.paragraphs.join('\n\n'),
+    html,
+    originalRecipientDescription: params.to,
+  });
+}
