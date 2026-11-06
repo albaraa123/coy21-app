@@ -52,6 +52,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { sendTeamThankYouEmail } from '@/lib/email/resend';
+import { TEAM_THANKS_LEDGER_TYPE, TEAM_THANKS_QUEUE_TYPE, teamThanksLedgerId } from '@/lib/email/team-thanks';
+import { THANKS_SUBJECT, THANKS_PARAGRAPHS } from '@/app/[locale]/(admin)/attendance/staff-thanks/thanks-content';
 import {
   sendSessionCancellationNotificationEmail,
   sendSessionRescheduleNotificationEmail,
@@ -154,6 +157,57 @@ async function enqueueDay3BookingReminder(service: ReturnType<typeof createServi
   }
 }
 
+// ---------------------------------------------------------------------------
+// One-off: the personal thank-you email to the COY21 team, sent from 06:30
+// Istanbul time on 7 November 2026 (03:30 UTC). The recipient list lives in a
+// private audit_logs row (never in the repository) queued by an admin. A few
+// addresses per run, each claimed in the once-per-address ledger BEFORE the
+// send (released again if the send fails), so overlapping runs or the admin
+// page can never email the same person twice. Isolated by try/catch so it can
+// never block normal notification dispatch.
+// ---------------------------------------------------------------------------
+const TEAM_THANKS_START_MS = Date.UTC(2026, 10, 7, 3, 30);
+const TEAM_THANKS_END_MS = Date.UTC(2026, 10, 7, 9, 0);
+const TEAM_THANKS_PER_RUN = 8;
+
+async function sendQueuedTeamThanks(service: ReturnType<typeof createServiceRoleClient>) {
+  try {
+    const now = Date.now();
+    if (now < TEAM_THANKS_START_MS || now > TEAM_THANKS_END_MS) return;
+    const { data: queue } = await service
+      .from('audit_logs')
+      .select('metadata')
+      .eq('entity_type', TEAM_THANKS_QUEUE_TYPE)
+      .eq('action', 'queued')
+      .limit(1);
+    const emails = ((queue?.[0]?.metadata as { emails?: string[] } | null)?.emails ?? []).filter((e) => typeof e === 'string');
+    if (emails.length === 0) return;
+    const { data: done } = await service
+      .from('audit_logs')
+      .select('entity_id')
+      .eq('entity_type', TEAM_THANKS_LEDGER_TYPE)
+      .eq('action', 'sent')
+      .in('entity_id', emails.map(teamThanksLedgerId));
+    const doneIds = new Set((done ?? []).map((r) => r.entity_id as string));
+    const pending = emails.filter((e) => !doneIds.has(teamThanksLedgerId(e))).slice(0, TEAM_THANKS_PER_RUN);
+    for (const email of pending) {
+      const id = teamThanksLedgerId(email);
+      const { error: claimError } = await service
+        .from('audit_logs')
+        .insert({ entity_type: TEAM_THANKS_LEDGER_TYPE, entity_id: id, action: 'sent', metadata: { email, via: 'scheduled' } });
+      if (claimError) continue;
+      const result = await sendTeamThankYouEmail({ to: email, subject: THANKS_SUBJECT, paragraphs: THANKS_PARAGRAPHS });
+      if (result.error) {
+        await service.from('audit_logs').delete().eq('entity_type', TEAM_THANKS_LEDGER_TYPE).eq('entity_id', id).eq('action', 'sent');
+        console.error('process-notifications: team thanks send failed', { reason: result.error });
+      }
+      await new Promise((res) => setTimeout(res, 600));
+    }
+  } catch (err) {
+    console.error('process-notifications: team thanks run failed', err);
+  }
+}
+
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
@@ -166,6 +220,7 @@ export async function GET(req: NextRequest) {
   const service = createServiceRoleClient();
 
   await enqueueDay3BookingReminder(service);
+  await sendQueuedTeamThanks(service);
 
   // `as never` on 'notifications': same established workaround used
   // throughout this sub-project (e.g. process-session-notifications/route.ts

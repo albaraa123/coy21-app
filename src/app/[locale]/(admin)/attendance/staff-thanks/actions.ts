@@ -9,12 +9,13 @@
 // person, a few at a time so each call stays inside the serverless limit.
 'use server';
 
-import { createHash } from 'node:crypto';
 import { requireAgendaStaffCaller } from '@/lib/agenda/server-helpers';
 import { sendTeamThankYouEmail } from '@/lib/email/resend';
+import { TEAM_THANKS_LEDGER_TYPE, teamThanksLedgerId } from '@/lib/email/team-thanks';
 import { THANKS_SUBJECT, THANKS_PARAGRAPHS } from './thanks-content';
 
-const LEDGER_TYPE = 'team_thank_you';
+const LEDGER_TYPE = TEAM_THANKS_LEDGER_TYPE;
+const ledgerId = teamThanksLedgerId;
 const BATCH_SIZE = 5;
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
@@ -27,11 +28,6 @@ export type ThanksAnalysis = {
   alreadySent: number;
   toSend: string[];
 };
-
-function ledgerId(email: string): string {
-  const h = createHash('md5').update(`team-thanks:${email}`).digest('hex');
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
-}
 
 function parseEmails(raw: string): { valid: string[]; invalid: string[] } {
   const seen = new Set<string>();
