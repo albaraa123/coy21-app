@@ -118,6 +118,42 @@ async function markFailed(
   }
 }
 
+// ---------------------------------------------------------------------------
+// One-off: the Day 3 booking REMINDER, queued at 07:30 Istanbul time on
+// 7 November 2026 (04:30 UTC). This cron already runs every minute, so doing
+// it here gives minute-accurate timing without another scheduled job. Every
+// accepted participant gets one personal announcement (the same channel the
+// first wave used). Idempotent: skipped once any row with this title exists,
+// and wrapped so a failure here can never stop normal notification dispatch.
+// ---------------------------------------------------------------------------
+const DAY3_REMINDER_TITLE = 'Reminder: Day 3 (final day) - please book your Side Event sessions';
+const DAY3_REMINDER_BODY = "Today is Day 3, the final day of COY21. Please book all the Side Event sessions you want to attend today, using the platform.\n\nHOW TO BOOK (takes one minute)\n1. Log in here: https://register.climatecoy.com/en/log-in\n2. Open \"My Program\" and choose the Day 3 Side Event sessions.\n3. Press \"Book\" on each Side Event session you want to attend. You will see a \"Booked\" confirmation.\n   - If a session is full, press \"Join waitlist\" and we will notify you if a seat opens.\n   - You cannot book two sessions that overlap in time. The platform will tell you which one conflicts.\n   - You can cancel a booking from the same page if your plans change.\n\nIMPORTANT\n- Side Events (the breakout sessions in Rooms 1-9) are by booking only. If you have not booked a Side Event, you will not be admitted to it.\n- You do NOT need to book: Registration, Lunch, breaks, the Closing Plenary and the Social & Cultural Evening.\n- The Day 3 agenda was updated. If you had booked Side Events that were moved, your booking is still valid with the new time or room. A few sessions were removed, so please check and rebook if needed.\n- Booking stays open until each session ends, but please book as early as possible.\n\nAT THE DOOR\nOpen \"My QR\" on your phone and show your QR code to the volunteer at the room entrance. Registration is from 8:30 to 9:30 AM in the Main Hall. Your lunch QR is in the same \"My QR\" page.\n\nIf you cannot log in, please come to the registration desk and our team will help you.";
+const DAY3_REMINDER_START_MS = Date.UTC(2026, 10, 7, 4, 30);
+const DAY3_REMINDER_END_MS = Date.UTC(2026, 10, 7, 13, 0);
+
+async function enqueueDay3BookingReminder(service: ReturnType<typeof createServiceRoleClient>) {
+  try {
+    const now = Date.now();
+    if (now < DAY3_REMINDER_START_MS || now > DAY3_REMINDER_END_MS) return;
+    const { count } = await service.from('notifications' as never).select('id', { count: 'exact', head: true }).eq('title', DAY3_REMINDER_TITLE);
+    if ((count ?? 0) > 0) return;
+    const { data: apps } = await service.from('applications').select('id').eq('status', 'accepted');
+    const rows = (apps ?? []).map((a) => ({
+      application_id: a.id,
+      is_broadcast: false,
+      channel: 'announcement',
+      title: DAY3_REMINDER_TITLE,
+      body: DAY3_REMINDER_BODY,
+      link_path: '/my-agenda/browse',
+    }));
+    for (let i = 0; i < rows.length; i += 100) {
+      await service.from('notifications' as never).insert(rows.slice(i, i + 100) as never);
+    }
+  } catch (err) {
+    console.error('process-notifications: day-3 reminder enqueue failed', err);
+  }
+}
+
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
@@ -128,6 +164,8 @@ export async function GET(req: NextRequest) {
   }
 
   const service = createServiceRoleClient();
+
+  await enqueueDay3BookingReminder(service);
 
   // `as never` on 'notifications': same established workaround used
   // throughout this sub-project (e.g. process-session-notifications/route.ts
