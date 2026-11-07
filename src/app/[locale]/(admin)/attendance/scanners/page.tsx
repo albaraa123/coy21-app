@@ -41,7 +41,9 @@ export default async function ScannerAssignmentsPage() {
   const { data: scanners } = await service
     .from('profiles')
     .select('id, full_name, email')
-    .eq('role', 'scanner_device')
+    // staff and super_admin accounts can scan too (same set as SCANNER_DEVICE_ROLES),
+    // so their assignments must resolve to a name instead of a raw id.
+    .in('role', ['scanner_device', 'staff', 'super_admin'])
     .order('full_name', { ascending: true });
 
   const { data: assignments } = await service
